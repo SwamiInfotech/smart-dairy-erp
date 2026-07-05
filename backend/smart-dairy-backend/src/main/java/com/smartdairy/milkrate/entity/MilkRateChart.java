@@ -9,11 +9,13 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
-@Entity
-@Table(name = "milk_rate_chart")
 @Getter
 @Setter
+@Entity
+@Table(name = "milk_rate_chart")
 public class MilkRateChart extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -42,4 +44,8 @@ public class MilkRateChart extends BaseEntity {
 
     @Column(nullable = false)
     private Boolean active = true;
+
+    @OneToMany(mappedBy = "milkRateChart", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<MilkRateChartDetail> details = new ArrayList<>();
+
 }

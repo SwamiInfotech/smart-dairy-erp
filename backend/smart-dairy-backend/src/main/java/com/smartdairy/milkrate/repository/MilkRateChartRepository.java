@@ -10,4 +10,9 @@ public interface MilkRateChartRepository extends JpaRepository<MilkRateChart, Lo
 
     Optional<MilkRateChart> findByUuid(UUID uuid);
 
+    Optional<MilkRateChart> findByBranchIdAndRateCategoryIdAndCollectionMethodIdAndActiveTrue(
+            Long branchId,
+            Long rateCategoryId,
+            Long collectionMethodId);
+
 }

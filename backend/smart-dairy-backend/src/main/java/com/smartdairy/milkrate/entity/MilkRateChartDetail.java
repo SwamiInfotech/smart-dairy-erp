@@ -7,10 +7,10 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 
-@Entity
-@Table(name = "milk_rate_chart_detail")
 @Getter
 @Setter
+@Entity
+@Table(name = "milk_rate_chart_detail")
 public class MilkRateChartDetail extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
