@@ -22,7 +22,7 @@ spring:
     show-sql: true
     hibernate:
       # Use 'update' for dev, 'validate' or 'none' for production
-      ddl-auto: update
+      ddl-auto: validate
     properties:
       hibernate:
         format_sql: true
@@ -30,6 +30,10 @@ spring:
           batch_size: 20
           order_inserts: true
           order_updates: true
+
+  flyway:
+    validate-on-migrate: false
+    baseline-on-migrate: false
 
 # Optional Logging Configuration for Debugging SQL Queries
 logging:
