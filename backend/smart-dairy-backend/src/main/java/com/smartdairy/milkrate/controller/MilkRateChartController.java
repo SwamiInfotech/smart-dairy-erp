@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
+
 @RestController
 @RequestMapping("/api/v1/milk-rate-charts")
 @RequiredArgsConstructor
@@ -30,6 +32,7 @@ public class MilkRateChartController {
                 .body(new ApiResponse<>(
                         true,
                         "Milk Rate Chart created successfully.",
-                        response));
+                        response,
+                        LocalDateTime.now()));
     }
 }

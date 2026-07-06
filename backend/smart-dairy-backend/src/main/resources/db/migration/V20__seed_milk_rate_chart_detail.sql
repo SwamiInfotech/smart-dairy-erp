@@ -1,0 +1,66 @@
+INSERT INTO milk_rate_chart_detail
+(
+    uuid,
+    milk_rate_chart_id,
+    fat_from,
+    fat_to,
+    snf_from,
+    snf_to,
+    rate,
+    created_at,
+    updated_at,
+    version
+)
+VALUES
+
+(
+    gen_random_uuid(),
+    1,
+    6.40,
+    6.49,
+    8.30,
+    8.39,
+    41.00,
+    NOW(),
+    NOW(),
+    0
+),
+
+(
+    gen_random_uuid(),
+    1,
+    6.50,
+    6.59,
+    8.40,
+    8.49,
+    42.00,
+    NOW(),
+    NOW(),
+    0
+),
+
+(
+    gen_random_uuid(),
+    1,
+    6.60,
+    6.69,
+    8.50,
+    8.59,
+    43.00,
+    NOW(),
+    NOW(),
+    0
+),
+
+(
+    gen_random_uuid(),
+    1,
+    6.70,
+    6.79,
+    8.60,
+    8.69,
+    44.00,
+    NOW(),
+    NOW(),
+    0
+);

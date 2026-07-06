@@ -9,6 +9,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+
 @RestController
 @RequestMapping("/api/v1/branches")
 @RequiredArgsConstructor
@@ -26,6 +28,7 @@ public class CreateBranchController {
                 .body(new ApiResponse<>(
                         true,
                         "Branch created successfully.",
-                        response));
+                        response,
+                        LocalDateTime.now()));
     }
 }

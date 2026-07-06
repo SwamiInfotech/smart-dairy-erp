@@ -10,6 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+
 @RestController
 @RequestMapping("/api/v1/farmer-configurations")
 @RequiredArgsConstructor
@@ -27,7 +29,7 @@ public class FarmerConfigurationController {
                 .body(new ApiResponse<>(
                         true,
                         "Farmer configuration created successfully.",
-                        response
-                ));
+                        response,
+                        LocalDateTime.now()));
     }
 }
