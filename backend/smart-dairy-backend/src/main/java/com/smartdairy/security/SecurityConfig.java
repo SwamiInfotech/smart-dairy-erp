@@ -19,6 +19,7 @@ public class SecurityConfig {
                                 "/api/v1/health",
                                 "/api/v1/companies/**",
                                 "/api/v1/farmer-configurations/**",
+                                "/api/v1/loans/**",
                                 "/api/v1/milk-collections/**",
                                 "/api/v1/farmers/**",
                                 "/api/v1/branches/**",
