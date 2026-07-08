@@ -1,11 +1,7 @@
 package com.smartdairy.loan.enums;
 
-public enum LoanStatus {
-
+public enum AdvanceStatus {
     PENDING,
-
     APPROVED,
-
-    CLOSED
-
+    REJECTED
 }

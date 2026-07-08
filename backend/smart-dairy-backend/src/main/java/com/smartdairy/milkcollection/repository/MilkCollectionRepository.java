@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
@@ -41,5 +42,16 @@ public interface MilkCollectionRepository extends JpaRepository<MilkCollection, 
             GROUP BY m.collectionDate
             """)
     Optional<DailyMilkCollectionSummaryResponse> getDailySummary(LocalDate collectionDate);
+
+    @Query("""
+            SELECT COALESCE(SUM(m.grossAmount),0)
+            FROM MilkCollection m
+            WHERE m.farmer.uuid = :farmerUuid
+            AND m.collectionDate BETWEEN :fromDate AND :toDate
+            """)
+    BigDecimal getMilkAmount(
+            UUID farmerUuid,
+            LocalDate fromDate,
+            LocalDate toDate);
 
 }

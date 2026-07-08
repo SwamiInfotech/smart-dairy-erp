@@ -35,12 +35,8 @@ public class UpdateLoanService {
                     "Only pending loan can be updated.");
         }
 
-        loan.setLoanType(request.loanType());
+
         loan.setLoanDate(request.loanDate());
-        loan.setSanctionedAmount(request.sanctionedAmount());
-        loan.setInterestRate(request.interestRate());
-        loan.setTenureMonths(request.tenureMonths());
-        loan.setInstallmentAmount(request.installmentAmount());
         loan.setRemarks(request.remarks());
 
         return mapper.toResponse(repository.save(loan));

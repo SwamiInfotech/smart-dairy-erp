@@ -7,17 +7,17 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 
-public record CreateLoanRequest(
+public record CreateAdvanceRequest(
 
         @NotNull
         UUID farmerUuid,
 
         @NotNull
-        LocalDate loanDate,
+        LocalDate advanceDate,
 
         @NotNull
         @DecimalMin("1")
-        BigDecimal loanAmount,
+        BigDecimal advanceAmount,
 
         String remarks
 

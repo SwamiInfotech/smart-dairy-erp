@@ -1,16 +1,17 @@
 package com.smartdairy.loan.dto;
 
+import com.smartdairy.loan.enums.AdvanceStatus;
 import com.smartdairy.loan.enums.LoanStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 
-public record LoanResponse(
+public record AdvanceResponse(
 
         UUID uuid,
 
-        String loanNo,
+        String advanceNo,
 
         UUID farmerUuid,
 
@@ -18,11 +19,11 @@ public record LoanResponse(
 
         String farmerName,
 
-        LocalDate loanDate,
+        LocalDate advanceDate,
 
-        BigDecimal loanAmount,
+        BigDecimal advanceAmount,
 
-        LoanStatus status,
+        AdvanceStatus status,
 
         String remarks
 
