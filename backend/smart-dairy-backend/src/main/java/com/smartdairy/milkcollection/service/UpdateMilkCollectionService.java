@@ -3,6 +3,7 @@ package com.smartdairy.milkcollection.service;
 
 import com.smartdairy.exception.BusinessException;
 import com.smartdairy.exception.ResourceNotFoundException;
+import com.smartdairy.inventory.service.MilkInventoryService;
 import com.smartdairy.milkcollection.dto.MilkCollectionResponse;
 import com.smartdairy.milkcollection.dto.UpdateMilkCollectionRequest;
 import com.smartdairy.milkcollection.entity.MilkCollection;
@@ -16,6 +17,7 @@ import com.smartdairy.pricing.service.RateResolverService;
 import com.smartdairy.shift.entity.Shift;
 import com.smartdairy.shift.repository.ShiftRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +33,8 @@ public class UpdateMilkCollectionService {
     private final MilkCollectionMapper mapper;
     private final MilkCollectionValidator validator;
     private final RateResolverService rateResolverService;
+    private final MilkInventoryService milkInventoryService;
+
 
     public MilkCollectionResponse update(
             UUID uuid,
@@ -39,6 +43,9 @@ public class UpdateMilkCollectionService {
         validator.validate(request);
 
         MilkCollection entity = findCollection(uuid);
+
+        MilkCollection oldEntity = new MilkCollection();
+        BeanUtils.copyProperties(entity, oldEntity);
 
         validateLocked(entity);
 
@@ -67,6 +74,10 @@ public class UpdateMilkCollectionService {
         entity.setRemarks(request.remarks());
 
         MilkCollection updated = repository.save(entity);
+
+        milkInventoryService.updateStock(
+                oldEntity,
+                updated);
 
         return mapper.toResponse(updated);
     }

@@ -2,6 +2,7 @@ package com.smartdairy.milkcollection.service;
 
 import com.smartdairy.exception.BusinessException;
 import com.smartdairy.exception.ResourceNotFoundException;
+import com.smartdairy.inventory.service.MilkInventoryService;
 import com.smartdairy.milkcollection.entity.MilkCollection;
 import com.smartdairy.milkcollection.repository.MilkCollectionRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ import java.util.UUID;
 public class DeleteMilkCollectionService {
 
     private final MilkCollectionRepository repository;
+    private final MilkInventoryService milkInventoryService;
 
     public void delete(UUID uuid) {
 
@@ -28,6 +30,7 @@ public class DeleteMilkCollectionService {
                     "Locked Milk Collection cannot be deleted.");
         }
 
+        milkInventoryService.reverseStock(entity);
         repository.delete(entity);
     }
 }

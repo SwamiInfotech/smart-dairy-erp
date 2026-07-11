@@ -22,6 +22,8 @@ public class SecurityConfig {
                                 "/api/v1/settlements/**",
                                 "/api/v1/loans/**",
                                 "/api/v1/payments/**",
+                                "/api/v1/products/**",
+                                "/api/v1/production-batches/**",
                                 "/api/v1/milk-collections/**",
                                 "/api/v1/farmers/**",
                                 "/api/v1/branches/**",

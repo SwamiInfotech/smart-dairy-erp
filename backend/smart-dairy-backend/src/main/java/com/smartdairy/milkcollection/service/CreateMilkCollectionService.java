@@ -3,6 +3,7 @@ package com.smartdairy.milkcollection.service;
 import com.smartdairy.exception.ResourceNotFoundException;
 import com.smartdairy.farmer.entity.Farmer;
 import com.smartdairy.farmer.repository.FarmerRepository;
+import com.smartdairy.inventory.service.MilkInventoryService;
 import com.smartdairy.master.entity.MilkType;
 import com.smartdairy.master.repository.MilkTypeRepository;
 import com.smartdairy.milkcollection.dto.CreateMilkCollectionRequest;
@@ -36,6 +37,7 @@ public class CreateMilkCollectionService {
     private final MilkCollectionMapper mapper;
     private final MilkCollectionValidator validator;
     private final RateResolverService rateResolverService;
+    private final MilkInventoryService milkInventoryService;
 
     public MilkCollectionResponse create(CreateMilkCollectionRequest request) {
 
@@ -74,6 +76,7 @@ public class CreateMilkCollectionService {
         entity.setGrossAmount(result.grossAmount());
 
         MilkCollection saved = repository.save(entity);
+        milkInventoryService.stockIn(saved);
 
         return mapper.toResponse(saved);
     }

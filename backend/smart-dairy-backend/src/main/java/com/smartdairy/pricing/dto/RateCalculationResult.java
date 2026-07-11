@@ -1,6 +1,5 @@
 package com.smartdairy.pricing.dto;
 
-import com.smartdairy.farmer.entity.Farmer;
 import com.smartdairy.farmerconfiguration.entity.FarmerConfiguration;
 import com.smartdairy.milkrate.entity.MilkRateChart;
 

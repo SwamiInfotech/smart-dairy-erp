@@ -4,7 +4,6 @@ import com.smartdairy.branch.entity.Branch;
 import com.smartdairy.common.entity.BaseEntity;
 import com.smartdairy.farmer.entity.Farmer;
 import com.smartdairy.loan.enums.AdvanceStatus;
-import com.smartdairy.loan.enums.LoanStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;

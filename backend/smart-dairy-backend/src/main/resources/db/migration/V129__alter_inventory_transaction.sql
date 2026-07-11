@@ -1,0 +1,2 @@
+ALTER TABLE inventory_transaction
+ADD COLUMN reference_type VARCHAR(50) NOT NULL DEFAULT 'ADJUSTMENT';
