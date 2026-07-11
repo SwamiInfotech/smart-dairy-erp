@@ -20,6 +20,8 @@ CREATE TABLE milk_rate_chart_detail
 
     rate                    NUMERIC(10,2) NOT NULL,
 
+    active                  BOOLEAN NOT NULL DEFAULT TRUE,
+
     created_at              TIMESTAMP WITH TIME ZONE NOT NULL,
 
     updated_at              TIMESTAMP WITH TIME ZONE NOT NULL,

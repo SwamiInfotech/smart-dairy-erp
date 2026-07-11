@@ -6,6 +6,8 @@ public enum SalesStatus {
 
     COMPLETED,
 
+    LOCKED,
+
     CANCELLED
 
 }

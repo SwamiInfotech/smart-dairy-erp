@@ -99,4 +99,7 @@ public class MilkCollection extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String remarks;
 
+    @Column(name = "active", nullable = false)
+    private Boolean active = Boolean.TRUE;
+
 }

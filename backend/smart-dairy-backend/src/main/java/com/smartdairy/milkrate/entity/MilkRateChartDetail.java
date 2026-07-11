@@ -38,4 +38,7 @@ public class MilkRateChartDetail extends BaseEntity {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal rate;
 
+    @Column(name = "active", nullable = false)
+    private Boolean active = Boolean.TRUE;
+
 }

@@ -2,8 +2,9 @@ package com.smartdairy.sales.entity;
 
 import com.smartdairy.branch.entity.Branch;
 import com.smartdairy.common.entity.BaseEntity;
-import com.smartdairy.sales.enums.PaymentMode;
+import com.smartdairy.common.enums.PaymentMode;
 import com.smartdairy.sales.enums.SalesStatus;
+import com.smartdairy.customer.entity.Customer;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -28,6 +29,10 @@ public class SalesInvoice extends BaseEntity {
 
     @Column(name = "invoice_date", nullable = false)
     private LocalDate invoiceDate;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "customer_id", nullable = false)
+    private Customer customer;
 
     @Column(name = "customer_name", nullable = false, length = 150)
     private String customerName;
@@ -54,6 +59,9 @@ public class SalesInvoice extends BaseEntity {
 
     @Column(name = "remarks", length = 500)
     private String remarks;
+
+    @Column(name = "locked", nullable = false)
+    private Boolean locked = Boolean.FALSE;
 
     @OneToMany(
             mappedBy = "salesInvoice",

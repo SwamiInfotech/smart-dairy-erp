@@ -1,9 +1,8 @@
 package com.smartdairy.sales.dto;
 
-import com.smartdairy.sales.enums.PaymentMode;
+import com.smartdairy.common.enums.PaymentMode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 
@@ -20,10 +19,8 @@ public record CreateSalesInvoiceRequest(
         @NotNull
         LocalDate invoiceDate,
 
-        @NotBlank
-        String customerName,
-
-        String customerMobile,
+        @NotNull
+        UUID customerUuid,
 
         @NotNull
         PaymentMode paymentMode,

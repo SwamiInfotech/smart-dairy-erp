@@ -1,6 +1,6 @@
 package com.smartdairy.sales.dto;
 
-import com.smartdairy.sales.enums.PaymentMode;
+import com.smartdairy.common.enums.PaymentMode;
 import com.smartdairy.sales.enums.SalesStatus;
 
 import java.math.BigDecimal;
@@ -15,6 +15,10 @@ public record SalesInvoiceResponse(
         String invoiceNo,
 
         LocalDate invoiceDate,
+
+        UUID customerUuid,
+
+        String customerCode,
 
         String customerName,
 

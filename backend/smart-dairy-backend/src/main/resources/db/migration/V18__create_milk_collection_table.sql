@@ -50,6 +50,8 @@ CREATE TABLE milk_collection
 
     remarks                         TEXT,
 
+    active                  BOOLEAN NOT NULL DEFAULT TRUE,
+
     created_at                      TIMESTAMP WITH TIME ZONE NOT NULL,
 
     updated_at                      TIMESTAMP WITH TIME ZONE NOT NULL,

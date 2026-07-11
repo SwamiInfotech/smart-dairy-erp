@@ -1,6 +1,6 @@
 package com.smartdairy.payment.dto;
 
-import com.smartdairy.payment.enums.PaymentMode;
+import com.smartdairy.common.enums.PaymentMode;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;

@@ -2,6 +2,11 @@ package com.smartdairy.sales.service.command;
 
 import com.smartdairy.branch.entity.Branch;
 import com.smartdairy.branch.repository.BranchRepository;
+import com.smartdairy.customer.entity.Customer;
+import com.smartdairy.customer.enums.CustomerLedgerReferenceType;
+import com.smartdairy.customer.repository.CustomerRepository;
+import com.smartdairy.customer.service.CustomerLedgerService;
+import com.smartdairy.customer.service.integration.CustomerLookupService;
 import com.smartdairy.exception.ResourceNotFoundException;
 import com.smartdairy.sales.dto.CreateSalesInvoiceRequest;
 import com.smartdairy.sales.dto.SalesInvoiceResponse;
@@ -27,6 +32,7 @@ import java.math.BigDecimal;
 public class CreateSalesInvoiceServiceImpl implements CreateSalesInvoiceService {
 
     private final BranchRepository branchRepository;
+    private final CustomerRepository customerRepository;
     private final SalesInvoiceRepository salesInvoiceRepository;
     private final SalesInvoiceValidator validator;
     private final SalesInvoiceMapper mapper;
@@ -35,6 +41,8 @@ public class CreateSalesInvoiceServiceImpl implements CreateSalesInvoiceService 
     private final SalesCalculationService salesCalculationService;
     private final SalesInventoryService salesInventoryService;
     private final SalesInvoicePersistenceService persistenceService;
+    private final CustomerLedgerService customerLedgerService;
+    private final CustomerLookupService customerLookupService;
 
     @Override
     public SalesInvoiceResponse create(CreateSalesInvoiceRequest request) {
@@ -47,17 +55,25 @@ public class CreateSalesInvoiceServiceImpl implements CreateSalesInvoiceService 
                         new ResourceNotFoundException(
                                 "Branch not found."));
 
+        Customer customer = customerRepository
+                .findByUuid(request.customerUuid())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Customer not found."));
+
         SalesInvoice invoice = new SalesInvoice();
 
         invoice.setBranch(branch);
+        //invoice.setCustomer(customer);
+
+        invoice.setCustomer(customerLookupService.getActiveCustomer(request.customerUuid()));
+
+        invoice.setCustomerName(customer.getCustomerName());
+        invoice.setCustomerMobile(customer.getMobileNo());
 
         invoice.setInvoiceNo(invoiceNumberGenerator.generate(request.invoiceDate()));
 
         invoice.setInvoiceDate(request.invoiceDate());
-
-        invoice.setCustomerName(request.customerName());
-
-        invoice.setCustomerMobile(request.customerMobile());
 
         invoice.setPaymentMode(request.paymentMode());
 
@@ -66,10 +82,7 @@ public class CreateSalesInvoiceServiceImpl implements CreateSalesInvoiceService 
         invoice.setStatus(SalesStatus.COMPLETED);
 
         for (var itemRequest : request.items()) {
-
-            invoice.getItems().add(
-                    itemFactory.create(invoice, itemRequest));
-
+            invoice.getItems().add(itemFactory.create(invoice, itemRequest));
         }
 
         invoice.setDiscountAmount(
@@ -79,6 +92,15 @@ public class CreateSalesInvoiceServiceImpl implements CreateSalesInvoiceService 
 
         //SalesInvoice saved = salesInvoiceRepository.save(invoice);
         SalesInvoice saved = persistenceService.save(invoice);
+
+        customerLedgerService.debit(
+                saved.getCustomer(),
+                saved.getInvoiceDate(),
+                CustomerLedgerReferenceType.SALES,
+                saved.getUuid(),
+                saved.getInvoiceNo(),
+                saved.getNetAmount(),
+                "Sales Invoice");
 
         salesInventoryService.deductInventory(saved);
 

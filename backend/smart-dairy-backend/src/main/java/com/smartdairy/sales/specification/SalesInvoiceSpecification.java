@@ -71,6 +71,24 @@ public final class SalesInvoiceSpecification {
                                 request.getToDate()));
             }
 
+            if (request.getMinimumAmount() != null) {
+
+                predicates.add(
+                        cb.greaterThanOrEqualTo(
+                                root.get("netAmount"),
+                                request.getMinimumAmount()));
+
+            }
+
+            if (request.getMaximumAmount() != null) {
+
+                predicates.add(
+                        cb.lessThanOrEqualTo(
+                                root.get("netAmount"),
+                                request.getMaximumAmount()));
+
+            }
+
             query.orderBy(
                     cb.desc(root.get("invoiceDate")),
                     cb.desc(root.get("id")));

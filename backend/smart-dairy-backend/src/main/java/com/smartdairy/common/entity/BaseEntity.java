@@ -29,6 +29,9 @@ public abstract class BaseEntity {
     @Column(nullable = false)
     private Long version;
 
+    @Column(name = "active", nullable = false)
+    private Boolean active = Boolean.TRUE;
+
     @PrePersist
     protected void onCreate() {
         this.uuid = UUID.randomUUID();

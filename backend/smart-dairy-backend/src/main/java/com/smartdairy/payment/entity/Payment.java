@@ -2,8 +2,8 @@ package com.smartdairy.payment.entity;
 
 import com.smartdairy.branch.entity.Branch;
 import com.smartdairy.common.entity.BaseEntity;
+import com.smartdairy.common.enums.PaymentMode;
 import com.smartdairy.farmer.entity.Farmer;
-import com.smartdairy.payment.enums.PaymentMode;
 import com.smartdairy.settlement.entity.Settlement;
 import jakarta.persistence.*;
 import lombok.Getter;

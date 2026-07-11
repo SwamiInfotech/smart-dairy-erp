@@ -1,5 +1,7 @@
 package com.smartdairy.sales.service.command;
 
+import com.smartdairy.customer.enums.CustomerLedgerReferenceType;
+import com.smartdairy.customer.service.CustomerLedgerService;
 import com.smartdairy.exception.BusinessException;
 import com.smartdairy.exception.ResourceNotFoundException;
 import com.smartdairy.sales.dto.SalesInvoiceResponse;
@@ -17,14 +19,12 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class CancelSalesInvoiceServiceImpl
-        implements CancelSalesInvoiceService {
+public class CancelSalesInvoiceServiceImpl implements CancelSalesInvoiceService {
 
     private final SalesInvoiceRepository repository;
-
     private final SalesInventoryService salesInventoryService;
-
     private final SalesInvoiceMapper mapper;
+    private final CustomerLedgerService customerLedgerService;
 
     @Override
     public SalesInvoiceResponse cancel(UUID uuid) {
@@ -52,6 +52,15 @@ public class CancelSalesInvoiceServiceImpl
         invoice.setStatus(SalesStatus.CANCELLED);
 
         SalesInvoice saved = repository.save(invoice);
+
+        customerLedgerService.credit(
+                saved.getCustomer(),
+                saved.getInvoiceDate(),
+                CustomerLedgerReferenceType.SALES,
+                saved.getUuid(),
+                saved.getInvoiceNo(),
+                saved.getNetAmount(),
+                "Sales Invoice Cancelled");
 
         return mapper.toResponse(saved);
 

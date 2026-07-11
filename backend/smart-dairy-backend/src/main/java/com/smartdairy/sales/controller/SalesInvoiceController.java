@@ -4,6 +4,7 @@ import com.smartdairy.common.response.ApiResponse;
 import com.smartdairy.sales.dto.*;
 import com.smartdairy.sales.service.command.CancelSalesInvoiceService;
 import com.smartdairy.sales.service.command.CreateSalesInvoiceService;
+import com.smartdairy.sales.service.command.LockSalesInvoiceService;
 import com.smartdairy.sales.service.command.UpdateSalesInvoiceService;
 import com.smartdairy.sales.service.query.*;
 import jakarta.validation.Valid;
@@ -35,6 +36,8 @@ public class SalesInvoiceController {
     private final CustomerSalesReportService customerSalesReportService;
     private final DailySalesReportService dailySalesReportService;
     private final MonthlySalesReportService monthlySalesReportService;
+    private final GetSalesInvoiceByNumberService getSalesInvoiceByNumberService;
+    private final LockSalesInvoiceService lockSalesInvoiceService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<SalesInvoiceResponse>> create(
@@ -147,6 +150,28 @@ public class SalesInvoiceController {
                 ApiResponse.success(
                         "Monthly Sales Report",
                         monthlySalesReportService.report()));
+
+    }
+
+    @GetMapping("/number/{invoiceNo}")
+    public ResponseEntity<ApiResponse<SalesInvoiceResponse>> getByInvoiceNumber(
+            @PathVariable String invoiceNo) {
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "Sales Invoice retrieved successfully.",
+                        getSalesInvoiceByNumberService.get(invoiceNo)));
+
+    }
+
+    @PatchMapping("/{uuid}/lock")
+    public ResponseEntity<ApiResponse<SalesInvoiceResponse>> lock(
+            @PathVariable UUID uuid) {
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "Sales Invoice locked successfully.",
+                        lockSalesInvoiceService.lock(uuid)));
 
     }
 }
