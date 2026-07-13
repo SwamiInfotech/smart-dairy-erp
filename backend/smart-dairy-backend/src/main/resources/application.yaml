@@ -44,3 +44,15 @@ logging:
 
 server:
   port: 8081
+
+app:
+  security:
+    default-user:
+      username: ${APP_SECURITY_DEFAULT_USERNAME:admin}
+      password: ${APP_SECURITY_DEFAULT_PASSWORD:admin123}
+      full-name: ${APP_SECURITY_DEFAULT_FULL_NAME:Default Admin}
+      role: ${APP_SECURITY_DEFAULT_ROLE:ADMIN}
+      sync-existing: ${APP_SECURITY_DEFAULT_SYNC_EXISTING:true}
+    jwt:
+      secret: ${APP_SECURITY_JWT_SECRET:smart-dairy-super-secret-key-change-me}
+      expiration-ms: ${APP_SECURITY_JWT_EXPIRATION_MS:86400000}

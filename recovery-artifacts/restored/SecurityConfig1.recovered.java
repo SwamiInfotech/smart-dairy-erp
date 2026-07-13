@@ -3,6 +3,7 @@ package com.smartdairy.security;
 import com.smartdairy.security.handler.JwtAccessDeniedHandler;
 import com.smartdairy.security.handler.JwtAuthenticationEntryPoint;
 import com.smartdairy.security.jwt.JwtAuthenticationFilter;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -25,38 +26,36 @@ import java.util.List;
 
 @Configuration
 @EnableMethodSecurity
-public class SecurityConfig {
+@RequiredArgsConstructor
+public class SecurityConfig1 {
+
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+
+    private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
+
+    private final AppUserDetailsService appUserDetailsService;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(
-            HttpSecurity http,
-            JwtAuthenticationFilter jwtAuthenticationFilter,
-            JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
-            JwtAccessDeniedHandler jwtAccessDeniedHandler,
-            DaoAuthenticationProvider authenticationProvider
-    ) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
-
                 .csrf(csrf -> csrf.disable())
-
                 .cors(Customizer.withDefaults())
-
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                         .accessDeniedHandler(jwtAccessDeniedHandler))
-
-                .authenticationProvider(authenticationProvider)
-
+                .authenticationProvider(authenticationProvider())
                 .authorizeHttpRequests(auth -> auth
 
                         /*
                          * Public APIs
                          */
                         .requestMatchers(
+                                "/api/v1/health/**",
                                 "/api/v1/auth/login",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
@@ -64,7 +63,6 @@ public class SecurityConfig {
                                 "/swagger-resources/**",
                                 "/webjars/**",
                                 "/actuator/health",
-                                "/api/v1/health",
                                 "/actuator/info"
                         ).permitAll()
 
@@ -75,91 +73,91 @@ public class SecurityConfig {
                          * User Management
                          */
                         .requestMatchers("/api/v1/auth/users/**")
-                        .hasRole("ADMIN")
+                        .hasAuthority("ROLE_ADMIN")
 
                         /*
                          * Company & Branch
                          */
                         .requestMatchers("/api/v1/companies/**")
-                        .hasAnyRole("ADMIN","MANAGER")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_MANAGER")
 
                         .requestMatchers("/api/v1/branches/**")
-                        .hasAnyRole("ADMIN","MANAGER")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_MANAGER")
 
                         /*
                          * Farmer Module
                          */
                         .requestMatchers("/api/v1/farmers/**")
-                        .hasAnyRole("ADMIN","MANAGER","OPERATOR")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_MANAGER", "ROLE_COLLECTION_OPERATOR")
 
                         .requestMatchers("/api/v1/farmer-configurations/**")
-                        .hasAnyRole("ADMIN","MANAGER")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_MANAGER")
 
                         /*
                          * Milk Collection
                          */
                         .requestMatchers("/api/v1/milk-collections/**")
-                        .hasAnyRole("ADMIN","MANAGER","OPERATOR")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_MANAGER", "ROLE_COLLECTION_OPERATOR")
 
                         /*
                          * Production
                          */
                         .requestMatchers("/api/v1/production-batches/**")
-                        .hasAnyRole("ADMIN","MANAGER","OPERATOR")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_MANAGER", "ROLE_PRODUCTION_OPERATOR")
 
                         /*
                          * Inventory
                          */
                         .requestMatchers("/api/v1/inventory/**")
-                        .hasAnyRole("ADMIN","MANAGER","OPERATOR")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_MANAGER", "ROLE_PRODUCTION_OPERATOR")
 
                         /*
                          * Products
                          */
                         .requestMatchers("/api/v1/products/**")
-                        .hasAnyRole("ADMIN","MANAGER")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_MANAGER")
 
                         /*
                          * Customer
                          */
                         .requestMatchers("/api/v1/customers/**")
-                        .hasAnyRole("ADMIN","MANAGER","OPERATOR")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_MANAGER", "ROLE_SALES_OPERATOR")
 
                         /*
                          * Sales
                          */
                         .requestMatchers("/api/v1/sales/**")
-                        .hasAnyRole("ADMIN","MANAGER","OPERATOR")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_MANAGER", "ROLE_SALES_OPERATOR")
 
                         /*
                          * Loans
                          */
                         .requestMatchers("/api/v1/loans/**")
-                        .hasAnyRole("ADMIN","MANAGER")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_MANAGER", "ROLE_ACCOUNTANT")
 
                         /*
                          * Settlement
                          */
                         .requestMatchers("/api/v1/settlements/**")
-                        .hasAnyRole("ADMIN","MANAGER")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_MANAGER", "ROLE_ACCOUNTANT")
 
                         /*
                          * Payment
                          */
                         .requestMatchers("/api/v1/payments/**")
-                        .hasAnyRole("ADMIN","MANAGER")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_MANAGER", "ROLE_ACCOUNTANT")
 
                         /*
                          * Reports
                          */
                         .requestMatchers("/api/v1/reports/**")
-                        .hasAnyRole("ADMIN","MANAGER","VIEWER")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_MANAGER", "ROLE_ACCOUNTANT", "ROLE_VIEWER")
 
                         /*
                          * Masters
                          */
                         .requestMatchers("/api/v1/master/**")
-                        .hasAnyRole("ADMIN","MANAGER")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_MANAGER")
 
                         /*
                          * Everything else
@@ -182,29 +180,22 @@ public class SecurityConfig {
     }
 
     @Bean
-    public DaoAuthenticationProvider authenticationProvider(
-            AppUserDetailsService appUserDetailsService,
-            PasswordEncoder passwordEncoder
-    ) {
+    public DaoAuthenticationProvider authenticationProvider() {
 
-        DaoAuthenticationProvider provider =
-                new DaoAuthenticationProvider();
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
 
         provider.setUserDetailsService(appUserDetailsService);
 
-        provider.setPasswordEncoder(passwordEncoder);
+        provider.setPasswordEncoder(passwordEncoder());
 
         return provider;
 
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(
-            AuthenticationConfiguration configuration)
-            throws Exception {
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration)  throws Exception {
 
         return configuration.getAuthenticationManager();
-
     }
 
     @Bean
@@ -219,8 +210,7 @@ public class SecurityConfig {
 
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOriginPatterns(
-                List.of("*"));
+        configuration.setAllowedOriginPatterns(List.of("*"));
 
         configuration.setAllowedMethods(
                 List.of(
@@ -231,20 +221,15 @@ public class SecurityConfig {
                         "DELETE",
                         "OPTIONS"));
 
-        configuration.setAllowedHeaders(
-                List.of("*"));
+        configuration.setAllowedHeaders(List.of("*"));
 
         configuration.setAllowCredentials(false);
 
-        configuration.setExposedHeaders(
-                List.of("Authorization"));
+        configuration.setExposedHeaders(List.of("Authorization"));
 
-        UrlBasedCorsConfigurationSource source =
-                new UrlBasedCorsConfigurationSource();
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 
-        source.registerCorsConfiguration(
-                "/**",
-                configuration);
+        source.registerCorsConfiguration("/**", configuration);
 
         return source;
 
