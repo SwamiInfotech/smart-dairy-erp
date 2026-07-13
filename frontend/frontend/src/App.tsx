@@ -58,6 +58,35 @@ function toInputDate(date: Date) {
   return date.toISOString().slice(0, 10)
 }
 
+function buildNextProductCode(existingCodes: string[]) {
+  let highestNumber = 0
+  let selectedPrefix = 'PRD'
+  let selectedWidth = 3
+
+  for (const rawCode of existingCodes) {
+    const code = rawCode.trim()
+    if (!code) continue
+
+    const match = code.match(/^(.*?)(\d+)$/)
+    if (!match) continue
+
+    const prefix = match[1] || 'PRD'
+    const numberPart = match[2]
+    const numberValue = Number(numberPart)
+
+    if (Number.isNaN(numberValue)) continue
+
+    if (numberValue > highestNumber) {
+      highestNumber = numberValue
+      selectedPrefix = prefix
+      selectedWidth = numberPart.length
+    }
+  }
+
+  const nextNumber = highestNumber + 1
+  return `${selectedPrefix}${String(nextNumber).padStart(selectedWidth, '0')}`
+}
+
 function App() {
   const initialAuth = useMemo(getSavedAuth, [])
 
@@ -94,6 +123,16 @@ function App() {
     }[]
   >([])
   const [milkTypes, setMilkTypes] = useState<MilkTypeResponse[]>([])
+
+  const nextProductCode = useMemo(
+    () => buildNextProductCode(products.map((item) => item.productCode)),
+    [products],
+  )
+
+  const averageProductSellingPrice = useMemo(() => {
+    if (!products.length) return 0
+    return products.reduce((sum, item) => sum + item.sellingPrice, 0) / products.length
+  }, [products])
 
   const [productForm, setProductForm] = useState({
     productCode: '',
@@ -239,6 +278,16 @@ function App() {
     void loadCollections()
     void loadSales()
   }, [token])
+
+  useEffect(() => {
+    setProductForm((prev) => {
+      if (prev.productCode === nextProductCode) return prev
+      return {
+        ...prev,
+        productCode: nextProductCode,
+      }
+    })
+  }, [nextProductCode])
 
   async function onLogin(event: FormEvent) {
     event.preventDefault()
@@ -612,7 +661,7 @@ function App() {
             )}
 
               {activeTab === 'products' && (
-              <section className="panel">
+              <section className="panel panel-product">
                 <div className="panel-head">
                   <h2>Products</h2>
                   <button type="button" onClick={loadProducts} disabled={busy}>
@@ -620,105 +669,125 @@ function App() {
                   </button>
                 </div>
 
-                <form className="form two-col" onSubmit={onCreateProduct}>
-                  <label>
-                    Product code
-                    <input
-                      required
-                      value={productForm.productCode}
-                      onChange={(event) =>
-                        setProductForm((prev) => ({ ...prev, productCode: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Product name
-                    <input
-                      required
-                      value={productForm.productName}
-                      onChange={(event) =>
-                        setProductForm((prev) => ({ ...prev, productName: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Product type
-                    <select
-                      value={productForm.productType}
-                      onChange={(event) =>
-                        setProductForm((prev) => ({
-                          ...prev,
-                          productType: event.target.value as 'RAW_MILK' | 'FINISHED_PRODUCT',
-                        }))
-                      }
-                    >
-                      <option value="RAW_MILK">RAW_MILK</option>
-                      <option value="FINISHED_PRODUCT">FINISHED_PRODUCT</option>
-                    </select>
-                  </label>
-                  <label>
-                    Unit type
-                    <select
-                      value={productForm.unitType}
-                      onChange={(event) =>
-                        setProductForm((prev) => ({
-                          ...prev,
-                          unitType: event.target.value as 'LITER' | 'KILOGRAM' | 'GRAM' | 'PIECE',
-                        }))
-                      }
-                    >
-                      <option value="LITER">LITER</option>
-                      <option value="KILOGRAM">KILOGRAM</option>
-                      <option value="GRAM">GRAM</option>
-                      <option value="PIECE">PIECE</option>
-                    </select>
-                  </label>
-                  <label>
-                    Purchase price
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={productForm.purchasePrice}
-                      onChange={(event) =>
-                        setProductForm((prev) => ({ ...prev, purchasePrice: Number(event.target.value) }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Selling price
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={productForm.sellingPrice}
-                      onChange={(event) =>
-                        setProductForm((prev) => ({ ...prev, sellingPrice: Number(event.target.value) }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Minimum stock
-                    <input
-                      type="number"
-                      step="0.001"
-                      value={productForm.minimumStock}
-                      onChange={(event) =>
-                        setProductForm((prev) => ({ ...prev, minimumStock: Number(event.target.value) }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Description
-                    <input
-                      value={productForm.description}
-                      onChange={(event) =>
-                        setProductForm((prev) => ({ ...prev, description: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <button type="submit" disabled={busy}>
-                    Create product
-                  </button>
-                </form>
+                <div className="product-layout">
+                  <form className="form two-col product-form" onSubmit={onCreateProduct}>
+                    <div className="product-form-head">
+                      <p className="eyebrow">Product Master</p>
+                      <h3>Create Product</h3>
+                      <p className="subtle">Product code is generated automatically and increments by 1.</p>
+                    </div>
+
+                    <label>
+                      Product code
+                      <input required value={productForm.productCode} readOnly />
+                    </label>
+                    <label>
+                      Product name
+                      <input
+                        required
+                        value={productForm.productName}
+                        onChange={(event) =>
+                          setProductForm((prev) => ({ ...prev, productName: event.target.value }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Product type
+                      <select
+                        value={productForm.productType}
+                        onChange={(event) =>
+                          setProductForm((prev) => ({
+                            ...prev,
+                            productType: event.target.value as 'RAW_MILK' | 'FINISHED_PRODUCT',
+                          }))
+                        }
+                      >
+                        <option value="RAW_MILK">RAW_MILK</option>
+                        <option value="FINISHED_PRODUCT">FINISHED_PRODUCT</option>
+                      </select>
+                    </label>
+                    <label>
+                      Unit type
+                      <select
+                        value={productForm.unitType}
+                        onChange={(event) =>
+                          setProductForm((prev) => ({
+                            ...prev,
+                            unitType: event.target.value as 'LITER' | 'KILOGRAM' | 'GRAM' | 'PIECE',
+                          }))
+                        }
+                      >
+                        <option value="LITER">LITER</option>
+                        <option value="KILOGRAM">KILOGRAM</option>
+                        <option value="GRAM">GRAM</option>
+                        <option value="PIECE">PIECE</option>
+                      </select>
+                    </label>
+                    <label>
+                      Purchase price
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={productForm.purchasePrice}
+                        onChange={(event) =>
+                          setProductForm((prev) => ({ ...prev, purchasePrice: Number(event.target.value) }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Selling price
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={productForm.sellingPrice}
+                        onChange={(event) =>
+                          setProductForm((prev) => ({ ...prev, sellingPrice: Number(event.target.value) }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Minimum stock
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={productForm.minimumStock}
+                        onChange={(event) =>
+                          setProductForm((prev) => ({ ...prev, minimumStock: Number(event.target.value) }))
+                        }
+                      />
+                    </label>
+                    <label className="product-field-wide">
+                      Description
+                      <input
+                        value={productForm.description}
+                        onChange={(event) =>
+                          setProductForm((prev) => ({ ...prev, description: event.target.value }))
+                        }
+                      />
+                    </label>
+                    <button type="submit" disabled={busy} className="product-submit">
+                      {busy ? 'Creating...' : 'Create product'}
+                    </button>
+                  </form>
+
+                  <aside className="product-summary" aria-label="Product quick summary">
+                    <h3>Inventory Snapshot</h3>
+                    <div className="product-summary-grid">
+                      <article>
+                        <p>Total products</p>
+                        <strong>{products.length}</strong>
+                      </article>
+                      <article>
+                        <p>Average selling</p>
+                        <strong>{averageProductSellingPrice.toFixed(2)}</strong>
+                      </article>
+                      <article>
+                        <p>Next code</p>
+                        <strong>{nextProductCode}</strong>
+                      </article>
+                    </div>
+                  </aside>
+                </div>
 
                 <div className="table-wrap">
                   <table>
