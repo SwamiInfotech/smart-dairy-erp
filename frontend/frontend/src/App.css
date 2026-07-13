@@ -77,6 +77,24 @@
   backdrop-filter: blur(8px);
 }
 
+.sidebar-group {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(115, 136, 175, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.sidebar-group-title {
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #6a7da2;
+  font-weight: 700;
+}
+
 .sidebar-title {
   margin: 0 0 2px;
   font-size: 0.73rem;
@@ -412,6 +430,10 @@ tbody tr:hover {
   }
 
   .sidebar-title {
+    grid-column: 1 / -1;
+  }
+
+  .sidebar-group {
     grid-column: 1 / -1;
   }
 

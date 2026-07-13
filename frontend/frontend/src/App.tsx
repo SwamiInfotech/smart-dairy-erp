@@ -20,31 +20,27 @@ import './App.css'
 
 type TabKey = 'dashboard' | 'products' | 'customers' | 'milkCollections' | 'sales' | 'farmers'
 
-const SIDEBAR_MODULE_ORDER = [
-  'dashboard',
-  'products',
-  'customers',
-  'milkCollections',
-  'sales',
-  'farmers',
-  'auth',
-  'health',
-  'companies',
-  'branches',
-  'farmerConfigurations',
-  'productionBatches',
-  'inventory',
-  'loans',
-  'settlements',
-  'payments',
-  'reports',
-  'master',
-  'collectionMethods',
-  'paymentCycles',
-  'pricing',
-  'rateProfiles',
-  'milkRateCharts',
-  'shifts',
+const SIDEBAR_GROUPS = [
+  {
+    title: 'Operations',
+    items: ['dashboard', 'products', 'customers', 'milkCollections', 'sales', 'farmers'],
+  },
+  {
+    title: 'Masters',
+    items: ['master', 'collectionMethods', 'paymentCycles', 'pricing', 'rateProfiles', 'milkRateCharts', 'shifts'],
+  },
+  {
+    title: 'Transactions',
+    items: ['companies', 'branches', 'farmerConfigurations', 'productionBatches', 'inventory', 'loans', 'settlements', 'payments'],
+  },
+  {
+    title: 'Reports',
+    items: ['reports', 'health'],
+  },
+  {
+    title: 'Access',
+    items: ['auth'],
+  },
 ] as const
 
 const TAB_LABELS: Record<TabKey, string> = {
@@ -476,29 +472,34 @@ function App() {
           <div className="workspace-shell">
             <aside className="left-sidebar">
               <p className="sidebar-title">Modules</p>
-              {SIDEBAR_MODULE_ORDER.map((key) => {
-                const backendModule = key in BACKEND_MODULES ? BACKEND_MODULES[key] : null
-                const isUiTab = key in TAB_LABELS
-                const label = isUiTab
-                  ? TAB_LABELS[key as TabKey]
-                  : backendModule?.label || key
+              {SIDEBAR_GROUPS.map((group) => (
+                <section className="sidebar-group" key={group.title}>
+                  <p className="sidebar-group-title">{group.title}</p>
+                  {group.items.map((key) => {
+                    const backendModule = key in BACKEND_MODULES ? BACKEND_MODULES[key] : null
+                    const isUiTab = key in TAB_LABELS
+                    const label = isUiTab
+                      ? TAB_LABELS[key as TabKey]
+                      : backendModule?.label || key
 
-                return (
-                  <button
-                    type="button"
-                    key={key}
-                    className={activeSidebarMenu === key ? 'menu-btn active' : 'menu-btn'}
-                    onClick={() => {
-                      setActiveSidebarMenu(key)
-                      if (isUiTab) {
-                        setActiveTab(key as TabKey)
-                      }
-                    }}
-                  >
-                    {label}
-                  </button>
-                )
-              })}
+                    return (
+                      <button
+                        type="button"
+                        key={key}
+                        className={activeSidebarMenu === key ? 'menu-btn active' : 'menu-btn'}
+                        onClick={() => {
+                          setActiveSidebarMenu(key)
+                          if (isUiTab) {
+                            setActiveTab(key as TabKey)
+                          }
+                        }}
+                      >
+                        {label}
+                      </button>
+                    )
+                  })}
+                </section>
+              ))}
             </aside>
 
             <main className="panel-grid">
