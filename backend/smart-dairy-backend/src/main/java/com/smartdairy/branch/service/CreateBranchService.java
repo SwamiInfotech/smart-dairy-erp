@@ -1,4 +1,4 @@
-package com.smartdairy.branch.create;
+package com.smartdairy.branch.service;
 
 import com.smartdairy.branch.dto.BranchResponse;
 import com.smartdairy.branch.dto.CreateBranchRequest;

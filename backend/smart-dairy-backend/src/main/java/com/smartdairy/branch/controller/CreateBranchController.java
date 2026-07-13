@@ -1,5 +1,6 @@
-package com.smartdairy.branch.create;
+package com.smartdairy.branch.controller;
 
+import com.smartdairy.branch.service.CreateBranchService;
 import com.smartdairy.branch.dto.BranchResponse;
 import com.smartdairy.branch.dto.CreateBranchRequest;
 import com.smartdairy.common.response.ApiResponse;
