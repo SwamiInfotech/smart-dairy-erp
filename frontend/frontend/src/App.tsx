@@ -1,5 +1,12 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { api, clearAuth, getLastLoginAttemptDebug, getSavedAuth, saveAuth } from './lib/api'
+import {
+  BACKEND_MODULES,
+  api,
+  clearAuth,
+  getLastLoginAttemptDebug,
+  getSavedAuth,
+  saveAuth,
+} from './lib/api'
 import type {
   CreateSalesInvoiceItemRequest,
   CustomerResponse,
@@ -12,6 +19,42 @@ import type {
 import './App.css'
 
 type TabKey = 'dashboard' | 'products' | 'customers' | 'milkCollections' | 'sales' | 'farmers'
+
+const SIDEBAR_MODULE_ORDER = [
+  'dashboard',
+  'products',
+  'customers',
+  'milkCollections',
+  'sales',
+  'farmers',
+  'auth',
+  'health',
+  'companies',
+  'branches',
+  'farmerConfigurations',
+  'productionBatches',
+  'inventory',
+  'loans',
+  'settlements',
+  'payments',
+  'reports',
+  'master',
+  'collectionMethods',
+  'paymentCycles',
+  'pricing',
+  'rateProfiles',
+  'milkRateCharts',
+  'shifts',
+] as const
+
+const TAB_LABELS: Record<TabKey, string> = {
+  dashboard: 'Dashboard',
+  products: 'Products',
+  customers: 'Customers',
+  milkCollections: 'Milk Collections',
+  sales: 'Sales',
+  farmers: 'Farmers',
+}
 
 const PAYMENT_MODES: PaymentMode[] = ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CREDIT']
 
@@ -29,6 +72,7 @@ function App() {
   const [success, setSuccess] = useState('')
   const [busy, setBusy] = useState(false)
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard')
+  const [activeSidebarMenu, setActiveSidebarMenu] = useState('dashboard')
   const [loginDebug, setLoginDebug] = useState('')
 
   const [loginUsername, setLoginUsername] = useState('admin')
@@ -359,38 +403,54 @@ function App() {
       {!token ? (
         <div className="login-page">
           <div className="login-card">
-            <p className="eyebrow">Smart Dairy ERP</p>
-            <h1>Frontend for Backend APIs</h1>
-            <p className="subtle">Uses /api/v1/auth/login and JWT bearer token for protected modules.</p>
+            <section className="login-brand-panel">
+              <p className="eyebrow">Smart Dairy ERP</p>
+              <h1 className="login-title">Operations Workspace</h1>
+              <p className="subtle">
+                Secure access to procurement, production, sales, settlements, and reporting modules.
+              </p>
+              <div className="login-points">
+                <p>JWT protected session with role-based access</p>
+                <p>Integrated endpoint map for all backend services</p>
+                <p>Fast data entry for daily dairy operations</p>
+              </div>
+              <p className="login-meta">API: /api/v1/auth/login</p>
+            </section>
 
-            <form className="form two-col" onSubmit={onLogin}>
-              <label>
-                Username
-                <input
-                  value={loginUsername}
-                  onChange={(event) => setLoginUsername(event.target.value)}
-                  placeholder="Enter username"
-                  required
-                />
-              </label>
+            <section className="login-form-panel">
+              <h2>Sign In</h2>
+              <p className="subtle">Use your authorized credentials to continue.</p>
 
-              <label>
-                Password
-                <input
-                  type="password"
-                  value={loginPassword}
-                  onChange={(event) => setLoginPassword(event.target.value)}
-                  placeholder="Enter password"
-                  required
-                />
-              </label>
+              <form className="form" onSubmit={onLogin}>
+                <label>
+                  Username
+                  <input
+                    value={loginUsername}
+                    onChange={(event) => setLoginUsername(event.target.value)}
+                    placeholder="Enter username"
+                    required
+                  />
+                </label>
 
-              <button type="submit" disabled={busy}>
-                {busy ? 'Signing in...' : 'Sign in'}
-              </button>
-            </form>
-            {error && <p className="message error">{error}</p>}
-            {loginDebug && <p className="subtle">{loginDebug}</p>}
+                <label>
+                  Password
+                  <input
+                    type="password"
+                    value={loginPassword}
+                    onChange={(event) => setLoginPassword(event.target.value)}
+                    placeholder="Enter password"
+                    required
+                  />
+                </label>
+
+                <button type="submit" disabled={busy} className="login-submit">
+                  {busy ? 'Signing in...' : 'Sign in to Workspace'}
+                </button>
+              </form>
+
+              {error && <p className="message error">{error}</p>}
+              {loginDebug && <p className="subtle login-debug">{loginDebug}</p>}
+            </section>
           </div>
         </div>
       ) : (
@@ -410,31 +470,85 @@ function App() {
             </div>
           </header>
 
-          <nav className="tablist">
-            {[
-              ['dashboard', 'Dashboard'],
-              ['products', 'Products'],
-              ['customers', 'Customers'],
-              ['milkCollections', 'Milk Collections'],
-              ['sales', 'Sales'],
-              ['farmers', 'Farmers'],
-            ].map(([key, label]) => (
-              <button
-                type="button"
-                key={key}
-                className={activeTab === key ? 'tab active' : 'tab'}
-                onClick={() => setActiveTab(key as TabKey)}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
-
           {error && <p className="message error">{error}</p>}
           {success && <p className="message success">{success}</p>}
 
-          <main className="panel-grid">
-            {activeTab === 'dashboard' && (
+          <div className="workspace-shell">
+            <aside className="left-sidebar">
+              <p className="sidebar-title">Modules</p>
+              {SIDEBAR_MODULE_ORDER.map((key) => {
+                const backendModule = key in BACKEND_MODULES ? BACKEND_MODULES[key] : null
+                const isUiTab = key in TAB_LABELS
+                const label = isUiTab
+                  ? TAB_LABELS[key as TabKey]
+                  : backendModule?.label || key
+
+                return (
+                  <button
+                    type="button"
+                    key={key}
+                    className={activeSidebarMenu === key ? 'menu-btn active' : 'menu-btn'}
+                    onClick={() => {
+                      setActiveSidebarMenu(key)
+                      if (isUiTab) {
+                        setActiveTab(key as TabKey)
+                      }
+                    }}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </aside>
+
+            <main className="panel-grid">
+              <section className="panel endpoint-panel">
+                <div className="panel-head">
+                  <h2>
+                    Endpoint Map ·{' '}
+                    {activeSidebarMenu in TAB_LABELS
+                      ? TAB_LABELS[activeSidebarMenu as TabKey]
+                      : BACKEND_MODULES[activeSidebarMenu]?.label || activeSidebarMenu}
+                  </h2>
+                </div>
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Method</th>
+                        <th>Path</th>
+                        <th>Note</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(activeSidebarMenu in BACKEND_MODULES
+                        ? BACKEND_MODULES[activeSidebarMenu].endpoints
+                        : activeSidebarMenu in TAB_LABELS
+                          ? (() => {
+                              const tabToModule: Record<TabKey, keyof typeof BACKEND_MODULES> = {
+                                dashboard: 'sales',
+                                products: 'products',
+                                customers: 'customers',
+                                milkCollections: 'milkCollections',
+                                sales: 'sales',
+                                farmers: 'farmers',
+                              }
+                              return BACKEND_MODULES[tabToModule[activeSidebarMenu as TabKey]].endpoints
+                            })()
+                          : [])
+                        .map((endpoint, index) => (
+                          <tr key={`${endpoint.method}-${endpoint.path}-${index}`}>
+                            <td>{endpoint.method}</td>
+                            <td>{endpoint.path}</td>
+                            <td>{endpoint.note ?? '-'}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              {activeTab === 'dashboard' && (
               <section className="panel">
                 <div className="panel-head">
                   <h2>Sales Dashboard</h2>
@@ -496,7 +610,7 @@ function App() {
               </section>
             )}
 
-            {activeTab === 'products' && (
+              {activeTab === 'products' && (
               <section className="panel">
                 <div className="panel-head">
                   <h2>Products</h2>
@@ -632,7 +746,7 @@ function App() {
               </section>
             )}
 
-            {activeTab === 'customers' && (
+              {activeTab === 'customers' && (
               <section className="panel">
                 <div className="panel-head">
                   <h2>Customers</h2>
@@ -735,7 +849,7 @@ function App() {
               </section>
             )}
 
-            {activeTab === 'milkCollections' && (
+              {activeTab === 'milkCollections' && (
               <section className="panel">
                 <div className="panel-head">
                   <h2>Milk Collections</h2>
@@ -843,7 +957,7 @@ function App() {
               </section>
             )}
 
-            {activeTab === 'sales' && (
+              {activeTab === 'sales' && (
               <section className="panel">
                 <div className="panel-head">
                   <h2>Sales Invoices</h2>
@@ -997,7 +1111,7 @@ function App() {
               </section>
             )}
 
-            {activeTab === 'farmers' && (
+              {activeTab === 'farmers' && (
               <section className="panel">
                 <div className="panel-head">
                   <h2>Create Farmer</h2>
@@ -1067,7 +1181,8 @@ function App() {
                 </form>
               </section>
             )}
-          </main>
+            </main>
+          </div>
 
           <footer className="footer-note">
             API base URL: {import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081'}
