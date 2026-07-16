@@ -14,8 +14,7 @@ import java.math.BigDecimal;
 @Table(
         name = "customer",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_customer_code",
-                        columnNames = "customer_code")
+                @UniqueConstraint(name = "uk_customer_tenant_code", columnNames = {"tenant_uuid", "customer_code"})
         }
 )
 public class Customer extends BaseEntity {

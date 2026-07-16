@@ -3,6 +3,7 @@ package com.smartdairy.security;
 import com.smartdairy.security.handler.JwtAccessDeniedHandler;
 import com.smartdairy.security.handler.JwtAuthenticationEntryPoint;
 import com.smartdairy.security.jwt.JwtAuthenticationFilter;
+import com.smartdairy.tenant.context.TenantFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -30,6 +31,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
+            TenantFilter tenantFilter,
             JwtAuthenticationFilter jwtAuthenticationFilter,
             JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
             JwtAccessDeniedHandler jwtAccessDeniedHandler,
@@ -58,6 +60,7 @@ public class SecurityConfig {
                          */
                         .requestMatchers(
                                 "/api/v1/auth/login",
+                                "/api/v1/public/onboard",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
@@ -75,6 +78,12 @@ public class SecurityConfig {
                          * User Management
                          */
                         .requestMatchers("/api/v1/auth/users/**")
+                        .hasRole("ADMIN")
+
+                        /*
+                         * Tenant
+                         */
+                        .requestMatchers("/api/v1/tenants/**")
                         .hasRole("ADMIN")
 
                         /*
@@ -169,9 +178,8 @@ public class SecurityConfig {
 
                 )
 
-                .addFilterBefore(
-                        jwtAuthenticationFilter,
-                        UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(tenantFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(jwtAuthenticationFilter, TenantFilter.class)
 
                 .httpBasic(httpBasic -> httpBasic.disable())
 

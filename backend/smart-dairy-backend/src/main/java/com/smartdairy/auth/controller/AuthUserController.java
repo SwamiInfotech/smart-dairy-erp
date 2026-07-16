@@ -2,6 +2,7 @@ package com.smartdairy.auth.controller;
 
 import com.smartdairy.auth.dto.AuthUserResponse;
 import com.smartdairy.auth.dto.CreateUserRequest;
+import com.smartdairy.auth.dto.ResetPasswordRequest;
 import com.smartdairy.auth.service.AuthUserService;
 import com.smartdairy.common.response.ApiResponse;
 import jakarta.validation.Valid;
@@ -34,5 +35,12 @@ public class AuthUserController {
     @GetMapping
     public ApiResponse<List<AuthUserResponse>> getAllUsers() {
         return ApiResponse.success("Users fetched successfully.", authUserService.getAll());
+    }
+
+    @PostMapping("/reset-password")
+    public ApiResponse<Void> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request) {
+        authUserService.resetPassword(request);
+        return ApiResponse.success("Password reset successfully.", null);
     }
 }

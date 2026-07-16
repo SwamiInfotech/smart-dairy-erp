@@ -13,14 +13,19 @@ import java.time.LocalDate;
 @Getter
 @Setter
 @Entity
-@Table(name = "customer_payment")
+@Table(
+        name = "customer_payment",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_customer_payment_tenant_no", columnNames = {"tenant_uuid", "payment_no"})
+        }
+)
 public class CustomerPayment extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", nullable = false)
     private Customer customer;
 
-    @Column(name = "payment_no", nullable = false, unique = true)
+    @Column(name = "payment_no", nullable = false)
     private String paymentNo;
 
     @Column(name = "payment_date", nullable = false)

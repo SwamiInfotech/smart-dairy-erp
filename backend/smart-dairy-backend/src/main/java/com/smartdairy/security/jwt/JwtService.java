@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class JwtService {
@@ -25,7 +26,7 @@ public class JwtService {
     @Value("${app.security.jwt.expiration-ms:86400000}")
     private long expirationMs;
 
-    public String generateToken(String username, String role) {
+    public String generateToken(String username, String role, UUID tenantUuid) {
         try {
             long now = Instant.now().getEpochSecond();
             long exp = now + (expirationMs / 1000);
@@ -38,6 +39,7 @@ public class JwtService {
             Map<String, Object> payload = new HashMap<>();
             payload.put("sub", username);
             payload.put("role", role);
+            payload.put("tenantUuid", tenantUuid.toString());
             payload.put("iat", now);
             payload.put("exp", exp);
 
@@ -61,6 +63,19 @@ public class JwtService {
         Map<String, Object> claims = parseClaims(token);
         Object value = claims.get("role");
         return value == null ? "" : String.valueOf(value);
+    }
+
+    public UUID extractTenantUuid(String token) {
+        Map<String, Object> claims = parseClaims(token);
+        Object value = claims.get("tenantUuid");
+        if (value == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(String.valueOf(value));
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails) {

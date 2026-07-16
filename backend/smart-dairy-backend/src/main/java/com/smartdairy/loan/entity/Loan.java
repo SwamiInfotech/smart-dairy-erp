@@ -14,7 +14,12 @@ import java.time.LocalDate;
 @Getter
 @Setter
 @Entity
-@Table(name = "loan")
+@Table(
+        name = "loan",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_loan_tenant_no", columnNames = {"tenant_uuid", "loan_no"})
+        }
+)
 public class Loan extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -25,7 +30,7 @@ public class Loan extends BaseEntity {
     @JoinColumn(name = "farmer_id", nullable = false)
     private Farmer farmer;
 
-    @Column(name = "loan_no", nullable = false, unique = true, length = 30)
+    @Column(name = "loan_no", nullable = false, length = 30)
     private String loanNo;
 
     @Column(name = "loan_date", nullable = false)

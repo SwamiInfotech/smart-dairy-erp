@@ -17,14 +17,19 @@ import java.util.List;
 @Getter
 @Setter
 @Entity
-@Table(name = "sales_invoice")
+@Table(
+        name = "sales_invoice",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_sales_invoice_tenant_no", columnNames = {"tenant_uuid", "invoice_no"})
+        }
+)
 public class SalesInvoice extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "branch_id", nullable = false)
     private Branch branch;
 
-    @Column(name = "invoice_no", nullable = false, unique = true, length = 30)
+    @Column(name = "invoice_no", nullable = false, length = 30)
     private String invoiceNo;
 
     @Column(name = "invoice_date", nullable = false)

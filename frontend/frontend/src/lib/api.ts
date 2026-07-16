@@ -1,6 +1,7 @@
 import type {
   ApiResponse,
   AuthTokenResponse,
+  CreateTenantRequest,
   CreateCustomerRequest,
   CreateFarmerRequest,
   CreateMilkCollectionRequest,
@@ -11,8 +12,13 @@ import type {
   MilkTypeResponse,
   PageResult,
   ProductResponse,
+  PublicOnboardRequest,
+  PublicOnboardResponse,
   SalesDashboardResponse,
   SalesInvoiceResponse,
+  TenantResponse,
+  TenantShopResponse,
+  UpdateTenantRequest,
 } from '../types/api'
 
 const API_BASE_URL =
@@ -21,6 +27,13 @@ const API_BASE_URL =
 const TOKEN_KEY = 'smart_dairy_token'
 const USERNAME_KEY = 'smart_dairy_username'
 const ROLE_KEY = 'smart_dairy_role'
+const TENANT_UUID_KEY = 'smart_dairy_tenant_uuid'
+const DEFAULT_TENANT_UUID_KEY = 'smart_dairy_default_tenant_uuid'
+const COMPANY_UUID_KEY = 'smart_dairy_company_uuid'
+const COMPANY_NAME_KEY = 'smart_dairy_company_name'
+const BRANCH_UUID_KEY = 'smart_dairy_branch_uuid'
+const BRANCH_NAME_KEY = 'smart_dairy_branch_name'
+const ACCESSIBLE_TENANTS_KEY = 'smart_dairy_accessible_tenants'
 
 export type EndpointDefinition = {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
@@ -44,6 +57,15 @@ export const BACKEND_MODULES: Record<string, BackendModuleDefinition> = {
       { method: 'POST', path: '/api/v1/auth/login' },
       { method: 'GET', path: '/api/v1/auth/users', note: 'Admin scope' },
       { method: 'POST', path: '/api/v1/auth/users', note: 'Admin scope' },
+    ],
+  },
+  tenants: {
+    label: 'Tenants',
+    endpoints: [
+      { method: 'GET', path: '/api/v1/tenants' },
+      { method: 'POST', path: '/api/v1/tenants' },
+      { method: 'GET', path: '/api/v1/tenants/{tenantUuid}' },
+      { method: 'PUT', path: '/api/v1/tenants/{tenantUuid}', note: 'Phase 2 backend support' },
     ],
   },
   companies: {
@@ -245,6 +267,7 @@ type RequestOptions = {
   query?: Record<string, QueryValue>
   bodyMode?: BodyMode
   skipAuthHeader?: boolean
+  tenantUuid?: string
 }
 
 class ApiError extends Error {
@@ -333,6 +356,32 @@ function readNumber(record: Record<string, unknown> | null, ...keys: string[]) {
   }
 
   return 0
+}
+
+function readStringArray(record: Record<string, unknown> | null, ...keys: string[]) {
+  if (!record) return []
+
+  for (const key of keys) {
+    const value = record[key]
+    if (!Array.isArray(value)) continue
+
+    const items = value
+      .map((item) => {
+        if (typeof item === 'string' && item.trim()) {
+          return item.trim()
+        }
+
+        const asObject = asRecord(item)
+        return readString(asObject, 'uuid', 'tenantUuid')
+      })
+      .filter((item): item is string => Boolean(item))
+
+    if (items.length > 0) {
+      return items
+    }
+  }
+
+  return []
 }
 
 function extractRole(value: unknown): string {
@@ -453,20 +502,134 @@ function normalizeAuthTokenResponse(payload: unknown, fallbackUsername: string):
     readString(asRecord(record.user), 'role') ||
     'USER'
 
+  const tenantUuid = readString(record, 'tenantUuid', 'tenant_uuid', 'tenantId', 'tenant_id')
+  const defaultTenantUuid =
+    readString(record, 'defaultTenantUuid', 'default_tenant_uuid', 'defaultTenantId') || tenantUuid
+  const companyUuid = readString(record, 'companyUuid', 'company_uuid')
+  const companyName = readString(record, 'companyName', 'company_name')
+  const branchUuid = readString(record, 'branchUuid', 'branch_uuid', 'branchId', 'branch_id')
+  const branchName = readString(record, 'branchName', 'branch_name')
+  const accessibleTenants = readStringArray(record, 'accessibleTenants', 'tenants')
+
   return {
     accessToken: token,
     tokenType: readString(record, 'tokenType', 'token_type', 'type') || 'Bearer',
     expiresIn: readNumber(record, 'expiresIn', 'expires_in', 'expiryInSeconds', 'ttl'),
     username,
     role,
+    tenantUuid,
+    defaultTenantUuid,
+    companyUuid,
+    companyName,
+    branchUuid,
+    branchName,
+    accessibleTenants,
+  }
+}
+
+function extractTenantUuidFromLookupPayload(payload: unknown): string {
+  const direct = readString(asRecord(payload), 'tenantUuid', 'tenant_uuid', 'tenantId', 'tenant_id', 'uuid')
+  if (direct) {
+    return direct
+  }
+
+  if (Array.isArray(payload)) {
+    for (const item of payload) {
+      const resolved = readString(
+        asRecord(item),
+        'tenantUuid',
+        'tenant_uuid',
+        'tenantId',
+        'tenant_id',
+        'uuid',
+      )
+      if (resolved) {
+        return resolved
+      }
+    }
+  }
+
+  const record = asRecord(payload)
+  if (!record) {
+    return ''
+  }
+
+  const nestedKeys = ['tenant', 'data', 'result', 'company']
+  for (const key of nestedKeys) {
+    const resolved = readString(
+      asRecord(record[key]),
+      'tenantUuid',
+      'tenant_uuid',
+      'tenantId',
+      'tenant_id',
+      'uuid',
+    )
+    if (resolved) {
+      return resolved
+    }
+  }
+
+  return ''
+}
+
+function normalizePublicOnboardResponse(
+  payload: unknown,
+  fallbackPayload: PublicOnboardRequest,
+): PublicOnboardResponse {
+  const root = asRecord(payload)
+  const data = asRecord(root?.data)
+
+  const tenantUuid =
+    readString(root, 'tenantUuid', 'tenant_uuid', 'tenantId', 'tenant_id', 'uuid') ||
+    readString(data, 'tenantUuid', 'tenant_uuid', 'tenantId', 'tenant_id', 'uuid')
+
+  return {
+    tenantUuid,
+    companyName:
+      readString(root, 'companyName', 'company_name', 'tenantName', 'tenant_name', 'name') ||
+      readString(data, 'companyName', 'company_name', 'tenantName', 'tenant_name', 'name') ||
+      fallbackPayload.companyName,
+    companyCode:
+      readString(root, 'companyCode', 'company_code', 'tenantCode', 'tenant_code', 'code') ||
+      readString(data, 'companyCode', 'company_code', 'tenantCode', 'tenant_code', 'code') ||
+      fallbackPayload.companyCode,
+    adminUsername:
+      readString(root, 'adminUsername', 'username', 'userName') ||
+      readString(data, 'adminUsername', 'username', 'userName') ||
+      fallbackPayload.adminUsername,
+    message:
+      readString(root, 'message', 'detail') ||
+      readString(data, 'message', 'detail') ||
+      'Company registration completed successfully.',
   }
 }
 
 export function getSavedAuth() {
+  const rawAccessibleTenants = localStorage.getItem(ACCESSIBLE_TENANTS_KEY)
+  let accessibleTenants: string[] = []
+
+  if (rawAccessibleTenants) {
+    try {
+      const parsed = JSON.parse(rawAccessibleTenants)
+      if (Array.isArray(parsed)) {
+        accessibleTenants = parsed.filter((item): item is string => typeof item === 'string')
+      }
+    } catch {
+      accessibleTenants = []
+    }
+  }
+
   return {
     token: localStorage.getItem(TOKEN_KEY) ?? '',
     username: localStorage.getItem(USERNAME_KEY) ?? '',
     role: localStorage.getItem(ROLE_KEY) ?? '',
+    tenantUuid: localStorage.getItem(TENANT_UUID_KEY) ?? '',
+    defaultTenantUuid: localStorage.getItem(DEFAULT_TENANT_UUID_KEY) ?? '',
+    companyUuid: localStorage.getItem(COMPANY_UUID_KEY) ?? '',
+    companyName: localStorage.getItem(COMPANY_NAME_KEY) ?? '',
+    branchUuid: localStorage.getItem(BRANCH_UUID_KEY) ?? '',
+    branchName: localStorage.getItem(BRANCH_NAME_KEY) ?? '',
+    accessibleTenants,
   }
 }
 
@@ -474,12 +637,26 @@ export function saveAuth(response: AuthTokenResponse) {
   localStorage.setItem(TOKEN_KEY, response.accessToken)
   localStorage.setItem(USERNAME_KEY, response.username)
   localStorage.setItem(ROLE_KEY, response.role)
+  localStorage.setItem(TENANT_UUID_KEY, response.tenantUuid || '')
+  localStorage.setItem(DEFAULT_TENANT_UUID_KEY, response.defaultTenantUuid || response.tenantUuid || '')
+  localStorage.setItem(COMPANY_UUID_KEY, response.companyUuid || '')
+  localStorage.setItem(COMPANY_NAME_KEY, response.companyName || '')
+  localStorage.setItem(BRANCH_UUID_KEY, response.branchUuid || '')
+  localStorage.setItem(BRANCH_NAME_KEY, response.branchName || '')
+  localStorage.setItem(ACCESSIBLE_TENANTS_KEY, JSON.stringify(response.accessibleTenants ?? []))
 }
 
 export function clearAuth() {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USERNAME_KEY)
   localStorage.removeItem(ROLE_KEY)
+  localStorage.removeItem(TENANT_UUID_KEY)
+  localStorage.removeItem(DEFAULT_TENANT_UUID_KEY)
+  localStorage.removeItem(COMPANY_UUID_KEY)
+  localStorage.removeItem(COMPANY_NAME_KEY)
+  localStorage.removeItem(BRANCH_UUID_KEY)
+  localStorage.removeItem(BRANCH_NAME_KEY)
+  localStorage.removeItem(ACCESSIBLE_TENANTS_KEY)
 }
 
 async function request<T>(
@@ -502,6 +679,16 @@ async function request<T>(
 
   if (token && !options?.skipAuthHeader) {
     headers.Authorization = `Bearer ${token}`
+  }
+
+  const tenantUuid = options?.tenantUuid?.trim() || localStorage.getItem(TENANT_UUID_KEY)
+  if (tenantUuid) {
+    headers['X-Tenant-Id'] = tenantUuid
+  }
+
+  const branchUuid = localStorage.getItem(BRANCH_UUID_KEY)
+  if (branchUuid && !options?.skipAuthHeader) {
+    headers['X-Branch-Id'] = branchUuid
   }
 
   let serializedBody: string | undefined
@@ -540,14 +727,113 @@ function shouldStopLoginFallback(error: unknown) {
 }
 
 export const api = {
-  async login(username: string, password: string) {
+  async publicOnboard(payload: PublicOnboardRequest) {
+    const requestBody = {
+      ...payload,
+      tenantName: payload.companyName,
+      tenantCode: payload.companyCode,
+      adminFullName: payload.ownerName,
+    }
+
+    const response = await request<unknown>('POST', '/api/v1/public/onboard', '', requestBody, {
+      skipAuthHeader: true,
+    })
+    return normalizePublicOnboardResponse(response, payload)
+  },
+
+  async resolveTenantUuidByCompanyName(companyName: string) {
+    const trimmedCompanyName = companyName.trim()
+    if (!trimmedCompanyName) {
+      return ''
+    }
+
+    const queryVariants: Array<Record<string, QueryValue>> = [
+      { companyName: trimmedCompanyName },
+      { tenantName: trimmedCompanyName },
+      { name: trimmedCompanyName },
+      { company: trimmedCompanyName },
+    ]
+
+    const getPaths = [
+      '/api/v1/public/tenants/resolve',
+      '/api/v1/public/tenants/lookup',
+      '/api/v1/public/tenants/by-company-name',
+      '/api/v1/tenants/resolve',
+      '/api/v1/tenants/lookup',
+      '/api/v1/tenants/by-company-name',
+      '/api/v1/companies/resolve-tenant',
+      '/api/v1/public/companies/resolve-tenant',
+      '/api/v1/public/companies/lookup-tenant',
+    ]
+
+    const getCandidates: Array<{ path: string; query: Record<string, QueryValue> }> = []
+    for (const path of getPaths) {
+      for (const query of queryVariants) {
+        getCandidates.push({ path, query })
+      }
+    }
+
+    for (const candidate of getCandidates) {
+      try {
+        const response = await request<unknown>('GET', candidate.path, '', undefined, {
+          skipAuthHeader: true,
+          query: candidate.query,
+        })
+        const resolvedTenantUuid = extractTenantUuidFromLookupPayload(response)
+        if (resolvedTenantUuid) {
+          return resolvedTenantUuid
+        }
+      } catch {
+        // Continue trying compatible endpoint contracts.
+      }
+    }
+
+    const postCandidates = [
+      '/api/v1/public/tenants/resolve',
+      '/api/v1/public/tenants/lookup',
+      '/api/v1/public/tenants/by-company-name',
+      '/api/v1/tenants/resolve',
+      '/api/v1/tenants/lookup',
+      '/api/v1/tenants/by-company-name',
+      '/api/v1/companies/resolve-tenant',
+      '/api/v1/public/companies/resolve-tenant',
+      '/api/v1/public/companies/lookup-tenant',
+    ]
+
+    for (const path of postCandidates) {
+      try {
+        const bodyVariants = [
+          { companyName: trimmedCompanyName },
+          { tenantName: trimmedCompanyName },
+          { name: trimmedCompanyName },
+          { company: trimmedCompanyName },
+        ]
+
+        for (const body of bodyVariants) {
+          const response = await request<unknown>('POST', path, '', body, {
+            skipAuthHeader: true,
+          })
+          const resolvedTenantUuid = extractTenantUuidFromLookupPayload(response)
+          if (resolvedTenantUuid) {
+            return resolvedTenantUuid
+          }
+        }
+      } catch {
+        // Continue trying compatible endpoint contracts.
+      }
+    }
+
+    return ''
+  },
+
+  async login(username: string, password: string, tenantUuid?: string) {
     lastLoginAttemptDebug = null
     const trimmedUsername = username.trim()
     const paths = ['/api/v1/auth/login', '/api/auth/login', '/auth/login', '/api/v1/auth/signin']
-    const payloads: Array<{ body: Record<string, string>; bodyMode: BodyMode }> = [
-      { body: { username: trimmedUsername, password }, bodyMode: 'json' },
-      { body: { email: trimmedUsername, password }, bodyMode: 'json' },
-      { body: { username: trimmedUsername, password }, bodyMode: 'form' },
+    const payloads: Array<{ body: Record<string, string | undefined>; bodyMode: BodyMode }> = [
+      { body: { username: trimmedUsername, password, tenantUuid }, bodyMode: 'json' },
+      { body: { email: trimmedUsername, password, tenantUuid }, bodyMode: 'json' },
+      { body: { username: trimmedUsername, password, tenantUuid }, bodyMode: 'form' },
     ]
 
     let lastError: unknown = null
@@ -566,6 +852,7 @@ export const api = {
           const response = await request<unknown>('POST', path, '', payload.body, {
             bodyMode: payload.bodyMode,
             skipAuthHeader: true,
+            tenantUuid,
           })
           const normalized = normalizeAuthTokenResponse(response, trimmedUsername)
           lastLoginAttemptDebug = {
@@ -610,6 +897,35 @@ export const api = {
     throw new Error('Unable to complete login request.')
   },
 
+  getMyShops(token: string) {
+    return request<TenantShopResponse[]>('GET', '/api/auth/my-shops', token)
+  },
+
+  async switchShop(token: string, tenantUuid: string) {
+    const response = await request<unknown>('POST', `/api/auth/switch-shop/${tenantUuid}`, token, {})
+    return normalizeAuthTokenResponse(response, '')
+  },
+
+  setPrimaryShop(token: string, tenantUuid: string) {
+    return request<{ message: string }>('POST', `/api/auth/set-primary-shop/${tenantUuid}`, token, {})
+  },
+
+  getTenants(token: string) {
+    return request<TenantResponse[]>('GET', '/api/v1/tenants', token)
+  },
+
+  getTenantByUuid(token: string, tenantUuid: string) {
+    return request<TenantResponse>('GET', `/api/v1/tenants/${tenantUuid}`, token)
+  },
+
+  createTenant(token: string, payload: CreateTenantRequest) {
+    return request<TenantResponse>('POST', '/api/v1/tenants', token, payload)
+  },
+
+  updateTenant(token: string, tenantUuid: string, payload: UpdateTenantRequest) {
+    return request<TenantResponse>('PUT', `/api/v1/tenants/${tenantUuid}`, token, payload)
+  },
+
   getSalesDashboard(token: string, fromDate: string, toDate: string) {
     return request<SalesDashboardResponse>('GET', '/api/v1/sales/dashboard', token, undefined, {
       query: {
@@ -643,6 +959,15 @@ export const api = {
 
   createCustomer(token: string, payload: CreateCustomerRequest) {
     return request<CustomerResponse>('POST', '/api/v1/customers', token, payload)
+  },
+
+  searchFarmers(token: string, page = 0, size = 10) {
+    return request<PageResult<FarmerResponse>>('GET', '/api/v1/farmers', token, undefined, {
+      query: {
+        page,
+        size,
+      },
+    })
   },
 
   searchMilkCollections(token: string, page = 0, size = 10) {

@@ -14,14 +14,19 @@ import java.util.List;
 @Getter
 @Setter
 @Entity
-@Table(name = "production_batch")
+@Table(
+        name = "production_batch",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_production_batch_tenant_no", columnNames = {"tenant_uuid", "batch_no"})
+        }
+)
 public class ProductionBatch extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "branch_id", nullable = false)
     private Branch branch;
 
-    @Column(name = "batch_no", nullable = false, unique = true, length = 30)
+    @Column(name = "batch_no", nullable = false, length = 30)
     private String batchNo;
 
     @Column(name = "production_date", nullable = false)

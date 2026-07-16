@@ -23,6 +23,9 @@ import java.time.LocalTime;
 @Entity
 @Table(
         name = "milk_collection",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_milk_collection_tenant_no", columnNames = {"tenant_uuid", "collection_no"})
+        },
         indexes = {
                 @Index(name = "idx_mc_farmer_date", columnList = "farmer_id, collection_date"),
                 @Index(name = "idx_mc_collection_no", columnList = "collection_no")
@@ -30,7 +33,7 @@ import java.time.LocalTime;
 )
 public class MilkCollection extends BaseEntity {
 
-    @Column(name = "collection_no", nullable = false, unique = true, length = 30)
+    @Column(name = "collection_no", nullable = false, length = 30)
     private String collectionNo;
 
     @ManyToOne(fetch = FetchType.LAZY)

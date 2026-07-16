@@ -16,6 +16,9 @@ import java.time.LocalDate;
 @Entity
 @Table(
         name = "settlement",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_settlement_tenant_no", columnNames = {"tenant_uuid", "settlement_no"})
+        },
         indexes = {
                 @Index(name = "idx_settlement_farmer", columnList = "farmer_id"),
                 @Index(name = "idx_settlement_period", columnList = "from_date,to_date")
@@ -31,7 +34,7 @@ public class Settlement extends BaseEntity {
     @JoinColumn(name = "farmer_id", nullable = false)
     private Farmer farmer;
 
-    @Column(name = "settlement_no", nullable = false, unique = true, length = 30)
+    @Column(name = "settlement_no", nullable = false, length = 30)
     private String settlementNo;
 
     @Column(name = "from_date", nullable = false)

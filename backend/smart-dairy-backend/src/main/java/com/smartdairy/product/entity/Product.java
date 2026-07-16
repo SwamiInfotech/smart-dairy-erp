@@ -14,13 +14,17 @@ import java.math.BigDecimal;
 @Entity
 @Table(
         name = "product",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_product_tenant_code", columnNames = {"tenant_uuid", "product_code"}),
+                @UniqueConstraint(name = "uk_product_tenant_name", columnNames = {"tenant_uuid", "product_name"})
+        },
         indexes = {
                 @Index(name = "idx_product_name", columnList = "product_name")
         }
 )
 public class Product extends BaseEntity {
 
-    @Column(name = "product_code", nullable = false, unique = true, length = 30)
+    @Column(name = "product_code", nullable = false, length = 30)
     private String productCode;
 
     @Column(name = "product_name", nullable = false, length = 150)

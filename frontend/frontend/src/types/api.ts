@@ -23,6 +23,64 @@ export type AuthTokenResponse = {
   expiresIn: number
   username: string
   role: string
+  tenantUuid: string
+  defaultTenantUuid: string
+  companyUuid: string
+  companyName: string
+  branchUuid: string
+  branchName: string
+  accessibleTenants: string[]
+}
+
+export type TenantShopResponse = {
+  uuid: string
+  code: string
+  name: string
+  role: string
+  isPrimary: boolean
+  isOwner: boolean
+  isAdmin: boolean
+  active: boolean
+  createdAt: string
+}
+
+export type PublicOnboardRequest = {
+  companyName: string
+  companyCode: string
+  ownerName: string
+  ownerMobile: string
+  ownerEmail: string
+  adminUsername: string
+  adminPassword: string
+  city: string
+  state: string
+}
+
+export type PublicOnboardResponse = {
+  tenantUuid: string
+  companyName: string
+  companyCode: string
+  adminUsername: string
+  message: string
+}
+
+export type TenantResponse = {
+  uuid: string
+  code: string
+  name: string
+  active: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateTenantRequest = {
+  code: string
+  name: string
+}
+
+export type UpdateTenantRequest = {
+  code: string
+  name: string
 }
 
 export type PaymentMode = 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'CREDIT'

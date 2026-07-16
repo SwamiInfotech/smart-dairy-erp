@@ -46,6 +46,9 @@ server:
   port: 8081
 
 app:
+  tenant:
+    default-id: ${APP_TENANT_DEFAULT_ID:00000000-0000-0000-0000-000000000001}
+    header-name: ${APP_TENANT_HEADER_NAME:X-Tenant-Id}
   security:
     default-user:
       username: ${APP_SECURITY_DEFAULT_USERNAME:admin}

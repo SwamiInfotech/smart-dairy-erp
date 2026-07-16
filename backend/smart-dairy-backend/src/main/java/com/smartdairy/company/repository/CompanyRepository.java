@@ -10,6 +10,8 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
 
     Optional<Company> findByUuid(UUID uuid);
 
+    Optional<Company> findFirstByTenantUuidAndActiveTrueOrderByCreatedAtAsc(UUID tenantUuid);
+
     boolean existsByCompanyCode(String companyCode);
 
 }

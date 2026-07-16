@@ -1,16 +1,20 @@
 package com.smartdairy.sales.entity;
 
 import com.smartdairy.product.entity.Product;
+import com.smartdairy.tenant.context.TenantContextHolder;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.Filter;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @Getter
 @Setter
 @Entity
 @Table(name = "sales_invoice_item")
+@Filter(name = "tenantFilter", condition = "tenant_uuid = :tenantUuid")
 public class SalesInvoiceItem {
 
     @Id
@@ -33,5 +37,27 @@ public class SalesInvoiceItem {
 
     @Column(name = "line_total", nullable = false, precision = 14, scale = 2)
     private BigDecimal lineTotal;
+
+    @Column(name = "tenant_uuid", nullable = false)
+    private UUID tenantUuid;
+
+    @Column(name = "tenant_id", nullable = false, updatable = false, insertable = false)
+    private Long tenantId;
+
+    @PrePersist
+    protected void onCreate() {
+        assignTenantIfMissing();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        assignTenantIfMissing();
+    }
+
+    private void assignTenantIfMissing() {
+        if (this.tenantUuid == null) {
+            this.tenantUuid = TenantContextHolder.getTenantUuidOrFallback();
+        }
+    }
 
 }

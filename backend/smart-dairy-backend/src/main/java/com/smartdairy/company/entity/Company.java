@@ -12,10 +12,15 @@ import java.util.List;
 @Getter
 @Setter
 @Entity
-@Table(name = "company")
+@Table(
+        name = "company",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_company_tenant_code", columnNames = {"tenant_uuid", "company_code"})
+        }
+)
 public class Company extends BaseEntity {
 
-    @Column(name = "company_code", nullable = false, unique = true, length = 20)
+    @Column(name = "company_code", nullable = false, length = 20)
     private String companyCode;
 
     @Column(name = "company_name", nullable = false, length = 150)
