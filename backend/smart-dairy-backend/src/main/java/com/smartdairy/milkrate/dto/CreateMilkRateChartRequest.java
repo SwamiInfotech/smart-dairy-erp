@@ -26,6 +26,8 @@ public record CreateMilkRateChartRequest(
         @NotNull
         LocalDate effectiveFrom,
 
+        LocalDate effectiveTo,
+
         String remarks,
 
         @Valid

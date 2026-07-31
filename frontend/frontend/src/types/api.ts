@@ -149,6 +149,65 @@ export type MilkTypeResponse = {
   description: string | null
 }
 
+export type ShiftResponse = {
+  uuid: string
+  code: string
+  name: string
+  description: string | null
+}
+
+export type MasterLookupResponse = {
+  uuid: string
+  code: string
+  name: string
+  description: string | null
+}
+
+export type CreateMilkRateChartDetailRequest = {
+  fatFrom: number | null
+  fatTo: number | null
+  snfFrom: number | null
+  snfTo: number | null
+  mavaFrom: number | null
+  mavaTo: number | null
+  rate: number
+}
+
+export type CreateMilkRateChartRequest = {
+  branchUuid: string
+  rateCategoryUuid: string
+  collectionMethodUuid: string
+  chartName: string
+  effectiveFrom: string
+  effectiveTo: string
+  remarks: string
+  details: CreateMilkRateChartDetailRequest[]
+}
+
+export type MilkRateChartDetailResponse = {
+  uuid: string
+  fatFrom: number | null
+  fatTo: number | null
+  snfFrom: number | null
+  snfTo: number | null
+  mavaFrom: number | null
+  mavaTo: number | null
+  rate: number
+}
+
+export type MilkRateChartResponse = {
+  uuid: string
+  branchUuid: string
+  rateCategoryUuid: string
+  collectionMethodUuid: string
+  chartName: string
+  effectiveFrom: string
+  effectiveTo: string | null
+  remarks: string | null
+  active: boolean
+  details: MilkRateChartDetailResponse[]
+}
+
 export type CreateMilkCollectionRequest = {
   farmerUuid: string
   shiftUuid: string

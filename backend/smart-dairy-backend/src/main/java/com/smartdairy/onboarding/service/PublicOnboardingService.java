@@ -9,6 +9,10 @@ import com.smartdairy.branch.entity.Branch;
 import com.smartdairy.branch.repository.BranchRepository;
 import com.smartdairy.company.entity.Company;
 import com.smartdairy.company.repository.CompanyRepository;
+import com.smartdairy.master.entity.MilkType;
+import com.smartdairy.master.repository.MilkTypeRepository;
+import com.smartdairy.shift.entity.Shift;
+import com.smartdairy.shift.repository.ShiftRepository;
 import com.smartdairy.onboarding.dto.PublicOnboardingRequest;
 import com.smartdairy.onboarding.dto.PublicOnboardingResponse;
 import com.smartdairy.tenant.entity.Tenant;
@@ -35,6 +39,8 @@ public class PublicOnboardingService {
     private final CompanyRepository companyRepository;
     private final BranchRepository branchRepository;
     private final AppUserRepository appUserRepository;
+    private final MilkTypeRepository milkTypeRepository;
+    private final ShiftRepository shiftRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Transactional
@@ -110,6 +116,13 @@ public class PublicOnboardingService {
             Company savedCompany = companyRepository.save(company);
             Branch savedBranch = branchRepository.save(branch);
             AppUser savedAdminUser = appUserRepository.save(adminUser);
+            
+            // Create default milk types for tenant
+            createDefaultMilkTypes(savedTenant.getUuid());
+
+            // Create default shifts for tenant
+            createDefaultShifts(savedTenant.getUuid());
+
             LocalDate trialStart = LocalDate.now();
 
             return new PublicOnboardingResponse(
@@ -205,5 +218,45 @@ public class PublicOnboardingService {
             return trimmed;
         }
         return trimmed.substring(0, maxLength);
+    }
+
+    private void createDefaultMilkTypes(java.util.UUID tenantUuid) {
+        saveMilkTypeIfMissing(tenantUuid, "COW", "Cow Milk", 1);
+        saveMilkTypeIfMissing(tenantUuid, "BUFFALO", "Buffalo Milk", 2);
+    }
+
+    private void saveMilkTypeIfMissing(java.util.UUID tenantUuid, String code, String name, int displayOrder) {
+        if (milkTypeRepository.existsByCodeAndTenantUuid(code, tenantUuid)) {
+            return;
+        }
+
+        MilkType milkType = new MilkType();
+        milkType.setTenantUuid(tenantUuid);
+        milkType.setCode(code);
+        milkType.setName(name);
+        milkType.setDescription(name);
+        milkType.setDisplayOrder(displayOrder);
+        milkType.setActive(Boolean.TRUE);
+        milkTypeRepository.save(milkType);
+    }
+
+    private void createDefaultShifts(java.util.UUID tenantUuid) {
+        saveShiftIfMissing(tenantUuid, "MORNING", "Morning", "Morning Milk Collection", 1);
+        saveShiftIfMissing(tenantUuid, "EVENING", "Evening", "Evening Milk Collection", 2);
+    }
+
+    private void saveShiftIfMissing(java.util.UUID tenantUuid, String code, String name, String description, int displayOrder) {
+        if (shiftRepository.existsByCodeAndTenantUuid(code, tenantUuid)) {
+            return;
+        }
+
+        Shift shift = new Shift();
+        shift.setTenantUuid(tenantUuid);
+        shift.setCode(code);
+        shift.setName(name);
+        shift.setDescription(description);
+        shift.setDisplayOrder(displayOrder);
+        shift.setActive(Boolean.TRUE);
+        shiftRepository.save(shift);
     }
 }

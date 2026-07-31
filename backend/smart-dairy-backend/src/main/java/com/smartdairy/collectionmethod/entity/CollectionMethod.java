@@ -10,9 +10,17 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
-@Table(name = "collection_method")
+@Table(
+        name = "collection_method",
+        uniqueConstraints = {
+                @jakarta.persistence.UniqueConstraint(
+                        name = "uk_collection_method_tenant_code",
+                        columnNames = {"tenant_uuid", "code"}
+                )
+        }
+)
 public class CollectionMethod extends BaseEntity {
-    @Column(nullable = false, unique = true, length = 20)
+    @Column(nullable = false, length = 20)
     private String code;
 
     @Column(nullable = false, length = 100)

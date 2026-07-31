@@ -12,4 +12,8 @@ public interface CollectionMethodRepository extends JpaRepository<CollectionMeth
 
     Optional<CollectionMethod> findByCode(String code);
 
+    boolean existsByCodeIgnoreCase(String code);
+
+    boolean existsByCodeIgnoreCaseAndUuidNot(String code, UUID uuid);
+
 }

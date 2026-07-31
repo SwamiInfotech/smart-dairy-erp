@@ -5,10 +5,13 @@ import type {
   CreateCustomerRequest,
   CreateFarmerRequest,
   CreateMilkCollectionRequest,
+  CreateMilkRateChartRequest,
   CreateProductRequest,
   CreateSalesInvoiceRequest,
   CustomerResponse,
   FarmerResponse,
+  MasterLookupResponse,
+  MilkRateChartResponse,
   MilkTypeResponse,
   PageResult,
   ProductResponse,
@@ -16,6 +19,7 @@ import type {
   PublicOnboardResponse,
   SalesDashboardResponse,
   SalesInvoiceResponse,
+  ShiftResponse,
   TenantResponse,
   TenantShopResponse,
   UpdateTenantRequest,
@@ -237,17 +241,13 @@ export const BACKEND_MODULES: Record<string, BackendModuleDefinition> = {
   milkRateCharts: {
     label: 'Milk Rate Charts',
     endpoints: [
-      { method: 'GET', path: '/api/v1/milk-rate-charts' },
       { method: 'POST', path: '/api/v1/milk-rate-charts' },
-      { method: 'PUT', path: '/api/v1/milk-rate-charts/{uuid}' },
-      { method: 'DELETE', path: '/api/v1/milk-rate-charts/{uuid}' },
     ],
   },
   shifts: {
     label: 'Shifts',
     endpoints: [
-      { method: 'GET', path: '/api/v1/shifts' },
-      { method: 'POST', path: '/api/v1/shifts' },
+      { method: 'GET', path: '/api/v1/master/shifts' },
     ],
   },
 }
@@ -601,6 +601,249 @@ function normalizePublicOnboardResponse(
       readString(root, 'message', 'detail') ||
       readString(data, 'message', 'detail') ||
       'Company registration completed successfully.',
+  }
+}
+
+function normalizeShiftsResponse(payload: unknown): ShiftResponse[] {
+  const root = asRecord(payload)
+
+  const directArray = Array.isArray(payload) ? payload : null
+  const nestedArray =
+    (Array.isArray(root?.content) ? root.content : null) ||
+    (Array.isArray(root?.items) ? root.items : null) ||
+    (Array.isArray(root?.shifts) ? root.shifts : null)
+
+  const source = directArray || nestedArray
+  if (!source) {
+    throw new ApiError('Shift response format is invalid.', 500)
+  }
+
+  const normalized = source
+    .map((item) => {
+      const record = asRecord(item)
+      const uuid = readString(record, 'uuid', 'shiftUuid', 'id')
+      const code = readString(record, 'code', 'shiftCode')
+      const name = readString(record, 'name', 'shiftName')
+
+      if (!uuid || !code || !name) {
+        return null
+      }
+
+      const description = readString(record, 'description', 'desc') || null
+      return {
+        uuid,
+        code,
+        name,
+        description,
+      }
+    })
+    .filter((item): item is ShiftResponse => Boolean(item))
+
+  if (normalized.length === 0) {
+    throw new ApiError('No shifts are configured in master data.', 404)
+  }
+
+  return normalized
+}
+
+function normalizeLookupListResponse(payload: unknown, label: string): MasterLookupResponse[] {
+  const root = asRecord(payload)
+
+  const directArray = Array.isArray(payload) ? payload : null
+  const nestedArray =
+    (Array.isArray(root?.content) ? root.content : null) ||
+    (Array.isArray(root?.items) ? root.items : null) ||
+    (Array.isArray(root?.data) ? root.data : null) ||
+    (Array.isArray(root?.list) ? root.list : null) ||
+    (Array.isArray(root?.rows) ? root.rows : null) ||
+    (Array.isArray(root?.rateProfiles) ? root.rateProfiles : null) ||
+    (Array.isArray(root?.rateCategories) ? root.rateCategories : null) ||
+    (Array.isArray(root?.collectionMethods) ? root.collectionMethods : null)
+
+  const source = directArray || nestedArray
+  if (!source) {
+    throw new ApiError(`${label} response format is invalid.`, 500)
+  }
+
+  const normalized = source
+    .map((item) => {
+      const record = asRecord(item)
+      const uuid = readString(
+        record,
+        'uuid',
+        'id',
+        'rateProfileUuid',
+        'rateCategoryUuid',
+        'collectionMethodUuid',
+        'methodUuid',
+      )
+      const code = readString(
+        record,
+        'code',
+        'categoryCode',
+        'rateCategoryCode',
+        'methodCode',
+        'rateProfileCode',
+        'collectionMethodCode',
+      )
+      const name = readString(
+        record,
+        'name',
+        'categoryName',
+        'rateCategoryName',
+        'methodName',
+        'collectionMethodName',
+        'rateProfileName',
+        'profileName',
+        'title',
+      )
+
+      if (!uuid || !name) {
+        return null
+      }
+
+      return {
+        uuid,
+        code: code || '-',
+        name,
+        description: readString(record, 'description', 'remarks', 'note', 'profileDescription') || null,
+      }
+    })
+    .filter((item): item is MasterLookupResponse => Boolean(item))
+
+  if (normalized.length === 0) {
+    throw new ApiError(`No ${label.toLowerCase()} are configured in master data.`, 404)
+  }
+
+  return normalized
+}
+
+function normalizeMilkRateChartResponse(payload: unknown): MilkRateChartResponse {
+  const record = asRecord(payload)
+  const uuid = readString(record, 'uuid', 'id')
+  const branchUuid = readString(record, 'branchUuid')
+  const rateCategoryUuid = readString(record, 'rateCategoryUuid')
+  const collectionMethodUuid = readString(record, 'collectionMethodUuid')
+  const chartName = readString(record, 'chartName', 'name')
+  const effectiveFrom = readString(record, 'effectiveFrom')
+  const effectiveTo = readString(record, 'effectiveTo') || null
+
+  if (
+    !uuid ||
+    !branchUuid ||
+    !rateCategoryUuid ||
+    !collectionMethodUuid ||
+    !chartName ||
+    !effectiveFrom
+  ) {
+    throw new ApiError('Milk rate chart response format is invalid.', 500)
+  }
+
+  const details = Array.isArray(record?.details)
+    ? record.details
+        .map((item) => {
+          const detail = asRecord(item)
+          const detailUuid = readString(detail, 'uuid', 'id')
+          const rate = readNumber(detail, 'rate')
+
+          if (!detailUuid || rate <= 0) {
+            return null
+          }
+
+          const readNullableNumber = (...keys: string[]) => {
+            for (const key of keys) {
+              const value = detail?.[key]
+              if (typeof value === 'number') return value
+              if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) {
+                return Number(value)
+              }
+            }
+            return null
+          }
+
+          const fatFrom = readNullableNumber('fatFrom', 'fat_from', 'fat')
+          const fatTo = readNullableNumber('fatTo', 'fat_to')
+          const snfFrom = readNullableNumber('snfFrom', 'snf_from', 'snf')
+          const snfTo = readNullableNumber('snfTo', 'snf_to')
+          const mavaFrom = readNullableNumber('mavaFrom', 'mava_from', 'mava')
+          const mavaTo = readNullableNumber('mavaTo', 'mava_to')
+
+          return {
+            uuid: detailUuid,
+            fatFrom,
+            fatTo,
+            snfFrom,
+            snfTo,
+            mavaFrom,
+            mavaTo,
+            rate,
+          }
+        })
+        .filter((item): item is MilkRateChartResponse['details'][number] => Boolean(item))
+    : []
+
+  return {
+    uuid,
+    branchUuid,
+    rateCategoryUuid,
+    collectionMethodUuid,
+    chartName,
+    effectiveFrom,
+    effectiveTo,
+    remarks: readString(record, 'remarks') || null,
+    active: typeof record?.active === 'boolean' ? record.active : true,
+    details,
+  }
+}
+
+function validateMilkRateChartPayload(payload: CreateMilkRateChartRequest) {
+  if (!payload.branchUuid.trim()) {
+    throw new ApiError('Branch is required for milk rate chart.', 400)
+  }
+
+  if (!payload.rateCategoryUuid.trim()) {
+    throw new ApiError('Rate category is required for milk rate chart.', 400)
+  }
+
+  if (!payload.collectionMethodUuid.trim()) {
+    throw new ApiError('Collection method is required for milk rate chart.', 400)
+  }
+
+  if (!payload.chartName.trim()) {
+    throw new ApiError('Chart name is required for milk rate chart.', 400)
+  }
+
+  if (!payload.effectiveFrom.trim()) {
+    throw new ApiError('Effective from date is required for milk rate chart.', 400)
+  }
+
+  if (payload.effectiveTo.trim() && payload.effectiveTo < payload.effectiveFrom) {
+    throw new ApiError('Effective to date cannot be before effective from date.', 400)
+  }
+
+  if (!Array.isArray(payload.details) || payload.details.length === 0) {
+    throw new ApiError('At least one rate detail is required for milk rate chart.', 400)
+  }
+
+  for (const detail of payload.details) {
+    if (!Number.isFinite(detail.rate) || detail.rate <= 0) {
+      throw new ApiError('Rate detail must have rate greater than 0.', 400)
+    }
+
+    const numericFields = [
+      ['FAT from', detail.fatFrom],
+      ['FAT to', detail.fatTo],
+      ['SNF from', detail.snfFrom],
+      ['SNF to', detail.snfTo],
+      ['Mava from', detail.mavaFrom],
+      ['Mava to', detail.mavaTo],
+    ] as const
+
+    for (const [fieldName, value] of numericFields) {
+      if (value !== null && (!Number.isFinite(value) || value < 0)) {
+        throw new ApiError(`${fieldName} in rate detail must be a non-negative number.`, 400)
+      }
+    }
   }
 }
 
@@ -1001,6 +1244,41 @@ export const api = {
 
   getMilkTypes(token: string) {
     return request<MilkTypeResponse[]>('GET', '/api/v1/master/milk-types', token)
+  },
+
+  async getShifts(token: string) {
+    const response = await request<unknown>('GET', '/api/v1/master/shifts', token)
+    return normalizeShiftsResponse(response)
+  },
+
+  async createMilkRateChart(token: string, payload: CreateMilkRateChartRequest) {
+    validateMilkRateChartPayload(payload)
+    const response = await request<unknown>('POST', '/api/v1/milk-rate-charts', token, {
+      ...payload,
+      chartName: payload.chartName.trim(),
+      effectiveTo: payload.effectiveTo.trim() ? payload.effectiveTo : null,
+      remarks: payload.remarks.trim(),
+      details: payload.details.map((detail) => ({
+        fatFrom: detail.fatFrom,
+        fatTo: detail.fatTo,
+        snfFrom: detail.snfFrom,
+        snfTo: detail.snfTo,
+        mavaFrom: detail.mavaFrom,
+        mavaTo: detail.mavaTo,
+        rate: detail.rate,
+      })),
+    })
+    return normalizeMilkRateChartResponse(response)
+  },
+
+  async getRateCategories(token: string) {
+    const response = await request<unknown>('GET', '/api/v1/master/rate-categories', token)
+    return normalizeLookupListResponse(response, 'Rate categories')
+  },
+
+  async getCollectionMethods(token: string) {
+    const response = await request<unknown>('GET', '/api/v1/master/collection-methods', token)
+    return normalizeLookupListResponse(response, 'Collection methods')
   },
 
   searchSales(token: string, page = 0, size = 10) {

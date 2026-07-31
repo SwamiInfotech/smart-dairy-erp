@@ -10,8 +10,29 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface MilkRateChartMapper {
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "uuid", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "version", ignore = true)
+    @Mapping(target = "tenantUuid", ignore = true)
+    @Mapping(target = "tenantId", ignore = true)
+    @Mapping(target = "active", ignore = true)
+    @Mapping(target = "branch", ignore = true)
+    @Mapping(target = "rateCategory", ignore = true)
+    @Mapping(target = "collectionMethod", ignore = true)
+    @Mapping(target = "details", ignore = true)
     MilkRateChart toEntity(CreateMilkRateChartRequest request);
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "uuid", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "version", ignore = true)
+    @Mapping(target = "tenantUuid", ignore = true)
+    @Mapping(target = "tenantId", ignore = true)
+    @Mapping(target = "active", ignore = true)
+    @Mapping(target = "milkRateChart", ignore = true)
     MilkRateChartDetail toEntity(CreateMilkRateChartDetailRequest request);
 
     MilkRateChartDetailResponse toResponse(MilkRateChartDetail entity);

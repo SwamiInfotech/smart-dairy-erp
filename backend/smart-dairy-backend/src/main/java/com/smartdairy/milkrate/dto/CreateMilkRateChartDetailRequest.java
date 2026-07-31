@@ -7,11 +7,17 @@ import java.math.BigDecimal;
 
 public record CreateMilkRateChartDetailRequest(
 
-        BigDecimal fat,
+        BigDecimal fatFrom,
 
-        BigDecimal snf,
+        BigDecimal fatTo,
 
-        BigDecimal mava,
+        BigDecimal snfFrom,
+
+        BigDecimal snfTo,
+
+        BigDecimal mavaFrom,
+
+        BigDecimal mavaTo,
 
         @NotNull
         @DecimalMin("0.00")

@@ -7,11 +7,17 @@ public record MilkRateChartDetailResponse(
 
         UUID uuid,
 
-        BigDecimal fat,
+        BigDecimal fatFrom,
 
-        BigDecimal snf,
+        BigDecimal fatTo,
 
-        BigDecimal mava,
+        BigDecimal snfFrom,
+
+        BigDecimal snfTo,
+
+        BigDecimal mavaFrom,
+
+        BigDecimal mavaTo,
 
         BigDecimal rate
 

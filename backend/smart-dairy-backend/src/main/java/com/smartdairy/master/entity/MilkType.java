@@ -10,9 +10,18 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
-@Table(name = "milk_type")
+@Table(
+        name = "milk_type",
+        uniqueConstraints = {
+                @jakarta.persistence.UniqueConstraint(
+                        name = "uk_milk_type_tenant_code",
+                        columnNames = {"tenant_uuid", "code"}
+                )
+        }
+)
 public class MilkType extends BaseEntity {
-    @Column(nullable = false, unique = true, length = 20)
+
+    @Column(nullable = false, length = 20)
     private String code;
 
     @Column(nullable = false, length = 100)

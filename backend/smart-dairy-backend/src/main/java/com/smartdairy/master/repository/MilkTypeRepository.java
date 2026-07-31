@@ -10,6 +10,8 @@ public interface MilkTypeRepository extends JpaRepository<MilkType, Long> {
 
     Optional<MilkType> findByUuid(UUID uuid);
 
-    Optional<MilkType> findByCode(String code);
+    Optional<MilkType> findByCodeAndTenantUuid(String code, UUID tenantUuid);
+
+    boolean existsByCodeAndTenantUuid(String code, UUID tenantUuid);
 
 }

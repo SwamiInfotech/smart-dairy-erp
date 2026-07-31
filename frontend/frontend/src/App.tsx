@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
-  BACKEND_MODULES,
   api,
   clearAuth,
   getLastLoginAttemptDebug,
@@ -9,15 +8,19 @@ import {
   saveAuth,
 } from './lib/api'
 import type {
+  CreateMilkRateChartRequest,
   CreateTenantRequest,
   CreateSalesInvoiceItemRequest,
   CustomerResponse,
+  MasterLookupResponse,
+  MilkRateChartResponse,
   MilkTypeResponse,
   PaymentMode,
   ProductResponse,
   PublicOnboardRequest,
   SalesDashboardResponse,
   SalesInvoiceResponse,
+  ShiftResponse,
   TenantResponse,
   TenantShopResponse,
 } from './types/api'
@@ -214,6 +217,23 @@ function buildNextFarmerCode(existingCodes: string[]) {
   return `${selectedPrefix}${String(nextNumber).padStart(selectedWidth, '0')}`
 }
 
+function buildCustomerLookupLabel(customer: CustomerResponse) {
+  return `${customer.customerName} (${customer.customerCode || customer.mobileNo || 'Customer'})`
+}
+
+function resolveCustomerSelection(input: string, customers: CustomerResponse[]) {
+  const trimmed = input.trim().toLowerCase()
+  if (!trimmed) return null
+
+  return (
+    customers.find((customer) => buildCustomerLookupLabel(customer).toLowerCase() === trimmed) ||
+    customers.find((customer) => customer.customerName.trim().toLowerCase() === trimmed) ||
+    customers.find((customer) => customer.customerCode.trim().toLowerCase() === trimmed) ||
+    customers.find((customer) => customer.uuid.trim().toLowerCase() === trimmed) ||
+    null
+  )
+}
+
 function App() {
   const initialAuth = useMemo(getSavedAuth, [])
 
@@ -241,6 +261,7 @@ function App() {
   const [loginPassword, setLoginPassword] = useState('admin123')
   const [loginCompanyName, setLoginCompanyName] = useState(initialAuth.companyName || '')
   const [loginTenantUuid, setLoginTenantUuid] = useState('')
+  const [salesCustomerInput, setSalesCustomerInput] = useState('')
   const [onboardForm, setOnboardForm] = useState<PublicOnboardRequest>({
     companyName: '',
     companyCode: '',
@@ -276,17 +297,17 @@ function App() {
     const localMatch = findTenantUuidByCompany(tenantDirectory, trimmedCompanyName)
     if (localMatch) {
       setLoginTenantUuid(localMatch)
-      setTenantLookupNote('Tenant UUID auto-filled from saved directory.')
+      setTenantLookupNote('Tenant ID auto-filled from saved directory.')
       return
     }
 
     setResolvingTenantUuid(true)
-    setTenantLookupNote('Resolving tenant UUID from company name...')
+    setTenantLookupNote('Resolving tenant ID from company name...')
     try {
       const fetchedTenantUuid = await api.resolveTenantUuidByCompanyName(trimmedCompanyName)
       if (fetchedTenantUuid && isUuid(fetchedTenantUuid)) {
         setLoginTenantUuid(fetchedTenantUuid)
-        setTenantLookupNote('Tenant UUID resolved and auto-filled.')
+        setTenantLookupNote('Tenant ID resolved and auto-filled.')
         setTenantDirectory((prev) => {
           const next = upsertTenantDirectory(prev, trimmedCompanyName, fetchedTenantUuid)
           saveTenantDirectory(next)
@@ -294,11 +315,11 @@ function App() {
         })
       } else {
         setLoginTenantUuid('')
-        setTenantLookupNote('Tenant UUID could not be resolved. Enter company tenant UUID manually.')
+        setTenantLookupNote('Tenant ID could not be resolved. Enter company tenant ID manually.')
       }
     } catch {
       setLoginTenantUuid('')
-      setTenantLookupNote('Tenant lookup failed. Enter company tenant UUID manually.')
+      setTenantLookupNote('Tenant lookup failed. Enter company tenant ID manually.')
     } finally {
       setResolvingTenantUuid(false)
     }
@@ -334,6 +355,10 @@ function App() {
     }[]
   >([])
   const [milkTypes, setMilkTypes] = useState<MilkTypeResponse[]>([])
+  const [shifts, setShifts] = useState<ShiftResponse[]>([])
+  const [rateCategories, setRateCategories] = useState<MasterLookupResponse[]>([])
+  const [collectionMethods, setCollectionMethods] = useState<MasterLookupResponse[]>([])
+  const [milkRateCharts, setMilkRateCharts] = useState<MilkRateChartResponse[]>([])
 
   const nextProductCode = useMemo(
     () => buildNextProductCode(products.map((item) => item.productCode)),
@@ -438,6 +463,27 @@ function App() {
     items: [{ productUuid: '', quantity: 1, unitPrice: 0 }] as CreateSalesInvoiceItemRequest[],
   })
 
+  const [milkRateForm, setMilkRateForm] = useState<CreateMilkRateChartRequest>({
+    branchUuid: initialAuth.branchUuid,
+    rateCategoryUuid: '',
+    collectionMethodUuid: '',
+    chartName: '',
+    effectiveFrom: toInputDate(new Date()),
+    effectiveTo: '',
+    remarks: '',
+    details: [
+      {
+        fatFrom: null,
+        fatTo: null,
+        snfFrom: null,
+        snfTo: null,
+        mavaFrom: null,
+        mavaTo: null,
+        rate: 0,
+      },
+    ],
+  })
+
   async function runAction<T>(action: () => Promise<T>, successMessage?: string) {
     setBusy(true)
     setError('')
@@ -506,9 +552,10 @@ function App() {
 
   async function loadCollections() {
     if (!token) return
-    const [collectionPage, types] = await Promise.all([
+    const [collectionPage, types, shiftList] = await Promise.all([
       runAction(() => api.searchMilkCollections(token)),
       runAction(() => api.getMilkTypes(token)),
+      runAction(() => api.getShifts(token)),
     ])
 
     if (collectionPage) {
@@ -517,6 +564,9 @@ function App() {
     if (types) {
       setMilkTypes(types)
     }
+    if (shiftList) {
+      setShifts(shiftList)
+    }
   }
 
   async function loadSales() {
@@ -524,6 +574,22 @@ function App() {
     const result = await runAction(() => api.searchSales(token))
     if (result) {
       setSales(result.content)
+    }
+  }
+
+  async function loadMilkRateLookups() {
+    if (!token) return
+    const [rateCategoryList, collectionMethodList] = await Promise.all([
+      runAction(() => api.getRateCategories(token)),
+      runAction(() => api.getCollectionMethods(token)),
+    ])
+
+    if (rateCategoryList) {
+      setRateCategories(rateCategoryList)
+    }
+
+    if (collectionMethodList) {
+      setCollectionMethods(collectionMethodList)
     }
   }
 
@@ -561,6 +627,11 @@ function App() {
 
     void loadMyShops()
   }, [token, tenantUuid])
+
+  useEffect(() => {
+    if (!token || activeSidebarMenu !== 'milkRateCharts') return
+    void loadMilkRateLookups()
+  }, [activeSidebarMenu, token])
 
   useEffect(() => {
     setProductForm((prev) => {
@@ -606,7 +677,37 @@ function App() {
         branchUuid,
       }
     })
+
+    setMilkRateForm((prev) => {
+      if (prev.branchUuid === branchUuid) return prev
+      return {
+        ...prev,
+        branchUuid,
+      }
+    })
   }, [branchUuid])
+
+  useEffect(() => {
+    const selectedCustomer = customers.find((item) => item.uuid === salesForm.customerUuid)
+    if (selectedCustomer) {
+      const label = buildCustomerLookupLabel(selectedCustomer)
+      setSalesCustomerInput((prev) => (prev === label ? prev : label))
+      return
+    }
+
+    if (!salesForm.customerUuid) {
+      setSalesCustomerInput((prev) => (prev ? '' : prev))
+    }
+  }, [customers, salesForm.customerUuid])
+
+  function onSalesCustomerInputChange(value: string) {
+    setSalesCustomerInput(value)
+    const selectedCustomer = resolveCustomerSelection(value, customers)
+    setSalesForm((prev) => ({
+      ...prev,
+      customerUuid: selectedCustomer?.uuid || '',
+    }))
+  }
 
   async function onLogin(event: FormEvent) {
     event.preventDefault()
@@ -619,7 +720,7 @@ function App() {
     const isPlatformAdminLogin = /^super\s*-?admin$/i.test(trimmedUsername)
 
     if (trimmedTenantUuid && !isUuid(trimmedTenantUuid)) {
-      setError('Shop UUID format is invalid. Please provide a valid UUID or leave it empty.')
+      setError('Shop tenant ID format is invalid. Please provide a valid tenant ID or leave it empty.')
       return
     }
 
@@ -628,7 +729,7 @@ function App() {
       if (fetchedTenantUuid && isUuid(fetchedTenantUuid)) {
         targetTenantUuid = fetchedTenantUuid
         setLoginTenantUuid(fetchedTenantUuid)
-        setTenantLookupNote('Tenant UUID resolved and auto-filled.')
+        setTenantLookupNote('Tenant ID resolved and auto-filled.')
         setTenantDirectory((prev) => {
           const next = upsertTenantDirectory(prev, trimmedCompanyName, fetchedTenantUuid)
           saveTenantDirectory(next)
@@ -643,7 +744,7 @@ function App() {
     }
 
     if (trimmedCompanyName && !targetTenantUuid && !isPlatformAdminLogin) {
-      setError('Company tenant UUID is not resolved. Enter the company tenant UUID manually.')
+      setError('Company tenant ID is not resolved. Enter the company tenant ID manually.')
       return
     }
 
@@ -918,27 +1019,204 @@ function App() {
   async function onCreateCollection(event: FormEvent) {
     event.preventDefault()
     if (!token) return
-    const created = await runAction(
-      () =>
-        api.createMilkCollection(token, {
-          ...collectionForm,
-          fat: collectionForm.fat || null,
-          snf: collectionForm.snf || null,
-          mava: collectionForm.mava || null,
-        }),
-      'Milk collection saved successfully.',
-    )
+
+    const created = await runAction(async () => {
+      if (!Array.isArray(farmers) || farmers.length === 0) {
+        throw new Error('No farmers available. Load master data before saving collection.')
+      }
+
+      if (!Array.isArray(shifts) || shifts.length === 0) {
+        throw new Error('No shifts are configured. Please configure shifts in master data first.')
+      }
+
+      if (!Array.isArray(milkTypes) || milkTypes.length === 0) {
+        throw new Error('No milk types are configured. Please configure milk types in master data first.')
+      }
+
+      const selectedFarmer = farmers.find((item) => item.uuid === collectionForm.farmerUuid)
+      if (!selectedFarmer) {
+        throw new Error('Select a valid farmer from the list before saving the collection.')
+      }
+
+      const selectedShift = shifts.find((item) => item.uuid === collectionForm.shiftUuid)
+      if (!selectedShift) {
+        throw new Error('Select a valid shift from the list before saving the collection.')
+      }
+
+      const selectedMilkType = milkTypes.find((item) => item.uuid === collectionForm.milkTypeUuid)
+      if (!selectedMilkType) {
+        throw new Error('Select a valid milk type before saving the collection.')
+      }
+
+      const quantity = Number(collectionForm.quantity)
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        throw new Error('Quantity must be greater than 0 liters.')
+      }
+
+      if (!collectionForm.collectionDate.trim()) {
+        throw new Error('Collection date is required.')
+      }
+
+      if (!collectionForm.collectionTime.trim()) {
+        throw new Error('Collection time is required.')
+      }
+
+      if (collectionForm.fat < 0 || collectionForm.snf < 0 || collectionForm.mava < 0) {
+        throw new Error('FAT, SNF, and Mava cannot be negative values.')
+      }
+
+      return api.createMilkCollection(token, {
+        ...collectionForm,
+        farmerUuid: selectedFarmer.uuid,
+        shiftUuid: selectedShift.uuid,
+        milkTypeUuid: selectedMilkType.uuid,
+        quantity,
+        fat: collectionForm.fat || null,
+        snf: collectionForm.snf || null,
+        mava: collectionForm.mava || null,
+        remarks: collectionForm.remarks.trim(),
+      })
+    }, 'Milk collection saved successfully.')
+
     if (!created) return
     setCollections((prev) => [created, ...prev])
+  }
+
+  async function onCreateMilkRateChart(event: FormEvent) {
+    event.preventDefault()
+    if (!token) return
+
+    const created = await runAction(async () => {
+      if (!milkRateForm.branchUuid.trim()) {
+        throw new Error('Branch UUID is required for milk rate chart.')
+      }
+
+      if (!isUuid(milkRateForm.branchUuid)) {
+        throw new Error('Branch UUID format is invalid.')
+      }
+
+      if (!milkRateForm.rateCategoryUuid.trim()) {
+        throw new Error('Rate category is required.')
+      }
+
+      const selectedRateCategory = rateCategories.find(
+        (item) => item.uuid === milkRateForm.rateCategoryUuid,
+      )
+      if (!selectedRateCategory) {
+        throw new Error('Select a valid rate category from the list.')
+      }
+
+      if (!isUuid(milkRateForm.rateCategoryUuid)) {
+        throw new Error('Rate category selection is invalid.')
+      }
+
+      if (!milkRateForm.collectionMethodUuid.trim()) {
+        throw new Error('Collection method is required.')
+      }
+
+      const selectedCollectionMethod = collectionMethods.find(
+        (item) => item.uuid === milkRateForm.collectionMethodUuid,
+      )
+      if (!selectedCollectionMethod) {
+        throw new Error('Select a valid collection method from the list.')
+      }
+
+      if (!isUuid(milkRateForm.collectionMethodUuid)) {
+        throw new Error('Collection method selection is invalid.')
+      }
+
+      if (!milkRateForm.chartName.trim()) {
+        throw new Error('Chart name is required.')
+      }
+
+      if (!milkRateForm.effectiveFrom.trim()) {
+        throw new Error('Effective from date is required.')
+      }
+
+      if (milkRateForm.effectiveTo.trim() && milkRateForm.effectiveTo < milkRateForm.effectiveFrom) {
+        throw new Error('Effective to date cannot be before effective from date.')
+      }
+
+      const firstDetail = milkRateForm.details[0]
+      if (!firstDetail) {
+        throw new Error('At least one rate detail is required.')
+      }
+
+      const rate = Number(firstDetail.rate)
+      if (!Number.isFinite(rate) || rate <= 0) {
+        throw new Error('Rate must be greater than 0.')
+      }
+
+      const detailFields = [
+        ['FAT From', firstDetail.fatFrom],
+        ['FAT To', firstDetail.fatTo],
+        ['SNF From', firstDetail.snfFrom],
+        ['SNF To', firstDetail.snfTo],
+        ['Mava From', firstDetail.mavaFrom],
+        ['Mava To', firstDetail.mavaTo],
+      ] as const
+
+      for (const [label, value] of detailFields) {
+        if (value !== null && (!Number.isFinite(Number(value)) || Number(value) < 0)) {
+          throw new Error(`${label} must be a non-negative number when provided.`)
+        }
+      }
+
+      return api.createMilkRateChart(token, {
+        ...milkRateForm,
+        chartName: milkRateForm.chartName.trim(),
+        remarks: milkRateForm.remarks.trim(),
+        details: [
+          {
+            fatFrom: firstDetail.fatFrom,
+            fatTo: firstDetail.fatTo,
+            snfFrom: firstDetail.snfFrom,
+            snfTo: firstDetail.snfTo,
+            mavaFrom: firstDetail.mavaFrom,
+            mavaTo: firstDetail.mavaTo,
+            rate,
+          },
+        ],
+      })
+    }, 'Milk rate chart saved successfully.')
+
+    if (!created) return
+
+    setMilkRateCharts((prev) => [created, ...prev])
+    setMilkRateForm((prev) => ({
+      ...prev,
+      chartName: '',
+      effectiveTo: '',
+      remarks: '',
+      details: [
+        {
+          fatFrom: null,
+          fatTo: null,
+          snfFrom: null,
+          snfTo: null,
+          mavaFrom: null,
+          mavaTo: null,
+          rate: 0,
+        },
+      ],
+    }))
   }
 
   async function onCreateSales(event: FormEvent) {
     event.preventDefault()
     if (!token) return
+
+    const selectedCustomer = resolveCustomerSelection(salesCustomerInput, customers)
+    if (!selectedCustomer) {
+      setError('Select a valid customer from the list before creating the invoice.')
+      return
+    }
+
     const created = await runAction(
       () =>
         api.createSalesInvoice(token, {
           ...salesForm,
+          customerUuid: selectedCustomer.uuid,
           branchUuid: branchUuid || salesForm.branchUuid,
           items: salesForm.items.filter((item) => item.productUuid.trim().length > 0),
         }),
@@ -1201,7 +1479,7 @@ function App() {
                   </label>
 
                   <label>
-                    Company Tenant UUID
+                    Company Tenant
                     <input
                       value={loginTenantUuid}
                       onChange={(event) => {
@@ -1210,7 +1488,7 @@ function App() {
                       }}
                       placeholder="Auto resolved from company name"
                     />
-                    <small className="subtle">Auto-filled when available. You can enter it manually if needed.</small>
+                    <small className="subtle">Auto-filled when available. You can enter tenant ID manually if needed.</small>
                   </label>
 
                   <button type="submit" disabled={busy} className="login-submit">
@@ -1277,17 +1555,17 @@ function App() {
                       ))
                     : accessibleTenants.map((shopTenantUuid) => (
                         <option key={shopTenantUuid} value={shopTenantUuid}>
-                          {shopTenantUuid}
+                          Mapped Shop
                           {shopTenantUuid === defaultTenantUuid ? ' - Default' : ''}
                         </option>
                       ))}
                 </select>
                 <div className="tenant-meta">
                   <p className="current-shop-badge">
-                    Shop: {currentShop ? currentShop.name : tenantUuid || '-'}
+                    Shop: {currentShop ? currentShop.name : 'Mapped Shop'}
                   </p>
                   <p className="current-shop-badge">
-                    Branch: {branchName || branchUuid || '-'}
+                    Branch: {branchName || 'Current Branch'}
                   </p>
                 </div>
               </div>
@@ -1307,11 +1585,8 @@ function App() {
                 <section className="sidebar-group" key={group.title}>
                   <p className="sidebar-group-title">{group.title}</p>
                   {group.items.map((key) => {
-                    const backendModule = key in BACKEND_MODULES ? BACKEND_MODULES[key] : null
                     const isUiTab = key in TAB_LABELS
-                    const label = isUiTab
-                      ? TAB_LABELS[key as TabKey]
-                      : backendModule?.label || key
+                    const label = isUiTab ? TAB_LABELS[key as TabKey] : key
 
                     return (
                       <button
@@ -1334,54 +1609,7 @@ function App() {
             </aside>
 
             <main className="panel-grid">
-              <section className="panel endpoint-panel">
-                <div className="panel-head">
-                  <h2>
-                    Endpoint Map ·{' '}
-                    {activeSidebarMenu in TAB_LABELS
-                      ? TAB_LABELS[activeSidebarMenu as TabKey]
-                      : BACKEND_MODULES[activeSidebarMenu]?.label || activeSidebarMenu}
-                  </h2>
-                </div>
-                <div className="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Method</th>
-                        <th>Path</th>
-                        <th>Note</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(activeSidebarMenu in BACKEND_MODULES
-                        ? BACKEND_MODULES[activeSidebarMenu].endpoints
-                        : activeSidebarMenu in TAB_LABELS
-                          ? (() => {
-                              const tabToModule: Record<TabKey, keyof typeof BACKEND_MODULES> = {
-                                dashboard: 'sales',
-                                products: 'products',
-                                customers: 'customers',
-                                milkCollections: 'milkCollections',
-                                sales: 'sales',
-                                farmers: 'farmers',
-                                tenants: 'tenants',
-                              }
-                              return BACKEND_MODULES[tabToModule[activeSidebarMenu as TabKey]].endpoints
-                            })()
-                          : [])
-                        .map((endpoint, index) => (
-                          <tr key={`${endpoint.method}-${endpoint.path}-${index}`}>
-                            <td>{endpoint.method}</td>
-                            <td>{endpoint.path}</td>
-                            <td>{endpoint.note ?? '-'}</td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-
-              {activeTab === 'dashboard' && (
+              {activeTab === 'dashboard' && activeSidebarMenu === 'dashboard' && (
               <section className="panel">
                 <div className="panel-head">
                   <h2>Sales Dashboard</h2>
@@ -1443,7 +1671,7 @@ function App() {
               </section>
             )}
 
-              {activeTab === 'products' && (
+              {activeTab === 'products' && activeSidebarMenu === 'products' && (
               <section className="panel panel-product">
                 <div className="panel-head">
                   <h2>Products</h2>
@@ -1599,7 +1827,7 @@ function App() {
               </section>
             )}
 
-              {activeTab === 'customers' && (
+              {activeTab === 'customers' && activeSidebarMenu === 'customers' && (
               <section className="panel">
                 <div className="panel-head">
                   <h2>Customers</h2>
@@ -1610,10 +1838,10 @@ function App() {
 
                 <form className="form two-col" onSubmit={onCreateCustomer}>
                   <label>
-                    Branch UUID
+                    Branch
                     <input
                       required
-                      value={branchUuid || customerForm.branchUuid}
+                      value={branchName || branchUuid || customerForm.branchUuid}
                       readOnly
                     />
                   </label>
@@ -1700,86 +1928,215 @@ function App() {
               </section>
             )}
 
-              {activeTab === 'milkCollections' && (
-              <section className="panel">
+              {activeTab === 'milkCollections' && activeSidebarMenu === 'milkCollections' && (
+              <section className="panel panel-collection">
                 <div className="panel-head">
                   <h2>Milk Collections</h2>
                   <button type="button" onClick={loadCollections} disabled={busy}>
                     Reload
                   </button>
                 </div>
-                <form className="form two-col" onSubmit={onCreateCollection}>
-                  <label>
-                    Farmer UUID
-                    <input
-                      required
-                      value={collectionForm.farmerUuid}
-                      onChange={(event) =>
-                        setCollectionForm((prev) => ({ ...prev, farmerUuid: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Shift UUID
-                    <input
-                      required
-                      value={collectionForm.shiftUuid}
-                      onChange={(event) =>
-                        setCollectionForm((prev) => ({ ...prev, shiftUuid: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Milk type
-                    <select
-                      value={collectionForm.milkTypeUuid}
-                      onChange={(event) =>
-                        setCollectionForm((prev) => ({ ...prev, milkTypeUuid: event.target.value }))
-                      }
-                    >
-                      <option value="">Select milk type</option>
-                      {milkTypes.map((item) => (
-                        <option key={item.uuid} value={item.uuid}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Collection date
-                    <input
-                      type="date"
-                      value={collectionForm.collectionDate}
-                      onChange={(event) =>
-                        setCollectionForm((prev) => ({ ...prev, collectionDate: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Collection time
-                    <input
-                      type="time"
-                      value={collectionForm.collectionTime}
-                      onChange={(event) =>
-                        setCollectionForm((prev) => ({ ...prev, collectionTime: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Quantity
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={collectionForm.quantity}
-                      onChange={(event) =>
-                        setCollectionForm((prev) => ({ ...prev, quantity: Number(event.target.value) }))
-                      }
-                    />
-                  </label>
-                  <button type="submit" disabled={busy}>
-                    Save collection
-                  </button>
-                </form>
+                <div className="collection-layout">
+                  <form className="collection-form" onSubmit={onCreateCollection}>
+                    <div className="collection-form-head">
+                      <p className="eyebrow">Collection Entry</p>
+                      <h3>Capture Daily Milk Procurement</h3>
+                      <p className="subtle">
+                        Record farmer, shift, milk quality, and collection timing in one structured entry.
+                      </p>
+                    </div>
+
+                    <div className="collection-grid">
+                      <label className="collection-field collection-field-wide">
+                        <span>Farmer</span>
+                        <select
+                          required
+                          value={collectionForm.farmerUuid}
+                          onChange={(event) =>
+                            setCollectionForm((prev) => ({ ...prev, farmerUuid: event.target.value }))
+                          }
+                        >
+                          <option value="">Select farmer</option>
+                          {farmers.map((farmer) => (
+                            <option key={farmer.uuid} value={farmer.uuid}>
+                              {farmer.farmerName} ({farmer.farmerCode || farmer.mobileNo || 'Farmer'})
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="collection-field">
+                        <span>Shift</span>
+                        <select
+                          required
+                          value={collectionForm.shiftUuid}
+                          onChange={(event) =>
+                            setCollectionForm((prev) => ({ ...prev, shiftUuid: event.target.value }))
+                          }
+                        >
+                          <option value="">Select shift</option>
+                          {shifts.map((shift) => (
+                            <option key={shift.uuid} value={shift.uuid}>
+                              {shift.name} ({shift.code || 'Shift'})
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="collection-field">
+                        <span>Milk Type</span>
+                        <select
+                          required
+                          value={collectionForm.milkTypeUuid}
+                          onChange={(event) =>
+                            setCollectionForm((prev) => ({ ...prev, milkTypeUuid: event.target.value }))
+                          }
+                        >
+                          <option value="">Select milk type</option>
+                          {milkTypes.map((item) => (
+                            <option key={item.uuid} value={item.uuid}>
+                              {item.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="collection-field">
+                        <span>Collection Date</span>
+                        <input
+                          required
+                          type="date"
+                          value={collectionForm.collectionDate}
+                          onChange={(event) =>
+                            setCollectionForm((prev) => ({ ...prev, collectionDate: event.target.value }))
+                          }
+                        />
+                      </label>
+
+                      <label className="collection-field">
+                        <span>Collection Time</span>
+                        <input
+                          required
+                          type="time"
+                          value={collectionForm.collectionTime}
+                          onChange={(event) =>
+                            setCollectionForm((prev) => ({ ...prev, collectionTime: event.target.value }))
+                          }
+                        />
+                      </label>
+
+                      <label className="collection-field">
+                        <span>Quantity (Liters)</span>
+                        <input
+                          required
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={collectionForm.quantity}
+                          onChange={(event) =>
+                            setCollectionForm((prev) => ({ ...prev, quantity: Number(event.target.value) }))
+                          }
+                        />
+                      </label>
+
+                      <div className="collection-quality-grid collection-field-wide">
+                        <label className="collection-field">
+                          <span>FAT</span>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            value={collectionForm.fat}
+                            onChange={(event) =>
+                              setCollectionForm((prev) => ({ ...prev, fat: Number(event.target.value) }))
+                            }
+                            placeholder="Optional"
+                          />
+                        </label>
+                        <label className="collection-field">
+                          <span>SNF</span>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            value={collectionForm.snf}
+                            onChange={(event) =>
+                              setCollectionForm((prev) => ({ ...prev, snf: Number(event.target.value) }))
+                            }
+                            placeholder="Optional"
+                          />
+                        </label>
+                        <label className="collection-field">
+                          <span>Mava</span>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            value={collectionForm.mava}
+                            onChange={(event) =>
+                              setCollectionForm((prev) => ({ ...prev, mava: Number(event.target.value) }))
+                            }
+                            placeholder="Optional"
+                          />
+                        </label>
+                      </div>
+
+                      <label className="collection-field collection-field-wide">
+                        <span>Remarks</span>
+                        <input
+                          value={collectionForm.remarks}
+                          onChange={(event) =>
+                            setCollectionForm((prev) => ({ ...prev, remarks: event.target.value }))
+                          }
+                          placeholder="Quality notes, can condition, route remarks, etc."
+                        />
+                      </label>
+                    </div>
+                    <button type="submit" disabled={busy} className="collection-submit">
+                      {busy ? 'Saving...' : 'Save Collection'}
+                    </button>
+                  </form>
+
+                  <aside className="collection-summary">
+                    <h3>Collection Snapshot</h3>
+                    <div className="collection-summary-grid">
+                      <article>
+                        <p>Farmer</p>
+                        <strong>{farmers.find((item) => item.uuid === collectionForm.farmerUuid)?.farmerName || '-'}</strong>
+                      </article>
+                      <article>
+                        <p>Milk Type</p>
+                        <strong>
+                          {milkTypes.find((item) => item.uuid === collectionForm.milkTypeUuid)?.name || '-'}
+                        </strong>
+                      </article>
+                      <article>
+                        <p>Shift</p>
+                        <strong>{shifts.find((item) => item.uuid === collectionForm.shiftUuid)?.name || '-'}</strong>
+                      </article>
+                      <article>
+                        <p>Schedule</p>
+                        <strong>
+                          {collectionForm.collectionDate || '-'} {collectionForm.collectionTime || ''}
+                        </strong>
+                      </article>
+                      <article>
+                        <p>Quantity</p>
+                        <strong>{collectionForm.quantity ? `${collectionForm.quantity} L` : '-'}</strong>
+                      </article>
+                      <article>
+                        <p>Quality</p>
+                        <strong>
+                          FAT {collectionForm.fat || 0} | SNF {collectionForm.snf || 0}
+                        </strong>
+                      </article>
+                    </div>
+                    <div className="collection-note-box">
+                      <p className="eyebrow">Checklist</p>
+                      <p>Confirm farmer, shift, milk type, and quantity before saving.</p>
+                    </div>
+                  </aside>
+                </div>
 
                 <div className="table-wrap">
                   <table>
@@ -1808,7 +2165,392 @@ function App() {
               </section>
             )}
 
-              {activeTab === 'sales' && (
+              {activeSidebarMenu === 'milkRateCharts' && (
+              <section className="panel panel-milk-rate">
+                <div className="panel-head">
+                  <h2>Milk Rate Charts</h2>
+                </div>
+
+                <div className="milk-rate-layout">
+                  <form className="milk-rate-form" onSubmit={onCreateMilkRateChart}>
+                    <div className="milk-rate-form-head">
+                      <p className="eyebrow">Rate Configuration</p>
+                      <h3>Create Milk Rate Chart</h3>
+                      <p className="subtle">Select names from masters, define quality slab, and save effective chart.</p>
+                    </div>
+
+                    <div className="milk-rate-grid">
+                      <label className="milk-rate-field milk-rate-field-wide">
+                        <span>Branch</span>
+                        <input value={branchName || currentShop?.name || milkRateForm.branchUuid} readOnly />
+                        <small className="subtle">Mapped from active shop context.</small>
+                      </label>
+
+                      <label className="milk-rate-field">
+                        <span>Rate Category</span>
+                        <select
+                          required
+                          value={milkRateForm.rateCategoryUuid}
+                          onChange={(event) =>
+                            setMilkRateForm((prev) => ({ ...prev, rateCategoryUuid: event.target.value }))
+                          }
+                        >
+                          <option value="">Select rate category</option>
+                          {rateCategories.map((item) => (
+                            <option key={item.uuid} value={item.uuid}>
+                              {item.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="milk-rate-field">
+                        <span>Collection Method</span>
+                        <select
+                          required
+                          value={milkRateForm.collectionMethodUuid}
+                          onChange={(event) =>
+                            setMilkRateForm((prev) => ({ ...prev, collectionMethodUuid: event.target.value }))
+                          }
+                        >
+                          <option value="">Select collection method</option>
+                          {collectionMethods.map((item) => (
+                            <option key={item.uuid} value={item.uuid}>
+                              {item.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="milk-rate-field">
+                        <span>Chart Name</span>
+                        <input
+                          required
+                          value={milkRateForm.chartName}
+                          onChange={(event) =>
+                            setMilkRateForm((prev) => ({ ...prev, chartName: event.target.value }))
+                          }
+                          placeholder="Example: Morning Fat-SNF Standard"
+                        />
+                      </label>
+
+                      <label className="milk-rate-field">
+                        <span>Effective From</span>
+                        <input
+                          required
+                          type="date"
+                          value={milkRateForm.effectiveFrom}
+                          onChange={(event) =>
+                            setMilkRateForm((prev) => ({ ...prev, effectiveFrom: event.target.value }))
+                          }
+                        />
+                      </label>
+
+                      <label className="milk-rate-field">
+                        <span>Effective To</span>
+                        <input
+                          type="date"
+                          value={milkRateForm.effectiveTo}
+                          onChange={(event) =>
+                            setMilkRateForm((prev) => ({ ...prev, effectiveTo: event.target.value }))
+                          }
+                        />
+                      </label>
+
+                      <label className="milk-rate-field">
+                        <span>Rate</span>
+                        <input
+                          required
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={milkRateForm.details[0]?.rate ?? 0}
+                          onChange={(event) =>
+                            setMilkRateForm((prev) => ({
+                              ...prev,
+                              details: [
+                                {
+                                  ...(prev.details[0] || {
+                                    fatFrom: null,
+                                    fatTo: null,
+                                    snfFrom: null,
+                                    snfTo: null,
+                                    mavaFrom: null,
+                                    mavaTo: null,
+                                    rate: 0,
+                                  }),
+                                  rate: Number(event.target.value),
+                                },
+                              ],
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    <div className="milk-rate-slab">
+                      <div className="milk-rate-slab-head">
+                        <h4>Quality Slab</h4>
+                        <p>Enter a from/to range for each quality parameter.</p>
+                      </div>
+
+                      <div className="milk-rate-detail-row">
+                        <label>FAT</label>
+                        <div className="milk-rate-range">
+                          <input
+                            id="milk-rate-fat-from"
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            placeholder="From"
+                            value={milkRateForm.details[0]?.fatFrom ?? ''}
+                            onChange={(event) =>
+                              setMilkRateForm((prev) => ({
+                                ...prev,
+                                details: [
+                                  {
+                                    ...(prev.details[0] || {
+                                      fatFrom: null,
+                                      fatTo: null,
+                                      snfFrom: null,
+                                      snfTo: null,
+                                      mavaFrom: null,
+                                      mavaTo: null,
+                                      rate: 0,
+                                    }),
+                                    fatFrom: event.target.value === '' ? null : Number(event.target.value),
+                                  },
+                                ],
+                              }))
+                            }
+                          />
+                          <input
+                            id="milk-rate-fat-to"
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            placeholder="To"
+                            value={milkRateForm.details[0]?.fatTo ?? ''}
+                            onChange={(event) =>
+                              setMilkRateForm((prev) => ({
+                                ...prev,
+                                details: [
+                                  {
+                                    ...(prev.details[0] || {
+                                      fatFrom: null,
+                                      fatTo: null,
+                                      snfFrom: null,
+                                      snfTo: null,
+                                      mavaFrom: null,
+                                      mavaTo: null,
+                                      rate: 0,
+                                    }),
+                                    fatTo: event.target.value === '' ? null : Number(event.target.value),
+                                  },
+                                ],
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      <div className="milk-rate-detail-row">
+                        <label>SNF</label>
+                        <div className="milk-rate-range">
+                          <input
+                            id="milk-rate-snf-from"
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            placeholder="From"
+                            value={milkRateForm.details[0]?.snfFrom ?? ''}
+                            onChange={(event) =>
+                              setMilkRateForm((prev) => ({
+                                ...prev,
+                                details: [
+                                  {
+                                    ...(prev.details[0] || {
+                                      fatFrom: null,
+                                      fatTo: null,
+                                      snfFrom: null,
+                                      snfTo: null,
+                                      mavaFrom: null,
+                                      mavaTo: null,
+                                      rate: 0,
+                                    }),
+                                    snfFrom: event.target.value === '' ? null : Number(event.target.value),
+                                  },
+                                ],
+                              }))
+                            }
+                          />
+                          <input
+                            id="milk-rate-snf-to"
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            placeholder="To"
+                            value={milkRateForm.details[0]?.snfTo ?? ''}
+                            onChange={(event) =>
+                              setMilkRateForm((prev) => ({
+                                ...prev,
+                                details: [
+                                  {
+                                    ...(prev.details[0] || {
+                                      fatFrom: null,
+                                      fatTo: null,
+                                      snfFrom: null,
+                                      snfTo: null,
+                                      mavaFrom: null,
+                                      mavaTo: null,
+                                      rate: 0,
+                                    }),
+                                    snfTo: event.target.value === '' ? null : Number(event.target.value),
+                                  },
+                                ],
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      <div className="milk-rate-detail-row">
+                        <label>Mava</label>
+                        <div className="milk-rate-range">
+                          <input
+                            id="milk-rate-mava-from"
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            placeholder="From"
+                            value={milkRateForm.details[0]?.mavaFrom ?? ''}
+                            onChange={(event) =>
+                              setMilkRateForm((prev) => ({
+                                ...prev,
+                                details: [
+                                  {
+                                    ...(prev.details[0] || {
+                                      fatFrom: null,
+                                      fatTo: null,
+                                      snfFrom: null,
+                                      snfTo: null,
+                                      mavaFrom: null,
+                                      mavaTo: null,
+                                      rate: 0,
+                                    }),
+                                    mavaFrom: event.target.value === '' ? null : Number(event.target.value),
+                                  },
+                                ],
+                              }))
+                            }
+                          />
+                          <input
+                            id="milk-rate-mava-to"
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            placeholder="To"
+                            value={milkRateForm.details[0]?.mavaTo ?? ''}
+                            onChange={(event) =>
+                              setMilkRateForm((prev) => ({
+                                ...prev,
+                                details: [
+                                  {
+                                    ...(prev.details[0] || {
+                                      fatFrom: null,
+                                      fatTo: null,
+                                      snfFrom: null,
+                                      snfTo: null,
+                                      mavaFrom: null,
+                                      mavaTo: null,
+                                      rate: 0,
+                                    }),
+                                    mavaTo: event.target.value === '' ? null : Number(event.target.value),
+                                  },
+                                ],
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <label className="milk-rate-field milk-rate-field-wide">
+                      <span>Remarks</span>
+                      <input
+                        value={milkRateForm.remarks}
+                        onChange={(event) =>
+                          setMilkRateForm((prev) => ({ ...prev, remarks: event.target.value }))
+                        }
+                        placeholder="Optional operational notes"
+                      />
+                    </label>
+
+                    <button type="submit" disabled={busy} className="milk-rate-submit">
+                      {busy ? 'Saving...' : 'Save Milk Rate Chart'}
+                    </button>
+                  </form>
+
+                  <aside className="milk-rate-summary" aria-label="Milk rate quick summary">
+                    <h3>Selection Snapshot</h3>
+                    <div className="milk-rate-summary-grid">
+                      <article>
+                        <p>Branch</p>
+                        <strong>{branchName || currentShop?.name || '-'}</strong>
+                      </article>
+                      <article>
+                        <p>Rate Category</p>
+                        <strong>
+                          {rateCategories.find((item) => item.uuid === milkRateForm.rateCategoryUuid)?.name || '-'}
+                        </strong>
+                      </article>
+                      <article>
+                        <p>Collection Method</p>
+                        <strong>
+                          {collectionMethods.find((item) => item.uuid === milkRateForm.collectionMethodUuid)?.name ||
+                            '-'}
+                        </strong>
+                      </article>
+                      <article>
+                        <p>Effective Date</p>
+                        <strong>{milkRateForm.effectiveFrom || '-'}</strong>
+                      </article>
+                    </div>
+                  </aside>
+                </div>
+
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Chart Name</th>
+                        <th>Effective From</th>
+                        <th>Effective To</th>
+                        <th>Rate Category</th>
+                        <th>Collection Method</th>
+                        <th>Details</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {milkRateCharts.map((item) => (
+                        <tr key={item.uuid}>
+                          <td>{item.chartName}</td>
+                          <td>{item.effectiveFrom}</td>
+                          <td>{item.effectiveTo || '-'}</td>
+                          <td>{rateCategories.find((rateCategory) => rateCategory.uuid === item.rateCategoryUuid)?.name || '-'}</td>
+                          <td>{collectionMethods.find((collectionMethod) => collectionMethod.uuid === item.collectionMethodUuid)?.name || '-'}</td>
+                          <td>{item.details.length}</td>
+                          <td>{item.active ? 'ACTIVE' : 'INACTIVE'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
+              {activeTab === 'sales' && activeSidebarMenu === 'sales' && (
               <section className="panel">
                 <div className="panel-head">
                   <h2>Sales Invoices</h2>
@@ -1819,10 +2561,10 @@ function App() {
 
                 <form className="form two-col" onSubmit={onCreateSales}>
                   <label>
-                    Branch UUID
+                    Branch
                     <input
                       required
-                      value={branchUuid || salesForm.branchUuid}
+                      value={branchName || branchUuid || salesForm.branchUuid}
                       readOnly
                     />
                   </label>
@@ -1838,19 +2580,18 @@ function App() {
                   </label>
                   <label>
                     Customer
-                    <select
-                      value={salesForm.customerUuid}
-                      onChange={(event) =>
-                        setSalesForm((prev) => ({ ...prev, customerUuid: event.target.value }))
-                      }
-                    >
-                      <option value="">Select customer</option>
-                      {customers.map((item) => (
-                        <option key={item.uuid} value={item.uuid}>
-                          {item.customerName}
-                        </option>
+                    <input
+                      value={salesCustomerInput}
+                      onChange={(event) => onSalesCustomerInputChange(event.target.value)}
+                      onBlur={(event) => onSalesCustomerInputChange(event.target.value)}
+                      placeholder="Search by customer name or code"
+                      list="sales-customers"
+                    />
+                    <datalist id="sales-customers">
+                      {customers.map((customer) => (
+                        <option key={customer.uuid} value={buildCustomerLookupLabel(customer)} />
                       ))}
-                    </select>
+                    </datalist>
                   </label>
 
                   <label>
@@ -1960,7 +2701,7 @@ function App() {
               </section>
             )}
 
-              {activeTab === 'farmers' && (
+              {activeTab === 'farmers' && activeSidebarMenu === 'farmers' && (
               <section className="panel panel-farmer">
                 <div className="panel-head">
                   <h2>Farmers</h2>
@@ -2148,7 +2889,7 @@ function App() {
                           <td>{item.farmerCode}</td>
                           <td>{item.farmerName}</td>
                           <td>{item.mobileNo || '-'}</td>
-                          <td>{item.branchUuid || '-'}</td>
+                          <td>{item.branchUuid === branchUuid ? branchName || 'Current Branch' : 'Mapped Branch'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2157,7 +2898,7 @@ function App() {
               </section>
             )}
 
-              {activeTab === 'tenants' && (
+              {activeTab === 'tenants' && activeSidebarMenu === 'tenants' && (
               <section className="panel">
                 <div className="panel-head">
                   <h2>Tenants</h2>

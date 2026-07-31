@@ -34,6 +34,10 @@ public class CreateMilkRateChartService {
 
     public MilkRateChartResponse create(CreateMilkRateChartRequest request) {
 
+        if (request.effectiveTo() != null && request.effectiveTo().isBefore(request.effectiveFrom())) {
+            throw new BusinessException("Effective To must be greater than or equal to Effective From.");
+        }
+
         Branch branch = branchRepository.findByUuid(request.branchUuid())
                 .orElseThrow(() -> new ResourceNotFoundException("Branch not found."));
 
@@ -52,7 +56,8 @@ public class CreateMilkRateChartService {
 
                     if (!request.effectiveFrom().isAfter(existing.getEffectiveFrom())) {
                         throw new BusinessException(
-                                "Effective From must be greater than existing chart.");
+                                "Effective From must be after existing active chart effective date: "
+                                        + existing.getEffectiveFrom() + ".");
                     }
 
                     existing.setEffectiveTo(request.effectiveFrom().minusDays(1));

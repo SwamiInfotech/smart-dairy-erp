@@ -42,8 +42,7 @@ public class RateResolverServiceImpl implements RateResolverService {
 
         Farmer farmer = findFarmer(farmerUuid.getUuid());
 
-        FarmerConfiguration configuration =
-                findFarmerConfiguration(farmer, collectionDate);
+        FarmerConfiguration configuration = findFarmerConfiguration(farmer, collectionDate);
 
         System.out.println("========== Milk Rate Chart Lookup ==========");
         System.out.println("Branch Id         : " + configuration.getFarmer().getBranch().getId());
@@ -110,9 +109,7 @@ public class RateResolverServiceImpl implements RateResolverService {
                         new ResourceNotFoundException("Farmer not found."));
     }
 
-    private FarmerConfiguration findFarmerConfiguration(
-            Farmer farmer,
-            LocalDate collectionDate) {
+    private FarmerConfiguration findFarmerConfiguration(Farmer farmer, LocalDate collectionDate) {
 
         return farmerConfigurationRepository
                 .findApplicableConfiguration(

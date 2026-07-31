@@ -10,6 +10,8 @@ public interface ShiftRepository extends JpaRepository<Shift, Long> {
 
     Optional<Shift> findByUuid(UUID uuid);
 
-    Optional<Shift> findByCode(String code);
+    Optional<Shift> findByCodeAndTenantUuid(String code, UUID tenantUuid);
+
+    boolean existsByCodeAndTenantUuid(String code, UUID tenantUuid);
 
 }
