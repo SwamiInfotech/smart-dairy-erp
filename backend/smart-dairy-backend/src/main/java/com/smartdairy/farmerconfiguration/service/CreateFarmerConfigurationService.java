@@ -19,12 +19,14 @@ import com.smartdairy.paymentcycle.repository.PaymentCycleRepository;
 import com.smartdairy.rateprofile.entity.RateCategory;
 import com.smartdairy.rateprofile.repository.RateCategoryRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class CreateFarmerConfigurationService {
 
     private final FarmerConfigurationRepository repository;
@@ -37,25 +39,49 @@ public class CreateFarmerConfigurationService {
 
     public FarmerConfigurationResponse create(CreateFarmerConfigurationRequest request) {
 
+        log.info("Creating farmer configuration for farmer UUID: {}", request.farmerUuid());
+
         Farmer farmer = farmerRepository.findByUuid(request.farmerUuid())
-                .orElseThrow(() -> new ResourceNotFoundException("Farmer not found."));
+                .orElseThrow(() -> {
+                    log.error("Farmer not found with UUID: {}", request.farmerUuid());
+                    return new ResourceNotFoundException("Farmer not found.");
+                });
+
+        log.debug("Found farmer: {} with ID: {}", farmer.getFarmerCode(), farmer.getId());
 
         MilkType milkType = milkTypeRepository.findByUuid(request.milkTypeUuid())
-                .orElseThrow(() -> new ResourceNotFoundException("Milk Type not found."));
+                .orElseThrow(() -> {
+                    log.error("Milk Type not found with UUID: {}", request.milkTypeUuid());
+                    return new ResourceNotFoundException("Milk Type not found.");
+                });
 
         CollectionMethod collectionMethod = collectionMethodRepository.findByUuid(request.collectionMethodUuid())
-                .orElseThrow(() -> new ResourceNotFoundException("Collection Method not found."));
+                .orElseThrow(() -> {
+                    log.error("Collection Method not found with UUID: {}", request.collectionMethodUuid());
+                    return new ResourceNotFoundException("Collection Method not found.");
+                });
 
         PaymentCycle paymentCycle = paymentCycleRepository.findByUuid(request.paymentCycleUuid())
-                .orElseThrow(() -> new ResourceNotFoundException("Payment Cycle not found."));
+                .orElseThrow(() -> {
+                    log.error("Payment Cycle not found with UUID: {}", request.paymentCycleUuid());
+                    return new ResourceNotFoundException("Payment Cycle not found.");
+                });
 
         RateCategory rateCategory = rateCategoryRepository.findByUuid(request.rateCategoryUuid())
-                .orElseThrow(() -> new ResourceNotFoundException("Rate Category not found."));
+                .orElseThrow(() -> {
+                    log.error("Rate Category not found with UUID: {}", request.rateCategoryUuid());
+                    return new ResourceNotFoundException("Rate Category not found.");
+                });
+
+        log.debug("All master data entities found. Creating farmer configuration.");
 
         repository.findByFarmerIdAndActiveTrue(farmer.getId())
                 .ifPresent(existing -> {
 
+                    log.debug("Existing farmer configuration found. Deactivating it.");
+
                     if (!request.effectiveFrom().isAfter(existing.getEffectiveFrom())) {
+                        log.error("Effective From date is not after existing configuration date");
                         throw new BusinessException(
                                 "Effective From must be greater than existing configuration date.");
                     }
@@ -64,6 +90,7 @@ public class CreateFarmerConfigurationService {
                     existing.setActive(false);
 
                     repository.save(existing);
+                    log.debug("Existing configuration deactivated.");
                 });
 
         FarmerConfiguration configuration = mapper.toEntity(request);
@@ -75,6 +102,8 @@ public class CreateFarmerConfigurationService {
         configuration.setRateCategory(rateCategory);
 
         FarmerConfiguration saved = repository.save(configuration);
+
+        log.info("Farmer configuration saved successfully with UUID: {}", saved.getUuid());
 
         return mapper.toResponse(saved);
     }

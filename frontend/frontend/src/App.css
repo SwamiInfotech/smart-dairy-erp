@@ -365,8 +365,8 @@ input[readonly] {
 
 .farmer-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.6fr);
-  gap: 18px;
+  grid-template-columns: 1fr;
+  gap: 14px;
   align-items: start;
   margin: 10px 0 18px;
 }
@@ -396,6 +396,78 @@ input[readonly] {
   font-size: 1.2rem;
   color: #1f355e;
   font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
+}
+
+.farmer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.farmer-grid-group {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(103, 124, 160, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.farmer-grid-title {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5f7398;
+  font-weight: 800;
+}
+
+.farmer-grid-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.farmer-grid-cols-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.farmer-grid-cols-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.farmer-field {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.farmer-field > span {
+  margin: 0;
+  font-weight: 700;
+  color: #27486d;
+}
+
+.farmer-field input,
+.farmer-field select {
+  width: 100%;
+  min-height: 44px;
+}
+
+.farmer-chart-response {
+  width: 100%;
+  min-height: 150px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(112, 131, 168, 0.35);
+  background: rgba(248, 251, 255, 0.95);
+  color: #1c355a;
+  font: 500 0.85rem/1.4 'Consolas', 'Courier New', monospace;
+  resize: vertical;
+}
+
+.farmer-field-wide-col {
+  grid-column: 1 / -1;
 }
 
 .farmer-field-wide {
@@ -436,6 +508,7 @@ input[readonly] {
 .farmer-summary-grid {
   display: grid;
   gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
 
 .farmer-summary-grid article {
@@ -1199,6 +1272,19 @@ tbody tr:hover {
   }
 
   .farmer-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .farmer-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .farmer-grid-cols {
+    grid-template-columns: 1fr;
+  }
+
+  .farmer-grid-cols-two,
+  .farmer-grid-cols-three {
     grid-template-columns: 1fr;
   }
 

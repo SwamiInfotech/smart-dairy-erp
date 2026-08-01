@@ -287,4 +287,9 @@ export type CreateFarmerRequest = {
   panNo: string
   photoUrl: string
   remarks: string
+  milkTypeUuid: string
+  collectionMethodUuid: string
+  paymentCycleUuid: string
+  rateCategoryUuid: string
+  configEffectiveFrom: string
 }

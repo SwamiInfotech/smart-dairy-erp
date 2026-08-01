@@ -772,6 +772,7 @@ function normalizeMilkRateChartResponse(payload: unknown): MilkRateChartResponse
             uuid: detailUuid,
             fatFrom,
             fatTo,
+
             snfFrom,
             snfTo,
             mavaFrom,
@@ -1271,6 +1272,11 @@ export const api = {
     return normalizeMilkRateChartResponse(response)
   },
 
+  async getMilkRateCharts(token: string) {
+    const response = await request<unknown>('GET', '/api/v1/milk-rate-charts', token)
+    return normalizeMilkRateChartListResponse(response)
+  },
+
   async getRateCategories(token: string) {
     const response = await request<unknown>('GET', '/api/v1/master/rate-categories', token)
     return normalizeLookupListResponse(response, 'Rate categories')
@@ -1279,6 +1285,11 @@ export const api = {
   async getCollectionMethods(token: string) {
     const response = await request<unknown>('GET', '/api/v1/master/collection-methods', token)
     return normalizeLookupListResponse(response, 'Collection methods')
+  },
+
+  async getPaymentCycles(token: string) {
+    const response = await request<unknown>('GET', '/api/v1/master/payment-cycles', token)
+    return normalizeLookupListResponse(response, 'Payment cycles')
   },
 
   searchSales(token: string, page = 0, size = 10) {

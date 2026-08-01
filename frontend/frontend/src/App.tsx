@@ -98,6 +98,26 @@ function isUuid(value: string) {
   )
 }
 
+function isTenDigitMobile(value: string) {
+  return /^[6-9]\d{9}$/.test(value)
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
+function isValidPincode(value: string) {
+  return /^\d{6}$/.test(value)
+}
+
+function isValidAadhar(value: string) {
+  return /^\d{12}$/.test(value)
+}
+
+function isValidPan(value: string) {
+  return /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(value)
+}
+
 function normalizeCompanyName(value: string) {
   return value.trim().toLowerCase()
 }
@@ -358,6 +378,9 @@ function App() {
   const [shifts, setShifts] = useState<ShiftResponse[]>([])
   const [rateCategories, setRateCategories] = useState<MasterLookupResponse[]>([])
   const [collectionMethods, setCollectionMethods] = useState<MasterLookupResponse[]>([])
+  const [paymentCycles, setPaymentCycles] = useState<MasterLookupResponse[]>([])
+  const [farmerRateCharts, setFarmerRateCharts] = useState<MilkRateChartResponse[]>([])
+  const [selectedFarmerRateChartUuid, setSelectedFarmerRateChartUuid] = useState('')
   const [milkRateCharts, setMilkRateCharts] = useState<MilkRateChartResponse[]>([])
 
   const nextProductCode = useMemo(
@@ -438,6 +461,11 @@ function App() {
     panNo: '',
     photoUrl: '',
     remarks: '',
+    milkTypeUuid: '',
+    collectionMethodUuid: '',
+    paymentCycleUuid: '',
+    rateCategoryUuid: '',
+    configEffectiveFrom: toInputDate(new Date()),
   })
 
   const [collectionForm, setCollectionForm] = useState({
@@ -593,6 +621,32 @@ function App() {
     }
   }
 
+  async function loadFarmerConfigLookups() {
+    if (!token) return
+    const [types, collectionMethodList, paymentCycleList, chartList] = await Promise.all([
+      runAction(() => api.getMilkTypes(token)),
+      runAction(() => api.getCollectionMethods(token)),
+      runAction(() => api.getPaymentCycles(token)),
+      runAction(() => api.getMilkRateCharts(token)),
+    ])
+
+    if (types) {
+      setMilkTypes(types)
+    }
+
+    if (collectionMethodList) {
+      setCollectionMethods(collectionMethodList)
+    }
+
+    if (paymentCycleList) {
+      setPaymentCycles(paymentCycleList)
+    }
+
+    if (chartList) {
+      setFarmerRateCharts(chartList)
+    }
+  }
+
   async function loadMyShops() {
     if (!token) return
     const result = await runAction(() => api.getMyShops(token))
@@ -632,6 +686,23 @@ function App() {
     if (!token || activeSidebarMenu !== 'milkRateCharts') return
     void loadMilkRateLookups()
   }, [activeSidebarMenu, token])
+
+  useEffect(() => {
+    if (!token || activeSidebarMenu !== 'farmers') return
+    void loadFarmerConfigLookups()
+  }, [activeSidebarMenu, token])
+
+  useEffect(() => {
+    if (!selectedFarmerRateChartUuid) return
+    const selected = farmerRateCharts.find((item) => item.uuid === selectedFarmerRateChartUuid)
+    if (!selected) return
+
+    setFarmerForm((prev) => ({
+      ...prev,
+      rateCategoryUuid: selected.rateCategoryUuid,
+      collectionMethodUuid: selected.collectionMethodUuid,
+    }))
+  }, [farmerRateCharts, selectedFarmerRateChartUuid])
 
   useEffect(() => {
     setProductForm((prev) => {
@@ -986,11 +1057,130 @@ function App() {
   async function onCreateFarmer(event: FormEvent) {
     event.preventDefault()
     if (!token) return
+
+    const targetBranchUuid = (branchUuid || farmerForm.branchUuid || '').trim()
+    const farmerName = farmerForm.farmerName.trim()
+    const village = farmerForm.village.trim()
+    const mobileNo = farmerForm.mobileNo.trim()
+    const alternateMobileNo = farmerForm.alternateMobileNo.trim()
+    const email = farmerForm.email.trim().toLowerCase()
+    const pincode = farmerForm.pincode.trim()
+    const aadharNo = farmerForm.aadharNo.trim()
+    const panNo = farmerForm.panNo.trim().toUpperCase()
+    const photoUrl = farmerForm.photoUrl.trim()
+
+    if (!targetBranchUuid || !isUuid(targetBranchUuid)) {
+      setError('Valid branch UUID is required for farmer creation.')
+      return
+    }
+
+    if (!farmerName) {
+      setError('Farmer name is required.')
+      return
+    }
+
+    if (!farmerForm.milkTypeUuid || !isUuid(farmerForm.milkTypeUuid)) {
+      setError('Select a valid Milk Type for farmer configuration.')
+      return
+    }
+
+    if (!farmerForm.collectionMethodUuid || !isUuid(farmerForm.collectionMethodUuid)) {
+      setError('Select a valid Collection Method for farmer configuration.')
+      return
+    }
+
+    if (!farmerForm.paymentCycleUuid || !isUuid(farmerForm.paymentCycleUuid)) {
+      setError('Select a valid Payment Cycle for farmer configuration.')
+      return
+    }
+
+    if (!farmerForm.rateCategoryUuid || !isUuid(farmerForm.rateCategoryUuid)) {
+      setError('Select a valid Rate Category for farmer configuration.')
+      return
+    }
+
+    if (!farmerForm.configEffectiveFrom.trim()) {
+      setError('Configuration effective from date is required.')
+      return
+    }
+
+    if (!village) {
+      setError('Village is required.')
+      return
+    }
+
+    if (!isTenDigitMobile(mobileNo)) {
+      setError('Mobile number must be a valid 10-digit Indian mobile number.')
+      return
+    }
+
+    if (alternateMobileNo && !isTenDigitMobile(alternateMobileNo)) {
+      setError('Alternate mobile number must be a valid 10-digit Indian mobile number.')
+      return
+    }
+
+    if (alternateMobileNo && alternateMobileNo === mobileNo) {
+      setError('Alternate mobile number cannot be same as mobile number.')
+      return
+    }
+
+    if (email && !isValidEmail(email)) {
+      setError('Enter a valid email address.')
+      return
+    }
+
+    if (pincode && !isValidPincode(pincode)) {
+      setError('Pincode must be exactly 6 digits.')
+      return
+    }
+
+    if (aadharNo && !isValidAadhar(aadharNo)) {
+      setError('Aadhar number must be exactly 12 digits.')
+      return
+    }
+
+    if (panNo && !isValidPan(panNo)) {
+      setError('PAN number must be in format AAAAA9999A.')
+      return
+    }
+
+    if (photoUrl) {
+      try {
+        const parsed = new URL(photoUrl)
+        if (!/^https?:$/.test(parsed.protocol)) {
+          setError('Photo URL must start with http:// or https://.')
+          return
+        }
+      } catch {
+        setError('Photo URL is not valid.')
+        return
+      }
+    }
+
     const created = await runAction(
       () =>
         api.createFarmer(token, {
           ...farmerForm,
-          branchUuid: branchUuid || farmerForm.branchUuid,
+          branchUuid: targetBranchUuid,
+          farmerName,
+          village,
+          mobileNo,
+          alternateMobileNo,
+          email,
+          pincode,
+          aadharNo,
+          panNo,
+          photoUrl,
+          address: farmerForm.address.trim(),
+          taluka: farmerForm.taluka.trim(),
+          district: farmerForm.district.trim(),
+          state: farmerForm.state.trim(),
+          remarks: farmerForm.remarks.trim(),
+          milkTypeUuid: farmerForm.milkTypeUuid,
+          collectionMethodUuid: farmerForm.collectionMethodUuid,
+          paymentCycleUuid: farmerForm.paymentCycleUuid,
+          rateCategoryUuid: farmerForm.rateCategoryUuid,
+          configEffectiveFrom: farmerForm.configEffectiveFrom,
         }),
       'Farmer created successfully.',
     )
@@ -1013,6 +1203,11 @@ function App() {
       panNo: '',
       photoUrl: '',
       remarks: '',
+      milkTypeUuid: '',
+      collectionMethodUuid: '',
+      paymentCycleUuid: '',
+      rateCategoryUuid: '',
+      configEffectiveFrom: toInputDate(new Date()),
     })
   }
 
@@ -2710,145 +2905,294 @@ function App() {
                   </button>
                 </div>
                 <div className="farmer-layout">
-                  <form className="form two-col farmer-form" onSubmit={onCreateFarmer}>
+                  <form className="farmer-form" onSubmit={onCreateFarmer}>
                     <div className="farmer-form-head">
                       <p className="eyebrow">Farmer Master</p>
                       <h3>Create Farmer</h3>
                       <p className="subtle">Farmer code is auto-generated and increments by 1.</p>
                     </div>
 
-                    <label>
-                      Farmer code
-                      <input required value={farmerForm.farmerCode} readOnly />
-                    </label>
-                    <label>
-                      Farmer name
-                      <input
-                        required
-                        value={farmerForm.farmerName}
-                        onChange={(event) =>
-                          setFarmerForm((prev) => ({ ...prev, farmerName: event.target.value }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Mobile
-                      <input
-                        value={farmerForm.mobileNo}
-                        onChange={(event) =>
-                          setFarmerForm((prev) => ({ ...prev, mobileNo: event.target.value }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Alternate mobile
-                      <input
-                        value={farmerForm.alternateMobileNo}
-                        onChange={(event) =>
-                          setFarmerForm((prev) => ({ ...prev, alternateMobileNo: event.target.value }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Email
-                      <input
-                        value={farmerForm.email}
-                        onChange={(event) =>
-                          setFarmerForm((prev) => ({ ...prev, email: event.target.value }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Village
-                      <input
-                        required
-                        value={farmerForm.village}
-                        onChange={(event) =>
-                          setFarmerForm((prev) => ({ ...prev, village: event.target.value }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Taluka
-                      <input
-                        value={farmerForm.taluka}
-                        onChange={(event) =>
-                          setFarmerForm((prev) => ({ ...prev, taluka: event.target.value }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      District
-                      <input
-                        value={farmerForm.district}
-                        onChange={(event) =>
-                          setFarmerForm((prev) => ({ ...prev, district: event.target.value }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      State
-                      <input
-                        value={farmerForm.state}
-                        onChange={(event) =>
-                          setFarmerForm((prev) => ({ ...prev, state: event.target.value }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Pincode
-                      <input
-                        value={farmerForm.pincode}
-                        onChange={(event) =>
-                          setFarmerForm((prev) => ({ ...prev, pincode: event.target.value }))
-                        }
-                      />
-                    </label>
-                    <label className="farmer-field-wide">
-                      Address
-                      <input
-                        value={farmerForm.address}
-                        onChange={(event) =>
-                          setFarmerForm((prev) => ({ ...prev, address: event.target.value }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Aadhar No
-                      <input
-                        value={farmerForm.aadharNo}
-                        onChange={(event) =>
-                          setFarmerForm((prev) => ({ ...prev, aadharNo: event.target.value }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      PAN No
-                      <input
-                        value={farmerForm.panNo}
-                        onChange={(event) =>
-                          setFarmerForm((prev) => ({ ...prev, panNo: event.target.value }))
-                        }
-                      />
-                    </label>
-                    <label className="farmer-field-wide">
-                      Photo URL
-                      <input
-                        value={farmerForm.photoUrl}
-                        onChange={(event) =>
-                          setFarmerForm((prev) => ({ ...prev, photoUrl: event.target.value }))
-                        }
-                      />
-                    </label>
-                    <label className="farmer-field-wide">
-                      Remarks
-                      <input
-                        value={farmerForm.remarks}
-                        onChange={(event) =>
-                          setFarmerForm((prev) => ({ ...prev, remarks: event.target.value }))
-                        }
-                      />
-                    </label>
+                    <div className="farmer-grid">
+                      <div className="farmer-grid-group farmer-field-wide">
+                        <div className="farmer-grid-title">Identity</div>
+                        <div className="farmer-grid-cols farmer-grid-cols-two">
+                          <label className="farmer-field">
+                            <span>Farmer Code</span>
+                            <input required value={farmerForm.farmerCode} readOnly />
+                          </label>
+                          <label className="farmer-field">
+                            <span>Farmer Name</span>
+                            <input
+                              required
+                              value={farmerForm.farmerName}
+                              onChange={(event) =>
+                                setFarmerForm((prev) => ({ ...prev, farmerName: event.target.value }))
+                              }
+                            />
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="farmer-grid-group farmer-field-wide">
+                        <div className="farmer-grid-title">Contact</div>
+                        <div className="farmer-grid-cols farmer-grid-cols-three">
+                          <label className="farmer-field">
+                            <span>Mobile</span>
+                            <input
+                              required
+                              inputMode="numeric"
+                              maxLength={10}
+                              value={farmerForm.mobileNo}
+                              onChange={(event) =>
+                                setFarmerForm((prev) => ({ ...prev, mobileNo: event.target.value }))
+                              }
+                            />
+                          </label>
+                          <label className="farmer-field">
+                            <span>Alternate Mobile</span>
+                            <input
+                              inputMode="numeric"
+                              maxLength={10}
+                              value={farmerForm.alternateMobileNo}
+                              onChange={(event) =>
+                                setFarmerForm((prev) => ({ ...prev, alternateMobileNo: event.target.value }))
+                              }
+                            />
+                          </label>
+                          <label className="farmer-field farmer-field-wide-col">
+                            <span>Email</span>
+                            <input
+                              value={farmerForm.email}
+                              onChange={(event) =>
+                                setFarmerForm((prev) => ({ ...prev, email: event.target.value }))
+                              }
+                            />
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="farmer-grid-group farmer-field-wide">
+                        <div className="farmer-grid-title">Location</div>
+                        <div className="farmer-grid-cols farmer-grid-cols-three">
+                          <label className="farmer-field">
+                            <span>Village</span>
+                            <input
+                              required
+                              value={farmerForm.village}
+                              onChange={(event) =>
+                                setFarmerForm((prev) => ({ ...prev, village: event.target.value }))
+                              }
+                            />
+                          </label>
+                          <label className="farmer-field">
+                            <span>Taluka</span>
+                            <input
+                              value={farmerForm.taluka}
+                              onChange={(event) =>
+                                setFarmerForm((prev) => ({ ...prev, taluka: event.target.value }))
+                              }
+                            />
+                          </label>
+                          <label className="farmer-field">
+                            <span>District</span>
+                            <input
+                              value={farmerForm.district}
+                              onChange={(event) =>
+                                setFarmerForm((prev) => ({ ...prev, district: event.target.value }))
+                              }
+                            />
+                          </label>
+                          <label className="farmer-field">
+                            <span>State</span>
+                            <input
+                              value={farmerForm.state}
+                              onChange={(event) =>
+                                setFarmerForm((prev) => ({ ...prev, state: event.target.value }))
+                              }
+                            />
+                          </label>
+                          <label className="farmer-field">
+                            <span>Pincode</span>
+                            <input
+                              inputMode="numeric"
+                              maxLength={6}
+                              value={farmerForm.pincode}
+                              onChange={(event) =>
+                                setFarmerForm((prev) => ({ ...prev, pincode: event.target.value }))
+                              }
+                            />
+                          </label>
+                          <label className="farmer-field farmer-field-wide-col">
+                            <span>Address</span>
+                            <input
+                              value={farmerForm.address}
+                              onChange={(event) =>
+                                setFarmerForm((prev) => ({ ...prev, address: event.target.value }))
+                              }
+                            />
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="farmer-grid-group farmer-field-wide">
+                        <div className="farmer-grid-title">Compliance</div>
+                        <div className="farmer-grid-cols farmer-grid-cols-two">
+                          <label className="farmer-field">
+                            <span>Aadhar No</span>
+                            <input
+                              inputMode="numeric"
+                              maxLength={12}
+                              value={farmerForm.aadharNo}
+                              onChange={(event) =>
+                                setFarmerForm((prev) => ({ ...prev, aadharNo: event.target.value }))
+                              }
+                            />
+                          </label>
+                          <label className="farmer-field">
+                            <span>PAN No</span>
+                            <input
+                              maxLength={10}
+                              value={farmerForm.panNo}
+                              onChange={(event) =>
+                                setFarmerForm((prev) => ({ ...prev, panNo: event.target.value }))
+                              }
+                            />
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="farmer-grid-group farmer-field-wide">
+                        <div className="farmer-grid-title">Configuration (Required)</div>
+                        <div className="farmer-grid-cols farmer-grid-cols-three">
+                          <label className="farmer-field farmer-field-wide-col">
+                            <span>Rate Category Source (Milk Rate Charts API)</span>
+                            <select
+                              required
+                              value={selectedFarmerRateChartUuid}
+                              onChange={(event) => setSelectedFarmerRateChartUuid(event.target.value)}
+                            >
+                              <option value="">Select from /api/v1/milk-rate-charts</option>
+                              {farmerRateCharts.map((item) => (
+                                <option key={item.uuid} value={item.uuid}>
+                                  {item.chartName} | Rate Category: {item.rateCategoryUuid} | Effective: {item.effectiveFrom}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label className="farmer-field farmer-field-wide-col">
+                            <span>Selected Chart Full Response</span>
+                            <textarea
+                              className="farmer-chart-response"
+                              readOnly
+                              value={
+                                selectedFarmerRateChartUuid
+                                  ? JSON.stringify(
+                                      farmerRateCharts.find(
+                                        (item) => item.uuid === selectedFarmerRateChartUuid,
+                                      ) || null,
+                                      null,
+                                      2,
+                                    )
+                                  : ''
+                              }
+                              placeholder="Full response row will appear here after chart selection"
+                            />
+                          </label>
+
+                          <label className="farmer-field">
+                            <span>Milk Type</span>
+                            <select
+                              required
+                              value={farmerForm.milkTypeUuid}
+                              onChange={(event) =>
+                                setFarmerForm((prev) => ({ ...prev, milkTypeUuid: event.target.value }))
+                              }
+                            >
+                              <option value="">Select milk type</option>
+                              {milkTypes.map((item) => (
+                                <option key={item.uuid} value={item.uuid}>
+                                  {item.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label className="farmer-field">
+                            <span>Collection Method</span>
+                            <select
+                              required
+                              value={farmerForm.collectionMethodUuid}
+                              onChange={(event) =>
+                                setFarmerForm((prev) => ({ ...prev, collectionMethodUuid: event.target.value }))
+                              }
+                            >
+                              <option value="">Select collection method</option>
+                              {collectionMethods.map((item) => (
+                                <option key={item.uuid} value={item.uuid}>
+                                  {item.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label className="farmer-field">
+                            <span>Payment Cycle</span>
+                            <select
+                              required
+                              value={farmerForm.paymentCycleUuid}
+                              onChange={(event) =>
+                                setFarmerForm((prev) => ({ ...prev, paymentCycleUuid: event.target.value }))
+                              }
+                            >
+                              <option value="">Select payment cycle</option>
+                              {paymentCycles.map((item) => (
+                                <option key={item.uuid} value={item.uuid}>
+                                  {item.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label className="farmer-field">
+                            <span>Rate Category</span>
+                            <input value={farmerForm.rateCategoryUuid} readOnly />
+                          </label>
+
+                          <label className="farmer-field">
+                            <span>Config Effective From</span>
+                            <input
+                              required
+                              type="date"
+                              value={farmerForm.configEffectiveFrom}
+                              onChange={(event) =>
+                                setFarmerForm((prev) => ({ ...prev, configEffectiveFrom: event.target.value }))
+                              }
+                            />
+                          </label>
+                        </div>
+                      </div>
+
+                      <label className="farmer-field farmer-field-wide">
+                        <span>Photo URL</span>
+                        <input
+                          value={farmerForm.photoUrl}
+                          onChange={(event) =>
+                            setFarmerForm((prev) => ({ ...prev, photoUrl: event.target.value }))
+                          }
+                        />
+                      </label>
+
+                      <label className="farmer-field farmer-field-wide">
+                        <span>Remarks</span>
+                        <input
+                          value={farmerForm.remarks}
+                          onChange={(event) =>
+                            setFarmerForm((prev) => ({ ...prev, remarks: event.target.value }))
+                          }
+                        />
+                      </label>
+                    </div>
                     <button type="submit" disabled={busy} className="farmer-submit">
                       {busy ? 'Creating...' : 'Create farmer'}
                     </button>
@@ -2868,6 +3212,10 @@ function App() {
                       <article>
                         <p>Branch assignment</p>
                         <strong>Handled by backend</strong>
+                      </article>
+                      <article>
+                        <p>Config Effective From</p>
+                        <strong>{farmerForm.configEffectiveFrom || '-'}</strong>
                       </article>
                     </div>
                   </aside>
