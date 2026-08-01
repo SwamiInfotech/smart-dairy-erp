@@ -12,4 +12,8 @@ public interface PaymentCycleRepository extends JpaRepository<PaymentCycle, Long
 
     Optional<PaymentCycle> findByCode(String code);
 
+    Optional<PaymentCycle> findByCodeAndTenantUuid(String code, UUID tenantUuid);
+
+    boolean existsByCodeAndTenantUuid(String code, UUID tenantUuid);
+
 }

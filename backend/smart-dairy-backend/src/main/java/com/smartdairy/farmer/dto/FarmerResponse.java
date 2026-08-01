@@ -8,6 +8,8 @@ public record FarmerResponse(
 
         UUID branchUuid,
 
+        UUID milkRateChartUuid,
+
         String farmerCode,
 
         String farmerName,

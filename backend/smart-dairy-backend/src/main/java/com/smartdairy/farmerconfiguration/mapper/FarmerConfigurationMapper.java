@@ -26,6 +26,7 @@ public interface FarmerConfigurationMapper {
 
     @Mapping(target = "rateCategoryUuid", source = "rateCategory.uuid")
     @Mapping(target = "rateCategory", source = "rateCategory.name")
+    @Mapping(target = "milkRateChartUuid", source = "milkRateChart.uuid")
     FarmerConfigurationResponse toResponse(FarmerConfiguration entity);
 
 }

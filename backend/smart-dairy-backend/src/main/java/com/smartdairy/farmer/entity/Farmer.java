@@ -2,6 +2,7 @@ package com.smartdairy.farmer.entity;
 
 import com.smartdairy.branch.entity.Branch;
 import com.smartdairy.common.entity.BaseEntity;
+import com.smartdairy.milkrate.entity.MilkRateChart;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -15,6 +16,10 @@ public class Farmer extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "branch_id", nullable = false)
     private Branch branch;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "milk_rate_chart_id")
+    private MilkRateChart milkRateChart;
 
     @Column(name = "farmer_code", nullable = false, length = 20)
     private String farmerCode;

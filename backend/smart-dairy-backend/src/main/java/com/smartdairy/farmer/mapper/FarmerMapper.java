@@ -20,5 +20,6 @@ public interface FarmerMapper {
     Farmer toEntity(CreateFarmerRequest request);
 
     @Mapping(target = "branchUuid", source = "branch.uuid")
+    @Mapping(target = "milkRateChartUuid", source = "milkRateChart.uuid")
     FarmerResponse toResponse(Farmer farmer);
 }

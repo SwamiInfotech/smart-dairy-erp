@@ -18,7 +18,15 @@ public class GetAllFarmerList {
 
         List<Farmer> allFarmers = farmerRepository.findAll();
         return allFarmers.stream()
-                .map(farmer -> new FarmerResponse(farmer.getUuid(), farmer.getBranch().getUuid(), farmer.getFarmerCode(), farmer.getFarmerName(), farmer.getMobileNo(), farmer.getVillage(), farmer.getActive()))
+                .map(farmer -> new FarmerResponse(
+                        farmer.getUuid(),
+                        farmer.getBranch().getUuid(),
+                        farmer.getMilkRateChart() != null ? farmer.getMilkRateChart().getUuid() : null,
+                        farmer.getFarmerCode(),
+                        farmer.getFarmerName(),
+                        farmer.getMobileNo(),
+                        farmer.getVillage(),
+                        farmer.getActive()))
                 .toList();
     }
 

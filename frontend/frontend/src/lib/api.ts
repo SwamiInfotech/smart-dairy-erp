@@ -206,7 +206,6 @@ export const BACKEND_MODULES: Record<string, BackendModuleDefinition> = {
     endpoints: [
       { method: 'GET', path: '/api/v1/master/milk-types' },
       { method: 'GET', path: '/api/v1/master/collection-methods' },
-      { method: 'GET', path: '/api/v1/master/payment-cycles' },
       { method: 'GET', path: '/api/v1/master/shifts' },
     ],
   },
@@ -658,7 +657,8 @@ function normalizeLookupListResponse(payload: unknown, label: string): MasterLoo
     (Array.isArray(root?.rows) ? root.rows : null) ||
     (Array.isArray(root?.rateProfiles) ? root.rateProfiles : null) ||
     (Array.isArray(root?.rateCategories) ? root.rateCategories : null) ||
-    (Array.isArray(root?.collectionMethods) ? root.collectionMethods : null)
+    (Array.isArray(root?.collectionMethods) ? root.collectionMethods : null) ||
+    (Array.isArray(root?.paymentCycles) ? root.paymentCycles : null)
 
   const source = directArray || nestedArray
   if (!source) {
@@ -675,6 +675,7 @@ function normalizeLookupListResponse(payload: unknown, label: string): MasterLoo
         'rateProfileUuid',
         'rateCategoryUuid',
         'collectionMethodUuid',
+        'paymentCycleUuid',
         'methodUuid',
       )
       const code = readString(
@@ -685,6 +686,7 @@ function normalizeLookupListResponse(payload: unknown, label: string): MasterLoo
         'methodCode',
         'rateProfileCode',
         'collectionMethodCode',
+        'paymentCycleCode',
       )
       const name = readString(
         record,
@@ -694,6 +696,7 @@ function normalizeLookupListResponse(payload: unknown, label: string): MasterLoo
         'methodName',
         'collectionMethodName',
         'rateProfileName',
+        'paymentCycleName',
         'profileName',
         'title',
       )
@@ -718,6 +721,119 @@ function normalizeLookupListResponse(payload: unknown, label: string): MasterLoo
   return normalized
 }
 
+function normalizeMilkRateChartDetails(
+  detailsPayload: unknown,
+  chartUuidFallback = '',
+): MilkRateChartResponse['details'] {
+  if (!Array.isArray(detailsPayload)) {
+    return []
+  }
+
+  return detailsPayload
+    .map((item, index) => {
+      const detail = asRecord(item)
+      if (!detail) {
+        return null
+      }
+
+      const rate = readNumber(detail, 'rate')
+      if (rate <= 0) {
+        return null
+      }
+
+      const detailUuid =
+        readString(detail, 'uuid', 'id') ||
+        (chartUuidFallback ? `${chartUuidFallback}-detail-${index + 1}` : `detail-${index + 1}`)
+
+      const readNullableNumber = (...keys: string[]) => {
+        for (const key of keys) {
+          const value = detail[key]
+          if (typeof value === 'number') return value
+          if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) {
+            return Number(value)
+          }
+        }
+        return null
+      }
+
+      const fatFrom = readNullableNumber('fatFrom', 'fat_from', 'fat')
+      const fatTo = readNullableNumber('fatTo', 'fat_to')
+      const snfFrom = readNullableNumber('snfFrom', 'snf_from', 'snf')
+      const snfTo = readNullableNumber('snfTo', 'snf_to')
+      const mavaFrom = readNullableNumber('mavaFrom', 'mava_from', 'mava')
+      const mavaTo = readNullableNumber('mavaTo', 'mava_to')
+
+      return {
+        uuid: detailUuid,
+        fatFrom,
+        fatTo,
+        snfFrom,
+        snfTo,
+        mavaFrom,
+        mavaTo,
+        rate,
+      }
+    })
+    .filter((item): item is MilkRateChartResponse['details'][number] => Boolean(item))
+}
+
+function resolveMilkRateChartDetailsPayload(record: Record<string, unknown> | null): unknown {
+  if (!record) {
+    return []
+  }
+
+  const direct = [
+    record.details,
+    record.milkRateChartDetails,
+    record.milk_rate_chart_details,
+    record.milkRateChartDetailList,
+    record.milk_rate_chart_detail_list,
+    record.chartDetails,
+    record.chart_details,
+    record.rateDetails,
+    record.rate_details,
+    record.detailList,
+    record.detail_list,
+  ]
+
+  const firstDirectArray = direct.find((value) => Array.isArray(value))
+  if (Array.isArray(firstDirectArray)) {
+    return firstDirectArray
+  }
+
+  const nestedCandidates = [
+    asRecord(record.data),
+    asRecord(record.result),
+    asRecord(record.item),
+    asRecord(record.milkRateChart),
+    asRecord(record.milk_rate_chart),
+    asRecord(record.chart),
+  ]
+
+  for (const nested of nestedCandidates) {
+    if (!nested) continue
+    const nestedDirect = [
+      nested.details,
+      nested.milkRateChartDetails,
+      nested.milk_rate_chart_details,
+      nested.milkRateChartDetailList,
+      nested.milk_rate_chart_detail_list,
+      nested.chartDetails,
+      nested.chart_details,
+      nested.rateDetails,
+      nested.rate_details,
+      nested.detailList,
+      nested.detail_list,
+    ]
+    const firstNestedArray = nestedDirect.find((value) => Array.isArray(value))
+    if (Array.isArray(firstNestedArray)) {
+      return firstNestedArray
+    }
+  }
+
+  return []
+}
+
 function normalizeMilkRateChartResponse(payload: unknown): MilkRateChartResponse {
   const record = asRecord(payload)
   const uuid = readString(record, 'uuid', 'id')
@@ -739,49 +855,7 @@ function normalizeMilkRateChartResponse(payload: unknown): MilkRateChartResponse
     throw new ApiError('Milk rate chart response format is invalid.', 500)
   }
 
-  const details = Array.isArray(record?.details)
-    ? record.details
-        .map((item) => {
-          const detail = asRecord(item)
-          const detailUuid = readString(detail, 'uuid', 'id')
-          const rate = readNumber(detail, 'rate')
-
-          if (!detailUuid || rate <= 0) {
-            return null
-          }
-
-          const readNullableNumber = (...keys: string[]) => {
-            for (const key of keys) {
-              const value = detail?.[key]
-              if (typeof value === 'number') return value
-              if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) {
-                return Number(value)
-              }
-            }
-            return null
-          }
-
-          const fatFrom = readNullableNumber('fatFrom', 'fat_from', 'fat')
-          const fatTo = readNullableNumber('fatTo', 'fat_to')
-          const snfFrom = readNullableNumber('snfFrom', 'snf_from', 'snf')
-          const snfTo = readNullableNumber('snfTo', 'snf_to')
-          const mavaFrom = readNullableNumber('mavaFrom', 'mava_from', 'mava')
-          const mavaTo = readNullableNumber('mavaTo', 'mava_to')
-
-          return {
-            uuid: detailUuid,
-            fatFrom,
-            fatTo,
-
-            snfFrom,
-            snfTo,
-            mavaFrom,
-            mavaTo,
-            rate,
-          }
-        })
-        .filter((item): item is MilkRateChartResponse['details'][number] => Boolean(item))
-    : []
+  const details = normalizeMilkRateChartDetails(resolveMilkRateChartDetailsPayload(record), uuid)
 
   return {
     uuid,
@@ -797,13 +871,142 @@ function normalizeMilkRateChartResponse(payload: unknown): MilkRateChartResponse
   }
 }
 
+function normalizeMilkRateChartListResponse(payload: unknown): MilkRateChartResponse[] {
+  const root = asRecord(payload)
+  const source =
+    (Array.isArray(payload) ? payload : null) ||
+    (Array.isArray(root?.content) ? root.content : null) ||
+    (Array.isArray(root?.items) ? root.items : null) ||
+    (Array.isArray(root?.data) ? root.data : null) ||
+    (Array.isArray(root?.list) ? root.list : null) ||
+    (Array.isArray(root?.rows) ? root.rows : null)
+
+  if (!source) {
+    throw new ApiError('Milk rate charts list response format is invalid.', 500)
+  }
+
+  const normalized: MilkRateChartResponse[] = []
+
+  for (const item of source) {
+    const record = asRecord(item)
+    const rateCategoryRecord = asRecord(record?.rateCategory)
+    const collectionMethodRecord = asRecord(record?.collectionMethod)
+    const branchRecord = asRecord(record?.branch)
+
+    const uuid = readString(record, 'uuid', 'id', 'rateChartUuid')
+    const branchUuid =
+      readString(record, 'branchUuid') || readString(branchRecord, 'uuid', 'id', 'branchUuid')
+    const rateCategoryUuid =
+      readString(record, 'rateCategoryUuid') ||
+      readString(rateCategoryRecord, 'uuid', 'id', 'rateCategoryUuid')
+    const collectionMethodUuid =
+      readString(record, 'collectionMethodUuid', 'methodUuid') ||
+      readString(collectionMethodRecord, 'uuid', 'id', 'collectionMethodUuid')
+    const chartName = readString(record, 'chartName', 'name', 'title')
+    const effectiveFrom = readString(record, 'effectiveFrom', 'fromDate', 'startDate')
+    const effectiveTo = readString(record, 'effectiveTo', 'toDate', 'endDate') || null
+
+    if (!uuid || !rateCategoryUuid || !collectionMethodUuid || !chartName || !effectiveFrom) {
+      continue
+    }
+
+    normalized.push({
+      uuid,
+      branchUuid: branchUuid || '',
+      rateCategoryUuid,
+      collectionMethodUuid,
+      chartName,
+      effectiveFrom,
+      effectiveTo,
+      remarks: readString(record, 'remarks', 'note') || null,
+      active: typeof record?.active === 'boolean' ? record.active : true,
+      details: normalizeMilkRateChartDetails(resolveMilkRateChartDetailsPayload(record), uuid),
+    })
+  }
+
+  return normalized
+}
+
+function normalizeFarmerResponse(payload: unknown): FarmerResponse | null {
+  const record = asRecord(payload)
+  if (!record) return null
+
+  const uuid = readString(record, 'uuid', 'farmerUuid', 'farmer_uuid', 'id')
+  const branchUuid = readString(record, 'branchUuid', 'branch_uuid', 'branchId', 'branch_id')
+  const farmerCode = readString(record, 'farmerCode', 'farmer_code', 'code')
+  const farmerName = readString(record, 'farmerName', 'farmer_name', 'name')
+  const mobileNo = readString(record, 'mobileNo', 'mobile_no', 'mobile', 'phone')
+
+  if (!uuid || !branchUuid || !farmerCode || !farmerName || !mobileNo) {
+    return null
+  }
+
+  const config =
+    asRecord(record.farmerConfiguration) || asRecord(record.farmerConfig) || asRecord(record.configuration)
+
+  const milkRateChartUuid =
+    readString(
+      record,
+      'milkRateChartUuid',
+      'milk_rate_chart_uuid',
+      'milkRateChartId',
+      'milk_rate_chart_id',
+    ) ||
+    readString(
+      config,
+      'milkRateChartUuid',
+      'milk_rate_chart_uuid',
+      'milkRateChartId',
+      'milk_rate_chart_id',
+    ) ||
+    null
+
+  return {
+    uuid,
+    branchUuid,
+    farmerCode,
+    farmerName,
+    mobileNo,
+    milkRateChartUuid,
+  }
+}
+
+function normalizeFarmerPageResponse(payload: unknown): PageResult<FarmerResponse> {
+  const root = asRecord(payload)
+  const rawList =
+    (Array.isArray(payload) ? payload : null) ||
+    (Array.isArray(root?.content) ? root.content : null) ||
+    (Array.isArray(root?.items) ? root.items : null) ||
+    (Array.isArray(root?.data) ? root.data : null) ||
+    []
+
+  const content = rawList
+    .map((item) => normalizeFarmerResponse(item))
+    .filter((item): item is FarmerResponse => Boolean(item))
+
+  const totalElements = readNumber(root, 'totalElements', 'total_elements', 'count', 'total') || content.length
+  const size = readNumber(root, 'size') || content.length || 10
+  const number = readNumber(root, 'number', 'page', 'pageNumber')
+  const totalPages = readNumber(root, 'totalPages', 'total_pages') || (size > 0 ? Math.ceil(totalElements / size) : 1)
+  const numberOfElements = readNumber(root, 'numberOfElements', 'number_of_elements') || content.length
+  const empty = content.length === 0
+
+  return {
+    content,
+    totalElements,
+    totalPages,
+    size,
+    number,
+    numberOfElements,
+    first: number <= 0,
+    last: totalPages <= 1 || number >= totalPages - 1,
+    empty,
+  }
+}
+
 function validateMilkRateChartPayload(payload: CreateMilkRateChartRequest) {
   if (!payload.branchUuid.trim()) {
     throw new ApiError('Branch is required for milk rate chart.', 400)
-  }
-
-  if (!payload.rateCategoryUuid.trim()) {
-    throw new ApiError('Rate category is required for milk rate chart.', 400)
   }
 
   if (!payload.collectionMethodUuid.trim()) {
@@ -1205,13 +1408,14 @@ export const api = {
     return request<CustomerResponse>('POST', '/api/v1/customers', token, payload)
   },
 
-  searchFarmers(token: string, page = 0, size = 10) {
-    return request<PageResult<FarmerResponse>>('GET', '/api/v1/farmers', token, undefined, {
+  async searchFarmers(token: string, page = 0, size = 10) {
+    const response = await request<unknown>('GET', '/api/v1/farmers', token, undefined, {
       query: {
         page,
         size,
       },
     })
+    return normalizeFarmerPageResponse(response)
   },
 
   searchMilkCollections(token: string, page = 0, size = 10) {
@@ -1274,7 +1478,14 @@ export const api = {
 
   async getMilkRateCharts(token: string) {
     const response = await request<unknown>('GET', '/api/v1/milk-rate-charts', token)
-    return normalizeMilkRateChartListResponse(response)
+    const normalized = normalizeMilkRateChartListResponse(response)
+    if (normalized.length > 0 && normalized.every((item) => item.details.length === 0)) {
+      console.warn(
+        '[api.getMilkRateCharts] All charts returned with empty details. Backend may be omitting detail rows in list response.',
+        response,
+      )
+    }
+    return normalized
   },
 
   async getRateCategories(token: string) {
@@ -1288,7 +1499,7 @@ export const api = {
   },
 
   async getPaymentCycles(token: string) {
-    const response = await request<unknown>('GET', '/api/v1/master/payment-cycles', token)
+    const response = await request<unknown>('GET', '/api/v1/payment-cycles', token)
     return normalizeLookupListResponse(response, 'Payment cycles')
   },
 

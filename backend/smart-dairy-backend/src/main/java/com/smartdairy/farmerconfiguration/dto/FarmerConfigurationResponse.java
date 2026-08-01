@@ -29,6 +29,8 @@ public record FarmerConfigurationResponse(
 
         String rateCategory,
 
+        UUID milkRateChartUuid,
+
         LocalDate effectiveFrom,
 
         LocalDate effectiveTo,

@@ -489,48 +489,6 @@ input[readonly] {
   border-color: #1b599a;
 }
 
-.farmer-summary {
-  min-width: 0;
-  max-width: 100%;
-  border: 1px solid rgba(98, 121, 156, 0.22);
-  border-radius: 14px;
-  padding: 14px;
-  background: linear-gradient(165deg, rgba(239, 250, 255, 0.9) 0%, rgba(255, 248, 236, 0.95) 100%);
-}
-
-.farmer-summary h3 {
-  margin: 2px 0 12px;
-  font-size: 1rem;
-  color: #1f355e;
-  font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
-}
-
-.farmer-summary-grid {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-}
-
-.farmer-summary-grid article {
-  border: 1px solid rgba(115, 134, 168, 0.22);
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.82);
-  padding: 10px;
-}
-
-.farmer-summary-grid p {
-  margin: 0;
-  color: #5d6e8b;
-  font-size: 0.86rem;
-}
-
-.farmer-summary-grid strong {
-  display: block;
-  margin-top: 4px;
-  color: #163d77;
-  font-size: 1.1rem;
-}
-
 .farmer-table {
   margin-top: 6px;
 }
@@ -1005,6 +963,17 @@ tbody tr:hover {
   color: #136357;
   background: #e7fbf7;
   border-color: #bcece4;
+}
+
+.field-error {
+  margin: 2px 0 0;
+  color: #a33a2d;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.farmer-mapped-field-error {
+  grid-column: 1 / -1;
 }
 
 .login-page {

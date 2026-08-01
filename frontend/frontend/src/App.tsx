@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import {
   api,
   clearAuth,
@@ -12,6 +12,7 @@ import type {
   CreateTenantRequest,
   CreateSalesInvoiceItemRequest,
   CustomerResponse,
+  FarmerResponse,
   MasterLookupResponse,
   MilkRateChartResponse,
   MilkTypeResponse,
@@ -92,10 +93,23 @@ function toInputDate(date: Date) {
   return date.toISOString().slice(0, 10)
 }
 
+function toInputTime(date: Date) {
+  return date.toTimeString().slice(0, 5)
+}
+
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value,
   )
+}
+
+function findLookupByLabel<T extends { code: string; name: string }>(items: T[], label: string) {
+  const normalizedLabel = label.trim().toLowerCase()
+  return items.find((item) => {
+    const code = item.code.trim().toLowerCase()
+    const name = item.name.trim().toLowerCase()
+    return code === normalizedLabel || name === normalizedLabel
+  })
 }
 
 function isTenDigitMobile(value: string) {
@@ -254,6 +268,77 @@ function resolveCustomerSelection(input: string, customers: CustomerResponse[]) 
   )
 }
 
+function resolveQualityFieldVisibility(collectionMethod: MasterLookupResponse | null) {
+  if (!collectionMethod) {
+    return {
+      showFat: true,
+      showSnf: true,
+      showMava: true,
+    }
+  }
+
+  const code = collectionMethod.code.trim().toLowerCase()
+  const name = collectionMethod.name.trim().toLowerCase()
+  const label = `${code} ${name}`
+
+  if (label.includes('fat')) {
+    return {
+      showFat: true,
+      showSnf: false,
+      showMava: false,
+    }
+  }
+
+  if (label.includes('mava')) {
+    return {
+      showFat: false,
+      showSnf: false,
+      showMava: true,
+    }
+  }
+
+  if (label.includes('snf')) {
+    return {
+      showFat: false,
+      showSnf: true,
+      showMava: false,
+    }
+  }
+
+  return {
+    showFat: true,
+    showSnf: true,
+    showMava: true,
+  }
+}
+
+function pickCollectionQualityMetric(visibility: { showFat: boolean; showSnf: boolean; showMava: boolean }) {
+  if (visibility.showFat && !visibility.showSnf && !visibility.showMava) {
+    return 'fat' as const
+  }
+
+  if (!visibility.showFat && visibility.showSnf && !visibility.showMava) {
+    return 'snf' as const
+  }
+
+  if (!visibility.showFat && !visibility.showSnf && visibility.showMava) {
+    return 'mava' as const
+  }
+
+  return 'mixed' as const
+}
+
+function isWithinOptionalRange(value: number, from: number | null, to: number | null) {
+  const lowerBound = from ?? Number.NEGATIVE_INFINITY
+  const upperBound = to ?? Number.POSITIVE_INFINITY
+  return value >= lowerBound && value <= upperBound
+}
+
+function roundToTwo(value: number) {
+  if (!Number.isFinite(value)) return 0
+  return Math.round(value * 100) / 100
+}
+
 function App() {
   const initialAuth = useMemo(getSavedAuth, [])
 
@@ -354,15 +439,7 @@ function App() {
   const [products, setProducts] = useState<ProductResponse[]>([])
   const [customers, setCustomers] = useState<CustomerResponse[]>([])
   const [tenants, setTenants] = useState<TenantResponse[]>([])
-  const [farmers, setFarmers] = useState<
-    {
-      uuid: string
-      branchUuid: string
-      farmerCode: string
-      farmerName: string
-      mobileNo: string
-    }[]
-  >([])
+  const [farmers, setFarmers] = useState<FarmerResponse[]>([])
   const [sales, setSales] = useState<SalesInvoiceResponse[]>([])
   const [collections, setCollections] = useState<
     {
@@ -381,6 +458,7 @@ function App() {
   const [paymentCycles, setPaymentCycles] = useState<MasterLookupResponse[]>([])
   const [farmerRateCharts, setFarmerRateCharts] = useState<MilkRateChartResponse[]>([])
   const [selectedFarmerRateChartUuid, setSelectedFarmerRateChartUuid] = useState('')
+  const [farmerMappedFieldError, setFarmerMappedFieldError] = useState('')
   const [milkRateCharts, setMilkRateCharts] = useState<MilkRateChartResponse[]>([])
 
   const nextProductCode = useMemo(
@@ -462,6 +540,7 @@ function App() {
     photoUrl: '',
     remarks: '',
     milkTypeUuid: '',
+    milkRateChartUuid: '',
     collectionMethodUuid: '',
     paymentCycleUuid: '',
     rateCategoryUuid: '',
@@ -473,13 +552,106 @@ function App() {
     shiftUuid: '',
     milkTypeUuid: '',
     collectionDate: toInputDate(new Date()),
-    collectionTime: '07:00',
+    collectionTime: toInputTime(new Date()),
     quantity: 0,
     fat: 0,
     snf: 0,
     mava: 0,
     remarks: '',
   })
+
+  const selectedCollectionFarmer = useMemo(
+    () => farmers.find((item) => item.uuid === collectionForm.farmerUuid) || null,
+    [collectionForm.farmerUuid, farmers],
+  )
+
+  const selectedCollectionMilkRateChart = useMemo(() => {
+    const chartUuid = selectedCollectionFarmer?.milkRateChartUuid || ''
+    if (!chartUuid) return null
+    return milkRateCharts.find((item) => item.uuid === chartUuid) || null
+  }, [milkRateCharts, selectedCollectionFarmer])
+
+  const selectedCollectionMethod = useMemo(() => {
+    const methodUuid = selectedCollectionMilkRateChart?.collectionMethodUuid || ''
+    if (!methodUuid) return null
+    return collectionMethods.find((item) => item.uuid === methodUuid) || null
+  }, [collectionMethods, selectedCollectionMilkRateChart])
+
+  const collectionQualityVisibility = useMemo(
+    () => resolveQualityFieldVisibility(selectedCollectionMethod),
+    [selectedCollectionMethod],
+  )
+
+  const activeCollectionQuality = useMemo(() => {
+    const metricType = pickCollectionQualityMetric(collectionQualityVisibility)
+
+    if (metricType === 'fat') {
+      return { metric: 'fat' as const, value: Number(collectionForm.fat) || 0 }
+    }
+
+    if (metricType === 'snf') {
+      return { metric: 'snf' as const, value: Number(collectionForm.snf) || 0 }
+    }
+
+    if (metricType === 'mava') {
+      return { metric: 'mava' as const, value: Number(collectionForm.mava) || 0 }
+    }
+
+    const fatValue = Number(collectionForm.fat) || 0
+    if (fatValue > 0) {
+      return { metric: 'fat' as const, value: fatValue }
+    }
+
+    const snfValue = Number(collectionForm.snf) || 0
+    if (snfValue > 0) {
+      return { metric: 'snf' as const, value: snfValue }
+    }
+
+    const mavaValue = Number(collectionForm.mava) || 0
+    if (mavaValue > 0) {
+      return { metric: 'mava' as const, value: mavaValue }
+    }
+
+    return { metric: 'fat' as const, value: 0 }
+  }, [collectionForm.fat, collectionForm.mava, collectionForm.snf, collectionQualityVisibility])
+
+  const calculatedCollectionRate = useMemo(() => {
+    if (!selectedCollectionMilkRateChart) {
+      return 0
+    }
+
+    const qualityValue = activeCollectionQuality.value
+    const defaultRate = roundToTwo(selectedCollectionMilkRateChart.details[0]?.rate ?? 0)
+
+    if (qualityValue <= 0) {
+      return defaultRate
+    }
+
+    const matchedDetail = selectedCollectionMilkRateChart.details.find((detail) => {
+      if (activeCollectionQuality.metric === 'fat') {
+        return isWithinOptionalRange(qualityValue, detail.fatFrom, detail.fatTo)
+      }
+
+      if (activeCollectionQuality.metric === 'snf') {
+        return isWithinOptionalRange(qualityValue, detail.snfFrom, detail.snfTo)
+      }
+
+      return isWithinOptionalRange(qualityValue, detail.mavaFrom, detail.mavaTo)
+    })
+
+    return roundToTwo(matchedDetail?.rate ?? defaultRate)
+  }, [activeCollectionQuality, selectedCollectionMilkRateChart])
+
+  const calculatedCollectionAmount = useMemo(() => {
+    const quantity = Number(collectionForm.quantity) || 0
+    const qualityValue = activeCollectionQuality.value
+
+    if (quantity <= 0 || qualityValue <= 0 || calculatedCollectionRate <= 0) {
+      return 0
+    }
+
+    return roundToTwo(quantity * qualityValue * calculatedCollectionRate)
+  }, [activeCollectionQuality.value, calculatedCollectionRate, collectionForm.quantity])
 
   const [salesForm, setSalesForm] = useState({
     branchUuid: initialAuth.branchUuid,
@@ -580,14 +752,20 @@ function App() {
 
   async function loadCollections() {
     if (!token) return
-    const [collectionPage, types, shiftList] = await Promise.all([
+    const [collectionPage, farmerPage, types, shiftList, chartList, methodList] = await Promise.all([
       runAction(() => api.searchMilkCollections(token)),
+      runAction(() => api.searchFarmers(token)),
       runAction(() => api.getMilkTypes(token)),
       runAction(() => api.getShifts(token)),
+      runAction(() => api.getMilkRateCharts(token)),
+      runAction(() => api.getCollectionMethods(token)),
     ])
 
     if (collectionPage) {
       setCollections(collectionPage.content)
+    }
+    if (farmerPage) {
+      setFarmers(Array.isArray(farmerPage.content) ? farmerPage.content : [])
     }
     if (types) {
       setMilkTypes(types)
@@ -595,7 +773,76 @@ function App() {
     if (shiftList) {
       setShifts(shiftList)
     }
+    if (chartList) {
+      setMilkRateCharts(chartList)
+    }
+    if (methodList) {
+      setCollectionMethods(methodList)
+    }
   }
+
+  async function onCollectionFarmerChange(event: ChangeEvent<HTMLSelectElement>) {
+    const farmerUuid = event.target.value
+    setCollectionForm((prev) => ({ ...prev, farmerUuid }))
+
+    const selectedFarmer = farmers.find((item) => item.uuid === farmerUuid) || null
+    let chartSource = milkRateCharts
+
+    if (token && selectedFarmer?.milkRateChartUuid) {
+      try {
+        const latestChartList = await api.getMilkRateCharts(token)
+        setMilkRateCharts(latestChartList)
+        chartSource = latestChartList
+      } catch (err) {
+        console.warn('[MilkCollections:onChange] Unable to refresh milk rate charts.', err)
+      }
+    }
+
+    const selectedMilkRateChart = selectedFarmer?.milkRateChartUuid
+      ? chartSource.find((item) => item.uuid === selectedFarmer.milkRateChartUuid) || null
+      : null
+    const selectedRateFromDetails = roundToTwo(selectedMilkRateChart?.details[0]?.rate ?? 0)
+
+    console.log('[MilkCollections:onChange] farmer selection', {
+      farmerUuid,
+      farmer: selectedFarmer,
+      milkRateChart: selectedMilkRateChart,
+      selectedRateFromDetails,
+    })
+  }
+
+  useEffect(() => {
+    setCollectionForm((prev) => {
+      let changed = false
+      let nextFat = prev.fat
+      let nextSnf = prev.snf
+      let nextMava = prev.mava
+
+      if (!collectionQualityVisibility.showFat && prev.fat !== 0) {
+        nextFat = 0
+        changed = true
+      }
+
+      if (!collectionQualityVisibility.showSnf && prev.snf !== 0) {
+        nextSnf = 0
+        changed = true
+      }
+
+      if (!collectionQualityVisibility.showMava && prev.mava !== 0) {
+        nextMava = 0
+        changed = true
+      }
+
+      if (!changed) return prev
+
+      return {
+        ...prev,
+        fat: nextFat,
+        snf: nextSnf,
+        mava: nextMava,
+      }
+    })
+  }, [collectionQualityVisibility])
 
   async function loadSales() {
     if (!token) return
@@ -623,19 +870,14 @@ function App() {
 
   async function loadFarmerConfigLookups() {
     if (!token) return
-    const [types, collectionMethodList, paymentCycleList, chartList] = await Promise.all([
+    const [types, paymentCycleList, chartList] = await Promise.all([
       runAction(() => api.getMilkTypes(token)),
-      runAction(() => api.getCollectionMethods(token)),
       runAction(() => api.getPaymentCycles(token)),
       runAction(() => api.getMilkRateCharts(token)),
     ])
 
     if (types) {
       setMilkTypes(types)
-    }
-
-    if (collectionMethodList) {
-      setCollectionMethods(collectionMethodList)
     }
 
     if (paymentCycleList) {
@@ -693,16 +935,106 @@ function App() {
   }, [activeSidebarMenu, token])
 
   useEffect(() => {
-    if (!selectedFarmerRateChartUuid) return
+    if (!selectedFarmerRateChartUuid) {
+      setFarmerForm((prev) => ({
+        ...prev,
+        milkRateChartUuid: '',
+        rateCategoryUuid: '',
+        collectionMethodUuid: '',
+      }))
+      return
+    }
+
     const selected = farmerRateCharts.find((item) => item.uuid === selectedFarmerRateChartUuid)
-    if (!selected) return
+    if (!selected) {
+      setFarmerForm((prev) => ({
+        ...prev,
+        milkRateChartUuid: '',
+        rateCategoryUuid: '',
+        collectionMethodUuid: '',
+      }))
+      return
+    }
 
     setFarmerForm((prev) => ({
       ...prev,
+      milkRateChartUuid: selected.uuid,
       rateCategoryUuid: selected.rateCategoryUuid,
       collectionMethodUuid: selected.collectionMethodUuid,
     }))
+    setFarmerMappedFieldError('')
   }, [farmerRateCharts, selectedFarmerRateChartUuid])
+
+  useEffect(() => {
+    if (!Array.isArray(paymentCycles) || paymentCycles.length === 0) return
+
+    const weeklyPaymentCycle = findLookupByLabel(paymentCycles, 'weekly')
+
+    const targetPaymentCycleUuid = weeklyPaymentCycle?.uuid || paymentCycles[0]?.uuid || ''
+
+    if (!targetPaymentCycleUuid) return
+
+    setFarmerForm((prev) => {
+      if (prev.paymentCycleUuid) return prev
+      return {
+        ...prev,
+        paymentCycleUuid: targetPaymentCycleUuid,
+      }
+    })
+  }, [paymentCycles])
+
+  useEffect(() => {
+    if (farmerForm.milkTypeUuid) return
+    if (!Array.isArray(milkTypes) || milkTypes.length === 0) return
+
+    const buffaloMilk = findLookupByLabel(milkTypes, 'buffalo milk')
+
+    if (!buffaloMilk) return
+
+    setFarmerForm((prev) => {
+      if (prev.milkTypeUuid) return prev
+      return {
+        ...prev,
+        milkTypeUuid: buffaloMilk.uuid,
+      }
+    })
+  }, [farmerForm.milkTypeUuid, milkTypes])
+
+  useEffect(() => {
+    if (collectionForm.milkTypeUuid) return
+    if (!Array.isArray(milkTypes) || milkTypes.length === 0) return
+
+    const buffaloMilk = findLookupByLabel(milkTypes, 'buffalo milk')
+    const targetMilkTypeUuid = buffaloMilk?.uuid || milkTypes[0]?.uuid || ''
+
+    if (!targetMilkTypeUuid) return
+
+    setCollectionForm((prev) => {
+      if (prev.milkTypeUuid) return prev
+      return {
+        ...prev,
+        milkTypeUuid: targetMilkTypeUuid,
+      }
+    })
+  }, [collectionForm.milkTypeUuid, milkTypes])
+
+  useEffect(() => {
+    if (collectionForm.shiftUuid) return
+    if (!Array.isArray(shifts) || shifts.length === 0) return
+
+    const morningShift = findLookupByLabel(shifts, 'morning')
+    const targetShiftUuid = morningShift?.uuid || shifts[0]?.uuid || ''
+
+    if (!targetShiftUuid) return
+
+    setCollectionForm((prev) => {
+      if (prev.shiftUuid) return prev
+      return {
+        ...prev,
+        shiftUuid: targetShiftUuid,
+      }
+    })
+  }, [collectionForm.shiftUuid, shifts])
 
   useEffect(() => {
     setProductForm((prev) => {
@@ -1057,6 +1389,7 @@ function App() {
   async function onCreateFarmer(event: FormEvent) {
     event.preventDefault()
     if (!token) return
+    setFarmerMappedFieldError('')
 
     const targetBranchUuid = (branchUuid || farmerForm.branchUuid || '').trim()
     const farmerName = farmerForm.farmerName.trim()
@@ -1084,18 +1417,24 @@ function App() {
       return
     }
 
-    if (!farmerForm.collectionMethodUuid || !isUuid(farmerForm.collectionMethodUuid)) {
-      setError('Select a valid Collection Method for farmer configuration.')
+    if (!farmerForm.paymentCycleUuid.trim()) {
+      setError('Select a Payment Cycle for farmer configuration.')
       return
     }
 
-    if (!farmerForm.paymentCycleUuid || !isUuid(farmerForm.paymentCycleUuid)) {
-      setError('Select a valid Payment Cycle for farmer configuration.')
-      return
-    }
-
-    if (!farmerForm.rateCategoryUuid || !isUuid(farmerForm.rateCategoryUuid)) {
-      setError('Select a valid Rate Category for farmer configuration.')
+    if (
+      !selectedFarmerRateChartUuid ||
+      !isUuid(selectedFarmerRateChartUuid) ||
+      !farmerForm.milkRateChartUuid ||
+      !isUuid(farmerForm.milkRateChartUuid) ||
+      !farmerForm.collectionMethodUuid ||
+      !isUuid(farmerForm.collectionMethodUuid) ||
+      !farmerForm.rateCategoryUuid ||
+      !isUuid(farmerForm.rateCategoryUuid)
+    ) {
+      setFarmerMappedFieldError(
+        'Select a valid Rate Category Source so Collection Method and Rate Category can be mapped.',
+      )
       return
     }
 
@@ -1177,6 +1516,7 @@ function App() {
           state: farmerForm.state.trim(),
           remarks: farmerForm.remarks.trim(),
           milkTypeUuid: farmerForm.milkTypeUuid,
+          milkRateChartUuid: farmerForm.milkRateChartUuid,
           collectionMethodUuid: farmerForm.collectionMethodUuid,
           paymentCycleUuid: farmerForm.paymentCycleUuid,
           rateCategoryUuid: farmerForm.rateCategoryUuid,
@@ -1204,11 +1544,13 @@ function App() {
       photoUrl: '',
       remarks: '',
       milkTypeUuid: '',
+      milkRateChartUuid: '',
       collectionMethodUuid: '',
       paymentCycleUuid: '',
       rateCategoryUuid: '',
       configEffectiveFrom: toInputDate(new Date()),
     })
+    setSelectedFarmerRateChartUuid('')
   }
 
   async function onCreateCollection(event: FormEvent) {
@@ -1252,23 +1594,24 @@ function App() {
         throw new Error('Collection date is required.')
       }
 
-      if (!collectionForm.collectionTime.trim()) {
-        throw new Error('Collection time is required.')
-      }
-
       if (collectionForm.fat < 0 || collectionForm.snf < 0 || collectionForm.mava < 0) {
         throw new Error('FAT, SNF, and Mava cannot be negative values.')
       }
+
+      const qualityVisibility = resolveQualityFieldVisibility(selectedCollectionMethod)
+
+      const systemCollectionTime = toInputTime(new Date())
 
       return api.createMilkCollection(token, {
         ...collectionForm,
         farmerUuid: selectedFarmer.uuid,
         shiftUuid: selectedShift.uuid,
         milkTypeUuid: selectedMilkType.uuid,
+        collectionTime: systemCollectionTime,
         quantity,
-        fat: collectionForm.fat || null,
-        snf: collectionForm.snf || null,
-        mava: collectionForm.mava || null,
+        fat: qualityVisibility.showFat ? collectionForm.fat || null : null,
+        snf: qualityVisibility.showSnf ? collectionForm.snf || null : null,
+        mava: qualityVisibility.showMava ? collectionForm.mava || null : null,
         remarks: collectionForm.remarks.trim(),
       })
     }, 'Milk collection saved successfully.')
@@ -2147,9 +2490,7 @@ function App() {
                         <select
                           required
                           value={collectionForm.farmerUuid}
-                          onChange={(event) =>
-                            setCollectionForm((prev) => ({ ...prev, farmerUuid: event.target.value }))
-                          }
+                          onChange={onCollectionFarmerChange}
                         >
                           <option value="">Select farmer</option>
                           {farmers.map((farmer) => (
@@ -2209,18 +2550,6 @@ function App() {
                       </label>
 
                       <label className="collection-field">
-                        <span>Collection Time</span>
-                        <input
-                          required
-                          type="time"
-                          value={collectionForm.collectionTime}
-                          onChange={(event) =>
-                            setCollectionForm((prev) => ({ ...prev, collectionTime: event.target.value }))
-                          }
-                        />
-                      </label>
-
-                      <label className="collection-field">
                         <span>Quantity (Liters)</span>
                         <input
                           required
@@ -2234,46 +2563,62 @@ function App() {
                         />
                       </label>
 
+                      <label className="collection-field">
+                        <span>Rate</span>
+                        <input type="number" step="0.01" value={calculatedCollectionRate} disabled />
+                      </label>
+
+                      <label className="collection-field">
+                        <span>Amount</span>
+                        <input type="number" step="0.01" value={calculatedCollectionAmount} disabled />
+                      </label>
+
                       <div className="collection-quality-grid collection-field-wide">
-                        <label className="collection-field">
-                          <span>FAT</span>
-                          <input
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            value={collectionForm.fat}
-                            onChange={(event) =>
-                              setCollectionForm((prev) => ({ ...prev, fat: Number(event.target.value) }))
-                            }
-                            placeholder="Optional"
-                          />
-                        </label>
-                        <label className="collection-field">
-                          <span>SNF</span>
-                          <input
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            value={collectionForm.snf}
-                            onChange={(event) =>
-                              setCollectionForm((prev) => ({ ...prev, snf: Number(event.target.value) }))
-                            }
-                            placeholder="Optional"
-                          />
-                        </label>
-                        <label className="collection-field">
-                          <span>Mava</span>
-                          <input
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            value={collectionForm.mava}
-                            onChange={(event) =>
-                              setCollectionForm((prev) => ({ ...prev, mava: Number(event.target.value) }))
-                            }
-                            placeholder="Optional"
-                          />
-                        </label>
+                        {collectionQualityVisibility.showFat && (
+                          <label className="collection-field">
+                            <span>FAT</span>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              value={collectionForm.fat}
+                              onChange={(event) =>
+                                setCollectionForm((prev) => ({ ...prev, fat: Number(event.target.value) }))
+                              }
+                              placeholder="Optional"
+                            />
+                          </label>
+                        )}
+                        {collectionQualityVisibility.showSnf && (
+                          <label className="collection-field">
+                            <span>SNF</span>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              value={collectionForm.snf}
+                              onChange={(event) =>
+                                setCollectionForm((prev) => ({ ...prev, snf: Number(event.target.value) }))
+                              }
+                              placeholder="Optional"
+                            />
+                          </label>
+                        )}
+                        {collectionQualityVisibility.showMava && (
+                          <label className="collection-field">
+                            <span>Mava</span>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              value={collectionForm.mava}
+                              onChange={(event) =>
+                                setCollectionForm((prev) => ({ ...prev, mava: Number(event.target.value) }))
+                              }
+                              placeholder="Optional"
+                            />
+                          </label>
+                        )}
                       </div>
 
                       <label className="collection-field collection-field-wide">
@@ -2297,7 +2642,7 @@ function App() {
                     <div className="collection-summary-grid">
                       <article>
                         <p>Farmer</p>
-                        <strong>{farmers.find((item) => item.uuid === collectionForm.farmerUuid)?.farmerName || '-'}</strong>
+                        <strong>{selectedCollectionFarmer?.farmerName || '-'}</strong>
                       </article>
                       <article>
                         <p>Milk Type</p>
@@ -2310,14 +2655,32 @@ function App() {
                         <strong>{shifts.find((item) => item.uuid === collectionForm.shiftUuid)?.name || '-'}</strong>
                       </article>
                       <article>
-                        <p>Schedule</p>
+                        <p>Rate Chart</p>
                         <strong>
-                          {collectionForm.collectionDate || '-'} {collectionForm.collectionTime || ''}
+                          {selectedCollectionMilkRateChart
+                            ? `${selectedCollectionMilkRateChart.chartName}`
+                            : selectedCollectionFarmer?.milkRateChartUuid || '-'}
                         </strong>
+                      </article>
+                      <article>
+                        <p>Collection Method</p>
+                        <strong>{selectedCollectionMethod?.name || '-'}</strong>
+                      </article>
+                      <article>
+                        <p>Schedule</p>
+                        <strong>{collectionForm.collectionDate || '-'}</strong>
                       </article>
                       <article>
                         <p>Quantity</p>
                         <strong>{collectionForm.quantity ? `${collectionForm.quantity} L` : '-'}</strong>
+                      </article>
+                      <article>
+                        <p>Rate</p>
+                        <strong>{calculatedCollectionRate > 0 ? calculatedCollectionRate : '-'}</strong>
+                      </article>
+                      <article>
+                        <p>Amount</p>
+                        <strong>{calculatedCollectionAmount > 0 ? calculatedCollectionAmount : '-'}</strong>
                       </article>
                       <article>
                         <p>Quality</p>
@@ -2909,7 +3272,6 @@ function App() {
                     <div className="farmer-form-head">
                       <p className="eyebrow">Farmer Master</p>
                       <h3>Create Farmer</h3>
-                      <p className="subtle">Farmer code is auto-generated and increments by 1.</p>
                     </div>
 
                     <div className="farmer-grid">
@@ -3065,39 +3427,25 @@ function App() {
                         <div className="farmer-grid-title">Configuration (Required)</div>
                         <div className="farmer-grid-cols farmer-grid-cols-three">
                           <label className="farmer-field farmer-field-wide-col">
-                            <span>Rate Category Source (Milk Rate Charts API)</span>
+                            <span>Milk Rate Chart</span>
                             <select
                               required
                               value={selectedFarmerRateChartUuid}
-                              onChange={(event) => setSelectedFarmerRateChartUuid(event.target.value)}
+                              onChange={(event) => {
+                                setFarmerMappedFieldError('')
+                                setSelectedFarmerRateChartUuid(event.target.value)
+                              }}
                             >
-                              <option value="">Select from /api/v1/milk-rate-charts</option>
+                              <option value="">Select chart from the list</option>
                               {farmerRateCharts.map((item) => (
                                 <option key={item.uuid} value={item.uuid}>
-                                  {item.chartName} | Rate Category: {item.rateCategoryUuid} | Effective: {item.effectiveFrom}
+                                  Chart: {item.chartName} | Chart UUID: {item.uuid}
                                 </option>
                               ))}
                             </select>
-                          </label>
-
-                          <label className="farmer-field farmer-field-wide-col">
-                            <span>Selected Chart Full Response</span>
-                            <textarea
-                              className="farmer-chart-response"
-                              readOnly
-                              value={
-                                selectedFarmerRateChartUuid
-                                  ? JSON.stringify(
-                                      farmerRateCharts.find(
-                                        (item) => item.uuid === selectedFarmerRateChartUuid,
-                                      ) || null,
-                                      null,
-                                      2,
-                                    )
-                                  : ''
-                              }
-                              placeholder="Full response row will appear here after chart selection"
-                            />
+                            {farmerMappedFieldError && (
+                              <p className="field-error farmer-mapped-field-error">{farmerMappedFieldError}</p>
+                            )}
                           </label>
 
                           <label className="farmer-field">
@@ -3111,24 +3459,6 @@ function App() {
                             >
                               <option value="">Select milk type</option>
                               {milkTypes.map((item) => (
-                                <option key={item.uuid} value={item.uuid}>
-                                  {item.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <label className="farmer-field">
-                            <span>Collection Method</span>
-                            <select
-                              required
-                              value={farmerForm.collectionMethodUuid}
-                              onChange={(event) =>
-                                setFarmerForm((prev) => ({ ...prev, collectionMethodUuid: event.target.value }))
-                              }
-                            >
-                              <option value="">Select collection method</option>
-                              {collectionMethods.map((item) => (
                                 <option key={item.uuid} value={item.uuid}>
                                   {item.name}
                                 </option>
@@ -3152,11 +3482,6 @@ function App() {
                                 </option>
                               ))}
                             </select>
-                          </label>
-
-                          <label className="farmer-field">
-                            <span>Rate Category</span>
-                            <input value={farmerForm.rateCategoryUuid} readOnly />
                           </label>
 
                           <label className="farmer-field">
@@ -3197,28 +3522,6 @@ function App() {
                       {busy ? 'Creating...' : 'Create farmer'}
                     </button>
                   </form>
-
-                  <aside className="farmer-summary" aria-label="Farmer quick summary">
-                    <h3>Farmer Snapshot</h3>
-                    <div className="farmer-summary-grid">
-                      <article>
-                        <p>Total farmers</p>
-                        <strong>{farmers.length}</strong>
-                      </article>
-                      <article>
-                        <p>Next code</p>
-                        <strong>{nextFarmerCode}</strong>
-                      </article>
-                      <article>
-                        <p>Branch assignment</p>
-                        <strong>Handled by backend</strong>
-                      </article>
-                      <article>
-                        <p>Config Effective From</p>
-                        <strong>{farmerForm.configEffectiveFrom || '-'}</strong>
-                      </article>
-                    </div>
-                  </aside>
                 </div>
 
                 <div className="table-wrap farmer-table">

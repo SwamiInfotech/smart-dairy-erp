@@ -268,6 +268,7 @@ export type FarmerResponse = {
   farmerCode: string
   farmerName: string
   mobileNo: string
+  milkRateChartUuid?: string | null
 }
 
 export type CreateFarmerRequest = {
@@ -288,6 +289,7 @@ export type CreateFarmerRequest = {
   photoUrl: string
   remarks: string
   milkTypeUuid: string
+  milkRateChartUuid: string
   collectionMethodUuid: string
   paymentCycleUuid: string
   rateCategoryUuid: string

@@ -23,6 +23,9 @@ public record CreateFarmerConfigurationRequest(
         UUID rateCategoryUuid,
 
         @NotNull
+        UUID milkRateChartUuid,
+
+        @NotNull
         LocalDate effectiveFrom
 
 ) {

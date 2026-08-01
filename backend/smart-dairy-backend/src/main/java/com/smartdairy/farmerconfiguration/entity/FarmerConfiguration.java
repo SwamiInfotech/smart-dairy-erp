@@ -4,6 +4,7 @@ import com.smartdairy.collectionmethod.entity.CollectionMethod;
 import com.smartdairy.common.entity.BaseEntity;
 import com.smartdairy.farmer.entity.Farmer;
 import com.smartdairy.master.entity.MilkType;
+import com.smartdairy.milkrate.entity.MilkRateChart;
 import com.smartdairy.paymentcycle.entity.PaymentCycle;
 import com.smartdairy.rateprofile.entity.RateCategory;
 import jakarta.persistence.*;
@@ -37,6 +38,10 @@ public class FarmerConfiguration extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "rate_category_id")
     private RateCategory rateCategory;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "milk_rate_chart_id")
+    private MilkRateChart milkRateChart;
 
     @Column(name = "effective_from", nullable = false)
     private LocalDate effectiveFrom;

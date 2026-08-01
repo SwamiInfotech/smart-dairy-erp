@@ -14,6 +14,8 @@ import com.smartdairy.farmerconfiguration.mapper.FarmerConfigurationMapper;
 import com.smartdairy.farmerconfiguration.repository.FarmerConfigurationRepository;
 import com.smartdairy.master.entity.MilkType;
 import com.smartdairy.master.repository.MilkTypeRepository;
+import com.smartdairy.milkrate.entity.MilkRateChart;
+import com.smartdairy.milkrate.repository.MilkRateChartRepository;
 import com.smartdairy.paymentcycle.entity.PaymentCycle;
 import com.smartdairy.paymentcycle.repository.PaymentCycleRepository;
 import com.smartdairy.rateprofile.entity.RateCategory;
@@ -32,6 +34,7 @@ public class CreateFarmerConfigurationService {
     private final FarmerConfigurationRepository repository;
     private final FarmerRepository farmerRepository;
     private final MilkTypeRepository milkTypeRepository;
+    private final MilkRateChartRepository milkRateChartRepository;
     private final CollectionMethodRepository collectionMethodRepository;
     private final PaymentCycleRepository paymentCycleRepository;
     private final RateCategoryRepository rateCategoryRepository;
@@ -62,9 +65,13 @@ public class CreateFarmerConfigurationService {
                 });
 
         PaymentCycle paymentCycle = paymentCycleRepository.findByUuid(request.paymentCycleUuid())
-                .orElseThrow(() -> {
-                    log.error("Payment Cycle not found with UUID: {}", request.paymentCycleUuid());
-                    return new ResourceNotFoundException("Payment Cycle not found.");
+                .orElseGet(() -> {
+                    log.warn("Payment Cycle not found with UUID: {}, falling back to WEEKLY.", request.paymentCycleUuid());
+                    return paymentCycleRepository.findByCode("WEEKLY")
+                            .orElseThrow(() -> {
+                                log.error("Default payment cycle WEEKLY not found.");
+                                return new ResourceNotFoundException("Payment Cycle not found.");
+                            });
                 });
 
         RateCategory rateCategory = rateCategoryRepository.findByUuid(request.rateCategoryUuid())
@@ -72,6 +79,14 @@ public class CreateFarmerConfigurationService {
                     log.error("Rate Category not found with UUID: {}", request.rateCategoryUuid());
                     return new ResourceNotFoundException("Rate Category not found.");
                 });
+
+        MilkRateChart milkRateChart = milkRateChartRepository.findByUuid(request.milkRateChartUuid())
+                .orElseThrow(() -> {
+                    log.error("Milk Rate Chart not found with UUID: {}", request.milkRateChartUuid());
+                    return new ResourceNotFoundException("Milk Rate Chart not found.");
+                });
+
+        validateMilkRateChart(milkRateChart, farmer, rateCategory, collectionMethod, request.effectiveFrom());
 
         log.debug("All master data entities found. Creating farmer configuration.");
 
@@ -100,11 +115,48 @@ public class CreateFarmerConfigurationService {
         configuration.setCollectionMethod(collectionMethod);
         configuration.setPaymentCycle(paymentCycle);
         configuration.setRateCategory(rateCategory);
+        configuration.setMilkRateChart(milkRateChart);
+
+        farmer.setMilkRateChart(milkRateChart);
+        farmerRepository.save(farmer);
 
         FarmerConfiguration saved = repository.save(configuration);
 
         log.info("Farmer configuration saved successfully with UUID: {}", saved.getUuid());
 
         return mapper.toResponse(saved);
+    }
+
+    private void validateMilkRateChart(
+            MilkRateChart milkRateChart,
+            Farmer farmer,
+            RateCategory rateCategory,
+            CollectionMethod collectionMethod,
+            java.time.LocalDate effectiveFrom
+    ) {
+        if (!milkRateChart.getBranch().getId().equals(farmer.getBranch().getId())) {
+            log.error("Milk Rate Chart uuid={} does not belong to farmer branch id={}",
+                    milkRateChart.getUuid(), farmer.getBranch().getId());
+            throw new BusinessException("Milk Rate Chart does not belong to farmer branch.");
+        }
+
+        if (!milkRateChart.getRateCategory().getId().equals(rateCategory.getId())) {
+            log.error("Milk Rate Chart uuid={} does not match rate category id={}",
+                    milkRateChart.getUuid(), rateCategory.getId());
+            throw new BusinessException("Milk Rate Chart does not match rate category.");
+        }
+
+        if (!milkRateChart.getCollectionMethod().getId().equals(collectionMethod.getId())) {
+            log.error("Milk Rate Chart uuid={} does not match collection method id={}",
+                    milkRateChart.getUuid(), collectionMethod.getId());
+            throw new BusinessException("Milk Rate Chart does not match collection method.");
+        }
+
+        if (effectiveFrom.isBefore(milkRateChart.getEffectiveFrom())
+                || (milkRateChart.getEffectiveTo() != null && effectiveFrom.isAfter(milkRateChart.getEffectiveTo()))) {
+            log.error("Milk Rate Chart uuid={} is not applicable for effective date={}",
+                    milkRateChart.getUuid(), effectiveFrom);
+            throw new BusinessException("Milk Rate Chart is not applicable for effective date.");
+        }
     }
 }

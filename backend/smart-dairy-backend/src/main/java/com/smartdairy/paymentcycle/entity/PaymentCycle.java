@@ -10,9 +10,17 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
-@Table(name = "payment_cycle")
+@Table(
+        name = "payment_cycle",
+        uniqueConstraints = {
+                @jakarta.persistence.UniqueConstraint(
+                        name = "uk_payment_cycle_tenant_code",
+                        columnNames = {"tenant_uuid", "code"}
+                )
+        }
+)
 public class PaymentCycle extends BaseEntity {
-    @Column(nullable = false, unique = true, length = 20)
+    @Column(nullable = false, length = 20)
     private String code;
 
     @Column(nullable = false, length = 100)

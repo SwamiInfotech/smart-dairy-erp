@@ -1,5 +1,6 @@
 package com.smartdairy.farmer.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
@@ -44,21 +45,43 @@ public record CreateFarmerRequest(
 
         String remarks,
 
-        // Farmer Configuration fields (REQUIRED for auto-configuration)
-        @NotNull(message = "Milk Type UUID is required for farmer configuration")
+        // Farmer Configuration fields (flat payload support)
         UUID milkTypeUuid,
 
-        @NotNull(message = "Collection Method UUID is required for farmer configuration")
         UUID collectionMethodUuid,
 
-        @NotNull(message = "Payment Cycle UUID is required for farmer configuration")
         UUID paymentCycleUuid,
 
-        @NotNull(message = "Rate Category UUID is required for farmer configuration")
         UUID rateCategoryUuid,
 
-        @NotNull(message = "Configuration Effective From date is required for farmer configuration")
-        LocalDate configEffectiveFrom
+        UUID milkRateChartUuid,
+
+        LocalDate configEffectiveFrom,
+
+        @Valid
+        FarmerConfigurationRequest farmerConfiguration
 
 ) {
+    public record FarmerConfigurationRequest(
+
+            @NotNull(message = "Milk Type UUID is required for farmer configuration")
+            UUID milkTypeUuid,
+
+            @NotNull(message = "Collection Method UUID is required for farmer configuration")
+            UUID collectionMethodUuid,
+
+            @NotNull(message = "Payment Cycle UUID is required for farmer configuration")
+            UUID paymentCycleUuid,
+
+            @NotNull(message = "Rate Category UUID is required for farmer configuration")
+            UUID rateCategoryUuid,
+
+            @NotNull(message = "Milk Rate Chart UUID is required for farmer configuration")
+            UUID milkRateChartUuid,
+
+            @NotNull(message = "Configuration Effective From date is required for farmer configuration")
+            LocalDate configEffectiveFrom
+
+    ) {
+    }
 }
