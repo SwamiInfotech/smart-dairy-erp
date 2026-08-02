@@ -426,13 +426,10 @@ function App() {
 
   const [token, setToken] = useState(initialAuth.token)
   const [tenantUuid, setTenantUuid] = useState(initialAuth.tenantUuid)
-  const [defaultTenantUuid, setDefaultTenantUuid] = useState(initialAuth.defaultTenantUuid)
   const [branchUuid, setBranchUuid] = useState(initialAuth.branchUuid)
   const [branchName, setBranchName] = useState(initialAuth.branchName)
   const [accessibleTenants, setAccessibleTenants] = useState<string[]>(initialAuth.accessibleTenants)
   const [myShops, setMyShops] = useState<TenantShopResponse[]>([])
-  const [selectedTenantUuid, setSelectedTenantUuid] = useState(initialAuth.tenantUuid)
-  const [switchingTenant, setSwitchingTenant] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [busy, setBusy] = useState(false)
@@ -1121,12 +1118,6 @@ function App() {
     const result = await runAction(() => api.getMyShops(token))
     if (result) {
       setMyShops(result)
-      const hasCurrent = result.some((shop) => shop.uuid === tenantUuid)
-      if (hasCurrent) {
-        setSelectedTenantUuid(tenantUuid)
-      } else if (result.length > 0) {
-        setSelectedTenantUuid(result[0].uuid)
-      }
     }
   }
 
@@ -1144,7 +1135,6 @@ function App() {
   useEffect(() => {
     if (!token) {
       setMyShops([])
-      setSelectedTenantUuid('')
       return
     }
 
@@ -1408,11 +1398,9 @@ function App() {
     saveAuth(response)
     setToken(response.accessToken)
     setTenantUuid(response.tenantUuid)
-    setDefaultTenantUuid(response.defaultTenantUuid)
     setBranchUuid(response.branchUuid)
     setBranchName(response.branchName)
     setAccessibleTenants(response.accessibleTenants)
-    setSelectedTenantUuid(response.tenantUuid)
 
     const mappedCompanyName = trimmedCompanyName || response.companyName || ''
     if (mappedCompanyName && response.tenantUuid && isUuid(response.tenantUuid)) {
@@ -1486,12 +1474,10 @@ function App() {
     clearAuth()
     setToken('')
     setTenantUuid('')
-    setDefaultTenantUuid('')
     setBranchUuid('')
     setBranchName('')
     setAccessibleTenants([])
     setMyShops([])
-    setSelectedTenantUuid('')
     setDashboard(null)
     setProducts([])
     setCustomers([])
@@ -1499,31 +1485,6 @@ function App() {
     setSales([])
     setError('')
     setSuccess('')
-  }
-
-  async function onSwitchTenant(nextTenantUuid: string) {
-    if (!token || !nextTenantUuid || nextTenantUuid === tenantUuid) return
-
-    setSwitchingTenant(true)
-    setError('')
-    setSuccess('')
-    try {
-      const response = await api.switchShop(token, nextTenantUuid)
-      saveAuth(response)
-      setToken(response.accessToken)
-      setTenantUuid(response.tenantUuid)
-      setDefaultTenantUuid(response.defaultTenantUuid)
-      setBranchUuid(response.branchUuid)
-      setBranchName(response.branchName)
-      setAccessibleTenants(response.accessibleTenants)
-      setSelectedTenantUuid(response.tenantUuid)
-      setSuccess('Shop switched successfully.')
-    } catch (err) {
-      setSelectedTenantUuid(tenantUuid)
-      setError(err instanceof Error ? err.message : 'Failed to switch shop.')
-    } finally {
-      setSwitchingTenant(false)
-    }
   }
 
   async function onCreateProduct(event: FormEvent) {
@@ -2466,7 +2427,7 @@ function App() {
           )}
         </div>
       ) : (
-        <>
+        <div className="workspace-frame">
           <header className="topbar">
             <div>
               <p className="eyebrow">Smart Dairy ERP</p>
@@ -2474,48 +2435,34 @@ function App() {
               <p className="topbar-breadcrumb">Dashboard / Operations / Agent Workspace</p>
             </div>
             <div className="user-box">
-              <div className="tenant-box">
-                <p className="tenant-label">Shop</p>
-                <select
-                  value={selectedTenantUuid}
-                  onChange={(event) => {
-                    const nextTenantUuid = event.target.value
-                    setSelectedTenantUuid(nextTenantUuid)
-                    void onSwitchTenant(nextTenantUuid)
-                  }}
-                  disabled={busy || switchingTenant || (myShops.length <= 1 && accessibleTenants.length <= 1)}
-                >
-                  {myShops.length > 0
-                    ? myShops.map((shop) => (
-                        <option key={shop.uuid} value={shop.uuid}>
-                          {shop.name} ({shop.role})
-                          {shop.isPrimary ? ' - Default' : ''}
-                        </option>
-                      ))
-                    : accessibleTenants.map((shopTenantUuid) => (
-                        <option key={shopTenantUuid} value={shopTenantUuid}>
-                          Mapped Shop
-                          {shopTenantUuid === defaultTenantUuid ? ' - Default' : ''}
-                        </option>
-                      ))}
-                </select>
-                <div className="tenant-meta">
-                  <p className="current-shop-badge">
-                    Shop: {currentShop ? currentShop.name : 'Mapped Shop'}
-                  </p>
-                  <p className="current-shop-badge">
-                    Branch: {branchName || 'Current Branch'}
-                  </p>
-                </div>
+              <div className="header-context" aria-label="Current context">
+                <p className="current-shop-badge">
+                  Shop: {currentShop ? currentShop.name : 'Mapped Shop'}
+                </p>
+                <p className="current-shop-badge">
+                  Branch: {branchName || 'Current Branch'}
+                </p>
               </div>
+
+              <div className="header-user-card" aria-label="User details">
+                <span className="header-user-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+                    <circle cx="12" cy="8" r="3.6" />
+                    <path d="M4.5 19c0-3.6 3.3-5.8 7.5-5.8s7.5 2.2 7.5 5.8" />
+                  </svg>
+                </span>
+                <span className="header-user-meta">{currentShop?.role || 'User'}</span>
+              </div>
+
               <button type="button" onClick={onLogout}>
                 Logout
               </button>
             </div>
           </header>
 
-          <div className={isSidebarCollapsed ? 'workspace-shell sidebar-collapsed' : 'workspace-shell'}>
-            <aside className={isSidebarCollapsed ? 'left-sidebar collapsed' : 'left-sidebar'}>
+          <div className="app-body-scroll">
+            <div className={isSidebarCollapsed ? 'workspace-shell sidebar-collapsed' : 'workspace-shell'}>
+              <aside className={isSidebarCollapsed ? 'left-sidebar collapsed' : 'left-sidebar'}>
               <div className="sidebar-head">
                 <button
                   type="button"
@@ -2586,9 +2533,9 @@ function App() {
                   </div>
                 )}
               </div>
-            </aside>
+              </aside>
 
-            <main className="panel-grid">
+              <main className="panel-grid">
               {activeTab === 'dashboard' && activeSidebarMenu === 'dashboard' && (
               <section className="panel panel-dashboard-home">
                 <div className="panel-head">
@@ -4236,13 +4183,15 @@ function App() {
                 </div>
               </section>
             )}
-            </main>
+              </main>
+            </div>
           </div>
 
-          <footer className="footer-note">
-            API base URL: {import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081'}
+          <footer className="footer-note footer-copy">
+            Copyright {new Date().getFullYear()} SmartDairy ERP. All rights reserved.
           </footer>
-        </>
+
+        </div>
       )}
 
       <div className="toast-stack" role="status" aria-live="polite">
