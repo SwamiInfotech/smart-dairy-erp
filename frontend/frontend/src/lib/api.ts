@@ -961,13 +961,64 @@ function normalizeFarmerResponse(payload: unknown): FarmerResponse | null {
     ) ||
     null
 
+  const milkTypeRecord = asRecord(record.milkType)
+  const paymentCycleRecord = asRecord(record.paymentCycle)
+  const rateCategoryRecord = asRecord(record.rateCategory)
+  const collectionMethodRecord = asRecord(record.collectionMethod)
+
+  const milkTypeUuid =
+    readString(record, 'milkTypeUuid', 'milk_type_uuid', 'milkTypeId') ||
+    readString(config, 'milkTypeUuid', 'milk_type_uuid', 'milkTypeId') ||
+    readString(milkTypeRecord, 'uuid', 'id') ||
+    ''
+
+  const paymentCycleUuid =
+    readString(record, 'paymentCycleUuid', 'payment_cycle_uuid', 'paymentCycleId') ||
+    readString(config, 'paymentCycleUuid', 'payment_cycle_uuid', 'paymentCycleId') ||
+    readString(paymentCycleRecord, 'uuid', 'id') ||
+    ''
+
+  const rateCategoryUuid =
+    readString(record, 'rateCategoryUuid', 'rate_category_uuid', 'rateCategoryId') ||
+    readString(config, 'rateCategoryUuid', 'rate_category_uuid', 'rateCategoryId') ||
+    readString(rateCategoryRecord, 'uuid', 'id') ||
+    ''
+
+  const collectionMethodUuid =
+    readString(record, 'collectionMethodUuid', 'collection_method_uuid', 'collectionMethodId') ||
+    readString(config, 'collectionMethodUuid', 'collection_method_uuid', 'collectionMethodId') ||
+    readString(collectionMethodRecord, 'uuid', 'id') ||
+    ''
+
+  const configEffectiveFrom =
+    readString(record, 'configEffectiveFrom', 'effectiveFrom', 'effective_from') ||
+    readString(config, 'configEffectiveFrom', 'effectiveFrom', 'effective_from') ||
+    ''
+
   return {
     uuid,
     branchUuid,
     farmerCode,
     farmerName,
     mobileNo,
+    alternateMobileNo: readString(record, 'alternateMobileNo', 'alternate_mobile_no', 'alternateMobile'),
+    email: readString(record, 'email', 'emailId', 'email_id'),
+    address: readString(record, 'address'),
+    village: readString(record, 'village'),
+    taluka: readString(record, 'taluka', 'tehsil'),
+    district: readString(record, 'district'),
+    state: readString(record, 'state'),
+    pincode: readString(record, 'pincode', 'pinCode', 'postalCode'),
+    aadharNo: readString(record, 'aadharNo', 'aadhaarNo', 'aadhaar', 'aadhar'),
+    panNo: readString(record, 'panNo', 'pan', 'panNumber'),
+    photoUrl: readString(record, 'photoUrl', 'photoURL', 'imageUrl'),
+    remarks: readString(record, 'remarks', 'note', 'description'),
+    milkTypeUuid,
     milkRateChartUuid,
+    collectionMethodUuid,
+    paymentCycleUuid,
+    rateCategoryUuid,
+    configEffectiveFrom,
   }
 }
 
@@ -1518,5 +1569,13 @@ export const api = {
 
   createFarmer(token: string, payload: CreateFarmerRequest) {
     return request<FarmerResponse>('POST', '/api/v1/farmers', token, payload)
+  },
+
+  updateFarmer(token: string, farmerUuid: string, payload: CreateFarmerRequest) {
+    return request<FarmerResponse>('PUT', `/api/v1/farmers/${farmerUuid}`, token, payload)
+  },
+
+  deleteFarmer(token: string, farmerUuid: string) {
+    return request<void>('DELETE', `/api/v1/farmers/${farmerUuid}`, token)
   },
 }

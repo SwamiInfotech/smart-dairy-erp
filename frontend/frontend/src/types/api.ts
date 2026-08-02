@@ -268,7 +268,24 @@ export type FarmerResponse = {
   farmerCode: string
   farmerName: string
   mobileNo: string
+  alternateMobileNo?: string
+  email?: string
+  address?: string
+  village?: string
+  taluka?: string
+  district?: string
+  state?: string
+  pincode?: string
+  aadharNo?: string
+  panNo?: string
+  photoUrl?: string
+  remarks?: string
+  milkTypeUuid?: string
   milkRateChartUuid?: string | null
+  collectionMethodUuid?: string
+  paymentCycleUuid?: string
+  rateCategoryUuid?: string
+  configEffectiveFrom?: string
 }
 
 export type CreateFarmerRequest = {

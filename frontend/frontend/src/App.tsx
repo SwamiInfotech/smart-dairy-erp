@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import {
   api,
@@ -37,6 +37,13 @@ type TabKey =
   | 'tenants'
 
 type PublicView = 'login' | 'onboard'
+type ToastKind = 'error' | 'success'
+
+type ToastItem = {
+  id: number
+  kind: ToastKind
+  text: string
+}
 
 const SIDEBAR_GROUPS = [
   {
@@ -79,6 +86,34 @@ const TAB_LABELS: Record<TabKey, string> = {
   sales: 'Sales',
   farmers: 'Farmers',
   tenants: 'Tenants',
+}
+
+const SIDEBAR_ICON_MAP: Record<string, string> = {
+  dashboard: 'icon-dashboard',
+  products: 'icon-box',
+  customers: 'icon-users',
+  milkCollections: 'icon-drop',
+  sales: 'icon-chart',
+  farmers: 'icon-user',
+  master: 'icon-sliders',
+  collectionMethods: 'icon-filter',
+  paymentCycles: 'icon-calendar',
+  pricing: 'icon-tag',
+  rateProfiles: 'icon-trend',
+  milkRateCharts: 'icon-bars',
+  shifts: 'icon-clock',
+  tenants: 'icon-building',
+  companies: 'icon-briefcase',
+  branches: 'icon-pin',
+  farmerConfigurations: 'icon-cog',
+  productionBatches: 'icon-layers',
+  inventory: 'icon-archive',
+  loans: 'icon-wallet',
+  settlements: 'icon-check',
+  payments: 'icon-card',
+  reports: 'icon-file',
+  health: 'icon-pulse',
+  auth: 'icon-lock',
 }
 
 const PAYMENT_MODES: PaymentMode[] = ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CREDIT']
@@ -403,11 +438,13 @@ function App() {
   const [busy, setBusy] = useState(false)
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard')
   const [activeSidebarMenu, setActiveSidebarMenu] = useState('dashboard')
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true)
   const [loginDebug, setLoginDebug] = useState('')
   const [tenantLookupNote, setTenantLookupNote] = useState('')
   const [resolvingTenantUuid, setResolvingTenantUuid] = useState(false)
   const [publicView, setPublicView] = useState<PublicView>('login')
   const [onboardSuccessMessage, setOnboardSuccessMessage] = useState('')
+  const [toasts, setToasts] = useState<ToastItem[]>([])
 
   const [loginUsername, setLoginUsername] = useState('admin')
   const [loginPassword, setLoginPassword] = useState('admin123')
@@ -518,6 +555,35 @@ function App() {
     [farmers],
   )
 
+  const pushToast = useCallback((kind: ToastKind, text: string) => {
+    const normalizedText = text.trim()
+    if (!normalizedText) return
+
+    const id = Date.now() + Math.floor(Math.random() * 10000)
+    setToasts((prev) => [...prev, { id, kind, text: normalizedText }])
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((item) => item.id !== id))
+    }, 4200)
+  }, [])
+
+  useEffect(() => {
+    if (!error) return
+    pushToast('error', error)
+    setError('')
+  }, [error, pushToast])
+
+  useEffect(() => {
+    if (!success) return
+    pushToast('success', success)
+    setSuccess('')
+  }, [success, pushToast])
+
+  useEffect(() => {
+    if (!onboardSuccessMessage) return
+    pushToast('success', onboardSuccessMessage)
+    setOnboardSuccessMessage('')
+  }, [onboardSuccessMessage, pushToast])
+
   const averageProductSellingPrice = useMemo(() => {
     if (!products.length) return 0
     return products.reduce((sum, item) => sum + item.sellingPrice, 0) / products.length
@@ -568,6 +634,7 @@ function App() {
     name: '',
   })
   const [editingTenantUuid, setEditingTenantUuid] = useState('')
+  const [editingFarmerUuid, setEditingFarmerUuid] = useState('')
 
   const [farmerForm, setFarmerForm] = useState({
     branchUuid: initialAuth.branchUuid,
@@ -1656,36 +1723,69 @@ function App() {
       }
     }
 
+    const saveAction = editingFarmerUuid
+      ? () =>
+          api.updateFarmer(token, editingFarmerUuid, {
+            ...farmerForm,
+            branchUuid: targetBranchUuid,
+            farmerName,
+            village,
+            mobileNo,
+            alternateMobileNo,
+            email,
+            pincode,
+            aadharNo,
+            panNo,
+            photoUrl,
+            address: farmerForm.address.trim(),
+            taluka: farmerForm.taluka.trim(),
+            district: farmerForm.district.trim(),
+            state: farmerForm.state.trim(),
+            remarks: farmerForm.remarks.trim(),
+            milkTypeUuid: farmerForm.milkTypeUuid,
+            milkRateChartUuid: farmerForm.milkRateChartUuid,
+            collectionMethodUuid: farmerForm.collectionMethodUuid,
+            paymentCycleUuid: farmerForm.paymentCycleUuid,
+            rateCategoryUuid: farmerForm.rateCategoryUuid,
+            configEffectiveFrom: farmerForm.configEffectiveFrom,
+          })
+      : () =>
+          api.createFarmer(token, {
+            ...farmerForm,
+            branchUuid: targetBranchUuid,
+            farmerName,
+            village,
+            mobileNo,
+            alternateMobileNo,
+            email,
+            pincode,
+            aadharNo,
+            panNo,
+            photoUrl,
+            address: farmerForm.address.trim(),
+            taluka: farmerForm.taluka.trim(),
+            district: farmerForm.district.trim(),
+            state: farmerForm.state.trim(),
+            remarks: farmerForm.remarks.trim(),
+            milkTypeUuid: farmerForm.milkTypeUuid,
+            milkRateChartUuid: farmerForm.milkRateChartUuid,
+            collectionMethodUuid: farmerForm.collectionMethodUuid,
+            paymentCycleUuid: farmerForm.paymentCycleUuid,
+            rateCategoryUuid: farmerForm.rateCategoryUuid,
+            configEffectiveFrom: farmerForm.configEffectiveFrom,
+          })
+
     const created = await runAction(
-      () =>
-        api.createFarmer(token, {
-          ...farmerForm,
-          branchUuid: targetBranchUuid,
-          farmerName,
-          village,
-          mobileNo,
-          alternateMobileNo,
-          email,
-          pincode,
-          aadharNo,
-          panNo,
-          photoUrl,
-          address: farmerForm.address.trim(),
-          taluka: farmerForm.taluka.trim(),
-          district: farmerForm.district.trim(),
-          state: farmerForm.state.trim(),
-          remarks: farmerForm.remarks.trim(),
-          milkTypeUuid: farmerForm.milkTypeUuid,
-          milkRateChartUuid: farmerForm.milkRateChartUuid,
-          collectionMethodUuid: farmerForm.collectionMethodUuid,
-          paymentCycleUuid: farmerForm.paymentCycleUuid,
-          rateCategoryUuid: farmerForm.rateCategoryUuid,
-          configEffectiveFrom: farmerForm.configEffectiveFrom,
-        }),
-      'Farmer created successfully.',
+      saveAction,
+      editingFarmerUuid ? 'Farmer updated successfully.' : 'Farmer created successfully.',
     )
     if (!created) return
-    setFarmers((prev) => [created, ...(Array.isArray(prev) ? prev : [])])
+    setFarmers((prev) => {
+      if (editingFarmerUuid) {
+        return prev.map((item) => (item.uuid === editingFarmerUuid ? created : item))
+      }
+      return [created, ...(Array.isArray(prev) ? prev : [])]
+    })
     setFarmerForm({
       branchUuid,
       farmerCode: nextFarmerCode,
@@ -1711,6 +1811,7 @@ function App() {
       configEffectiveFrom: toInputDate(new Date()),
     })
     setSelectedFarmerRateChartUuid('')
+    setEditingFarmerUuid('')
 
     // Refresh from backend so Milk Collection farmer dropdown stays in sync,
     // then navigate back and preselect the newly created farmer.
@@ -1762,6 +1863,90 @@ function App() {
         ...prev,
         farmerUuid: created.uuid,
       }))
+    }
+  }
+
+  function onEditFarmer(farmer: FarmerResponse) {
+    setEditingFarmerUuid(farmer.uuid)
+    setFarmerMappedFieldError('')
+
+    const chartUuid = farmer.milkRateChartUuid || ''
+    setSelectedFarmerRateChartUuid(chartUuid)
+
+    setFarmerForm((prev) => ({
+      ...prev,
+      branchUuid: farmer.branchUuid || branchUuid || prev.branchUuid,
+      farmerCode: farmer.farmerCode || prev.farmerCode,
+      farmerName: farmer.farmerName || '',
+      mobileNo: farmer.mobileNo || '',
+      alternateMobileNo: farmer.alternateMobileNo || '',
+      email: farmer.email || '',
+      address: farmer.address || '',
+      village: farmer.village || '',
+      taluka: farmer.taluka || '',
+      district: farmer.district || '',
+      state: farmer.state || '',
+      pincode: farmer.pincode || '',
+      aadharNo: farmer.aadharNo || '',
+      panNo: farmer.panNo || '',
+      photoUrl: farmer.photoUrl || '',
+      remarks: farmer.remarks || '',
+      milkTypeUuid: farmer.milkTypeUuid || prev.milkTypeUuid,
+      milkRateChartUuid: chartUuid,
+      collectionMethodUuid: farmer.collectionMethodUuid || prev.collectionMethodUuid,
+      paymentCycleUuid: farmer.paymentCycleUuid || prev.paymentCycleUuid,
+      rateCategoryUuid: farmer.rateCategoryUuid || prev.rateCategoryUuid,
+      configEffectiveFrom: farmer.configEffectiveFrom || prev.configEffectiveFrom,
+    }))
+  }
+
+  function onCancelFarmerEdit() {
+    setEditingFarmerUuid('')
+    setFarmerMappedFieldError('')
+    setSelectedFarmerRateChartUuid('')
+    setFarmerForm({
+      branchUuid,
+      farmerCode: nextFarmerCode,
+      farmerName: '',
+      mobileNo: '',
+      alternateMobileNo: '',
+      email: '',
+      address: '',
+      village: '',
+      taluka: '',
+      district: '',
+      state: '',
+      pincode: '',
+      aadharNo: '',
+      panNo: '',
+      photoUrl: '',
+      remarks: '',
+      milkTypeUuid: '',
+      milkRateChartUuid: '',
+      collectionMethodUuid: '',
+      paymentCycleUuid: '',
+      rateCategoryUuid: '',
+      configEffectiveFrom: toInputDate(new Date()),
+    })
+  }
+
+  async function onDeleteFarmer(farmer: FarmerResponse) {
+    if (!token) return
+
+    const confirmed = window.confirm(`Delete farmer ${farmer.farmerName} (${farmer.farmerCode})?`)
+    if (!confirmed) return
+
+    const deleted = await runAction(async () => {
+      await api.deleteFarmer(token, farmer.uuid)
+      return true
+    }, 'Farmer deleted successfully.')
+
+    if (!deleted) return
+
+    setFarmers((prev) => prev.filter((item) => item.uuid !== farmer.uuid))
+
+    if (editingFarmerUuid === farmer.uuid) {
+      onCancelFarmerEdit()
     }
   }
 
@@ -2151,7 +2336,6 @@ function App() {
                   </div>
                 </form>
 
-                {error && <p className="message error">{error}</p>}
               </section>
             </div>
           ) : (
@@ -2178,8 +2362,6 @@ function App() {
                 <h2>Sign In</h2>
                 <p className="subtle">Use your authorized credentials to continue.</p>
                 <p className="subtle">Header: X-Tenant-Id</p>
-                {onboardSuccessMessage && <p className="message success">{onboardSuccessMessage}</p>}
-
                 <form className="form" onSubmit={onLogin}>
                   <label>
                     Username
@@ -2278,7 +2460,6 @@ function App() {
                   </button>
                 </div>
 
-                {error && <p className="message error">{error}</p>}
                 {loginDebug && <p className="subtle login-debug">{loginDebug}</p>}
               </section>
             </div>
@@ -2290,6 +2471,7 @@ function App() {
             <div>
               <p className="eyebrow">Smart Dairy ERP</p>
               <h1>Web Console</h1>
+              <p className="topbar-breadcrumb">Dashboard / Operations / Agent Workspace</p>
             </div>
             <div className="user-box">
               <div className="tenant-box">
@@ -2332,98 +2514,238 @@ function App() {
             </div>
           </header>
 
-          {error && <p className="message error">{error}</p>}
-          {success && <p className="message success">{success}</p>}
+          <div className={isSidebarCollapsed ? 'workspace-shell sidebar-collapsed' : 'workspace-shell'}>
+            <aside className={isSidebarCollapsed ? 'left-sidebar collapsed' : 'left-sidebar'}>
+              <div className="sidebar-head">
+                <button
+                  type="button"
+                  className="sidebar-toggle-btn"
+                  onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+                  aria-expanded={!isSidebarCollapsed}
+                  aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                >
+                  <span aria-hidden="true">{isSidebarCollapsed ? '>' : '<'}</span>
+                </button>
+              </div>
 
-          <div className="workspace-shell">
-            <aside className="left-sidebar">
-              <p className="sidebar-title">Modules</p>
-              {SIDEBAR_GROUPS.map((group) => (
-                <section className="sidebar-group" key={group.title}>
-                  <p className="sidebar-group-title">{group.title}</p>
-                  {group.items.map((key) => {
-                    const isUiTab = key in TAB_LABELS
-                    const label = isUiTab ? TAB_LABELS[key as TabKey] : key
+              <div className={isSidebarCollapsed ? 'sidebar-content collapsed' : 'sidebar-content'}>
+                {!isSidebarCollapsed ? (
+                  SIDEBAR_GROUPS.map((group) => (
+                    <section className="sidebar-group" key={group.title}>
+                      <p className="sidebar-group-title">{group.title}</p>
+                      {group.items.map((key) => {
+                        const isUiTab = key in TAB_LABELS
+                        const label = isUiTab ? TAB_LABELS[key as TabKey] : key
+                        const iconClass = SIDEBAR_ICON_MAP[key] || 'icon-generic'
 
-                    return (
-                      <button
-                        type="button"
-                        key={key}
-                        className={activeSidebarMenu === key ? 'menu-btn active' : 'menu-btn'}
-                        onClick={() => {
-                          setActiveSidebarMenu(key)
-                          if (isUiTab) {
-                            setActiveTab(key as TabKey)
-                          }
-                        }}
-                      >
-                        {label}
-                      </button>
-                    )
-                  })}
-                </section>
-              ))}
+                        return (
+                          <button
+                            type="button"
+                            key={key}
+                            className={activeSidebarMenu === key ? 'menu-btn active' : 'menu-btn'}
+                            onClick={() => {
+                              setActiveSidebarMenu(key)
+                              if (isUiTab) {
+                                setActiveTab(key as TabKey)
+                              }
+                            }}
+                          >
+                            <span aria-hidden="true" className={`menu-icon ${iconClass}`} />
+                            <span className="menu-label">{label}</span>
+                          </button>
+                        )
+                      })}
+                    </section>
+                  ))
+                ) : (
+                  <div className="collapsed-menu-grid">
+                    {Array.from(new Set(SIDEBAR_GROUPS.flatMap((group) => group.items))).map((key) => {
+                      const isUiTab = key in TAB_LABELS
+                      const label = isUiTab ? TAB_LABELS[key as TabKey] : key
+                      const iconClass = SIDEBAR_ICON_MAP[key] || 'icon-generic'
+
+                      return (
+                        <button
+                          type="button"
+                          key={key}
+                          title={label}
+                          aria-label={label}
+                          data-label={label}
+                          className={activeSidebarMenu === key ? 'menu-btn collapsed-menu-btn active' : 'menu-btn collapsed-menu-btn'}
+                          onClick={() => {
+                            setActiveSidebarMenu(key)
+                            if (isUiTab) {
+                              setActiveTab(key as TabKey)
+                            }
+                          }}
+                        >
+                          <span aria-hidden="true" className={`collapsed-menu-icon ${iconClass}`} />
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </aside>
 
             <main className="panel-grid">
               {activeTab === 'dashboard' && activeSidebarMenu === 'dashboard' && (
-              <section className="panel">
+              <section className="panel panel-dashboard-home">
                 <div className="panel-head">
-                  <h2>Sales Dashboard</h2>
+                  <h2>Executive Dashboard</h2>
                   <button type="button" onClick={loadDashboard} disabled={busy}>
                     Refresh
                   </button>
                 </div>
 
-                <form
-                  className="form inline"
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    void loadDashboard()
-                  }}
-                >
-                  <label>
-                    From
-                    <input
-                      type="date"
-                      value={dashboardRange.fromDate}
-                      onChange={(event) =>
-                        setDashboardRange((prev) => ({ ...prev, fromDate: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    To
-                    <input
-                      type="date"
-                      value={dashboardRange.toDate}
-                      onChange={(event) =>
-                        setDashboardRange((prev) => ({ ...prev, toDate: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <button type="submit" disabled={busy}>
-                    Apply
-                  </button>
-                </form>
+                <div className="dashboard-home-shell">
+                  <section className="dashboard-hero" aria-label="Dashboard highlights">
+                    <div className="dashboard-hero-copy">
+                      <p className="dashboard-hero-badge">SMART DAIRY OPERATIONS</p>
+                      <h3>Collections, Sales, and Farmer Activity in One View</h3>
+                      <p>
+                        Run daily operations with real-time visibility across procurement, invoicing,
+                        and field-level farmer performance.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="dashboard-hero-cta"
+                      onClick={() => {
+                        setActiveTab('sales')
+                        setActiveSidebarMenu('sales')
+                      }}
+                    >
+                      Explore Sales Directory
+                    </button>
+                  </section>
 
-                <div className="kpi-grid">
-                  <article>
-                    <p>Total invoices</p>
-                    <strong>{dashboard?.totalInvoices ?? 0}</strong>
-                  </article>
-                  <article>
-                    <p>Total sales</p>
-                    <strong>{dashboard?.totalSales ?? 0}</strong>
-                  </article>
-                  <article>
-                    <p>Net sales</p>
-                    <strong>{dashboard?.netSales ?? 0}</strong>
-                  </article>
-                  <article>
-                    <p>Avg invoice</p>
-                    <strong>{dashboard?.averageInvoiceValue ?? 0}</strong>
-                  </article>
+                  <form
+                    className="form inline dashboard-filter"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      void loadDashboard()
+                    }}
+                  >
+                    <label>
+                      From
+                      <input
+                        type="date"
+                        value={dashboardRange.fromDate}
+                        onChange={(event) =>
+                          setDashboardRange((prev) => ({ ...prev, fromDate: event.target.value }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      To
+                      <input
+                        type="date"
+                        value={dashboardRange.toDate}
+                        onChange={(event) =>
+                          setDashboardRange((prev) => ({ ...prev, toDate: event.target.value }))
+                        }
+                      />
+                    </label>
+                    <button type="submit" disabled={busy}>
+                      Apply
+                    </button>
+                  </form>
+
+                  <div className="kpi-grid dashboard-kpis">
+                    <article className="dashboard-kpi tone-blue">
+                      <p>Total invoices</p>
+                      <strong>{dashboard?.totalInvoices ?? 0}</strong>
+                    </article>
+                    <article className="dashboard-kpi tone-cyan">
+                      <p>Total sales</p>
+                      <strong>{dashboard?.totalSales ?? 0}</strong>
+                    </article>
+                    <article className="dashboard-kpi tone-violet">
+                      <p>Net sales</p>
+                      <strong>{dashboard?.netSales ?? 0}</strong>
+                    </article>
+                    <article className="dashboard-kpi tone-amber">
+                      <p>Avg invoice</p>
+                      <strong>{dashboard?.averageInvoiceValue ?? 0}</strong>
+                    </article>
+                    <article className="dashboard-kpi tone-green">
+                      <p>Collections</p>
+                      <strong>{collections.length}</strong>
+                    </article>
+                    <article className="dashboard-kpi tone-rose">
+                      <p>Farmers</p>
+                      <strong>{farmers.length}</strong>
+                    </article>
+                    <article className="dashboard-kpi tone-indigo">
+                      <p>Products</p>
+                      <strong>{products.length}</strong>
+                    </article>
+                    <article className="dashboard-kpi tone-lilac">
+                      <p>Customers</p>
+                      <strong>{customers.length}</strong>
+                    </article>
+                  </div>
+
+                  <section className="dashboard-quick-actions" aria-label="Quick actions">
+                    <h3>Quick Actions</h3>
+                    <div className="dashboard-quick-grid">
+                      <button type="button" onClick={() => {
+                        setActiveTab('milkCollections')
+                        setActiveSidebarMenu('milkCollections')
+                      }}>
+                        Open Milk Collections
+                      </button>
+                      <button type="button" onClick={() => {
+                        setActiveTab('farmers')
+                        setActiveSidebarMenu('farmers')
+                      }}>
+                        Open Farmers
+                      </button>
+                      <button type="button" onClick={() => {
+                        setActiveTab('sales')
+                        setActiveSidebarMenu('sales')
+                      }}>
+                        Open Sales
+                      </button>
+                      <button type="button" onClick={() => {
+                        setActiveTab('products')
+                        setActiveSidebarMenu('products')
+                      }}>
+                        Open Products
+                      </button>
+                    </div>
+                  </section>
+
+                  <div className="dashboard-activity-grid">
+                    <section className="dashboard-activity-card">
+                      <h3>Recent Milk Collections</h3>
+                      <ul>
+                        {collections.slice(0, 5).map((item) => (
+                          <li key={item.uuid}>
+                            <span>{item.collectionNo}</span>
+                            <span>{item.farmerName}</span>
+                            <span>{item.quantity} L</span>
+                          </li>
+                        ))}
+                        {collections.length === 0 && <li className="empty">No recent collections</li>}
+                      </ul>
+                    </section>
+
+                    <section className="dashboard-activity-card">
+                      <h3>Recent Sales Invoices</h3>
+                      <ul>
+                        {sales.slice(0, 5).map((item) => (
+                          <li key={item.uuid}>
+                            <span>{item.invoiceNo}</span>
+                            <span>{item.customerName}</span>
+                            <span>{item.netAmount}</span>
+                          </li>
+                        ))}
+                        {sales.length === 0 && <li className="empty">No recent sales</li>}
+                      </ul>
+                    </section>
+                  </div>
                 </div>
               </section>
             )}
@@ -2593,7 +2915,7 @@ function App() {
                   </button>
                 </div>
 
-                <form className="form two-col" onSubmit={onCreateCustomer}>
+                <form className="form two-col customer-form" onSubmit={onCreateCustomer}>
                   <label>
                     Branch
                     <input
@@ -3357,7 +3679,7 @@ function App() {
                   </button>
                 </div>
 
-                <form className="form two-col" onSubmit={onCreateSales}>
+                <form className="form two-col sales-form" onSubmit={onCreateSales}>
                   <label>
                     Branch
                     <input
@@ -3756,29 +4078,75 @@ function App() {
                       </div>
 
                     </div>
-                    <button type="submit" disabled={busy} className="farmer-submit">
-                      {busy ? 'Creating...' : 'Create farmer'}
-                    </button>
+                    <div className="farmer-actions-row">
+                      <button type="submit" disabled={busy} className="farmer-submit">
+                        {busy ? (editingFarmerUuid ? 'Updating...' : 'Creating...') : editingFarmerUuid ? 'Update farmer' : 'Create farmer'}
+                      </button>
+                      {editingFarmerUuid && (
+                        <button type="button" onClick={onCancelFarmerEdit} disabled={busy} className="farmer-cancel-btn">
+                          Cancel edit
+                        </button>
+                      )}
+                    </div>
                   </form>
                 </div>
 
                 <div className="table-wrap farmer-table">
-                  <table>
+                  <table className="farmer-list-table">
                     <thead>
                       <tr>
-                        <th>Code</th>
-                        <th>Name</th>
+                        <th>Farmer Code</th>
+                        <th>Farmer Name</th>
                         <th>Mobile</th>
+                        <th>Village</th>
                         <th>Branch</th>
+                        <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {farmers.map((item) => (
                         <tr key={item.uuid}>
-                          <td>{item.farmerCode}</td>
+                          <td>
+                            <span className="farmer-code-chip">{item.farmerCode}</span>
+                          </td>
                           <td>{item.farmerName}</td>
                           <td>{item.mobileNo || '-'}</td>
-                          <td>{item.branchUuid === branchUuid ? branchName || 'Current Branch' : 'Mapped Branch'}</td>
+                          <td>{item.village || '-'}</td>
+                          <td>
+                            <span
+                              className={
+                                item.branchUuid === branchUuid
+                                  ? 'farmer-branch-chip is-current'
+                                  : 'farmer-branch-chip is-mapped'
+                              }
+                            >
+                              {item.branchUuid === branchUuid ? branchName || 'Current Branch' : 'Mapped Branch'}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="farmer-row-actions">
+                              <button
+                                type="button"
+                                className="farmer-action-icon icon-edit"
+                                onClick={() => onEditFarmer(item)}
+                                disabled={busy}
+                                title="Edit farmer"
+                                aria-label="Edit farmer"
+                              >
+                                <span aria-hidden="true">✎</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="farmer-action-icon icon-delete"
+                                onClick={() => onDeleteFarmer(item)}
+                                disabled={busy}
+                                title="Delete farmer"
+                                aria-label="Delete farmer"
+                              >
+                                <span aria-hidden="true">✕</span>
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -3796,7 +4164,7 @@ function App() {
                   </button>
                 </div>
 
-                <form className="form two-col" onSubmit={onSubmitTenant}>
+                <form className="form two-col tenant-form" onSubmit={onSubmitTenant}>
                   <label>
                     Tenant code
                     <input
@@ -3876,6 +4244,22 @@ function App() {
           </footer>
         </>
       )}
+
+      <div className="toast-stack" role="status" aria-live="polite">
+        {toasts.map((toast) => (
+          <div key={toast.id} className={toast.kind === 'error' ? 'toast toast-error' : 'toast toast-success'}>
+            <span>{toast.text}</span>
+            <button
+              type="button"
+              className="toast-close-btn"
+              onClick={() => setToasts((prev) => prev.filter((item) => item.id !== toast.id))}
+              aria-label="Dismiss notification"
+            >
+              x
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
