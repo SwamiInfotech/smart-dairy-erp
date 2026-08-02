@@ -163,6 +163,29 @@ export type MasterLookupResponse = {
   description: string | null
 }
 
+export type RateCategoryResponse = {
+  uuid: string
+  code: string
+  name: string
+  description: string | null
+  displayOrder: number | null
+  active: boolean
+}
+
+export type CreateRateCategoryRequest = {
+  code: string
+  name: string
+  description: string
+  displayOrder?: number
+}
+
+export type UpdateRateCategoryRequest = {
+  code: string
+  name: string
+  description: string
+  displayOrder?: number
+}
+
 export type CreateMilkRateChartDetailRequest = {
   fatFrom: number | null
   fatTo: number | null

@@ -4,6 +4,7 @@ import type {
   CreateTenantRequest,
   CreateCustomerRequest,
   CreateFarmerRequest,
+  CreateRateCategoryRequest,
   CreateMilkCollectionRequest,
   CreateMilkRateChartRequest,
   CreateProductRequest,
@@ -11,6 +12,7 @@ import type {
   CustomerResponse,
   FarmerResponse,
   MasterLookupResponse,
+  RateCategoryResponse,
   MilkRateChartResponse,
   MilkTypeResponse,
   PageResult,
@@ -22,6 +24,7 @@ import type {
   ShiftResponse,
   TenantResponse,
   TenantShopResponse,
+  UpdateRateCategoryRequest,
   UpdateTenantRequest,
 } from '../types/api'
 
@@ -207,6 +210,7 @@ export const BACKEND_MODULES: Record<string, BackendModuleDefinition> = {
       { method: 'GET', path: '/api/v1/master/milk-types' },
       { method: 'GET', path: '/api/v1/master/collection-methods' },
       { method: 'GET', path: '/api/v1/master/shifts' },
+      { method: 'GET', path: '/api/v1/master/rate-categories' },
     ],
   },
   collectionMethods: {
@@ -233,8 +237,10 @@ export const BACKEND_MODULES: Record<string, BackendModuleDefinition> = {
   rateProfiles: {
     label: 'Rate Profiles',
     endpoints: [
-      { method: 'GET', path: '/api/v1/rate-profiles' },
-      { method: 'POST', path: '/api/v1/rate-profiles' },
+      { method: 'GET', path: '/api/v1/master/rate-categories' },
+      { method: 'POST', path: '/api/v1/master/rate-categories' },
+      { method: 'PUT', path: '/api/v1/master/rate-categories/{uuid}' },
+      { method: 'DELETE', path: '/api/v1/master/rate-categories/{uuid}' },
     ],
   },
   milkRateCharts: {
@@ -716,6 +722,71 @@ function normalizeLookupListResponse(payload: unknown, label: string): MasterLoo
 
   if (normalized.length === 0) {
     throw new ApiError(`No ${label.toLowerCase()} are configured in master data.`, 404)
+  }
+
+  return normalized
+}
+
+function normalizeRateCategoryResponse(payload: unknown): RateCategoryResponse {
+  const record = asRecord(payload)
+  if (!record) {
+    throw new ApiError('Rate category response format is invalid.', 500)
+  }
+
+  const uuid = readString(record, 'uuid', 'id', 'rateCategoryUuid')
+  const code = readString(record, 'code', 'categoryCode', 'rateCategoryCode')
+  const name = readString(record, 'name', 'categoryName', 'rateCategoryName')
+
+  if (!uuid || !code || !name) {
+    throw new ApiError('Rate category response format is invalid.', 500)
+  }
+
+  const displayOrderValue = readNumber(record, 'displayOrder', 'display_order', 'order', 'sortOrder')
+  const activeValue =
+    typeof record.active === 'boolean'
+      ? record.active
+      : typeof record.enabled === 'boolean'
+        ? record.enabled
+        : true
+
+  return {
+    uuid,
+    code,
+    name,
+    description: readString(record, 'description', 'remarks', 'note') || null,
+    displayOrder: displayOrderValue > 0 || displayOrderValue === 0 ? displayOrderValue : null,
+    active: activeValue,
+  }
+}
+
+function normalizeRateCategoryListResponse(payload: unknown): RateCategoryResponse[] {
+  const root = asRecord(payload)
+  const directArray = Array.isArray(payload) ? payload : null
+  const nestedArray =
+    (Array.isArray(root?.content) ? root.content : null) ||
+    (Array.isArray(root?.items) ? root.items : null) ||
+    (Array.isArray(root?.data) ? root.data : null) ||
+    (Array.isArray(root?.list) ? root.list : null) ||
+    (Array.isArray(root?.rows) ? root.rows : null) ||
+    (Array.isArray(root?.rateCategories) ? root.rateCategories : null)
+
+  const source = directArray || nestedArray
+  if (!source) {
+    throw new ApiError('Rate categories response format is invalid.', 500)
+  }
+
+  const normalized = source
+    .map((item) => {
+      try {
+        return normalizeRateCategoryResponse(item)
+      } catch {
+        return null
+      }
+    })
+    .filter((item): item is RateCategoryResponse => Boolean(item))
+
+  if (normalized.length === 0) {
+    throw new ApiError('No rate categories are configured in master data.', 404)
   }
 
   return normalized
@@ -1541,7 +1612,31 @@ export const api = {
 
   async getRateCategories(token: string) {
     const response = await request<unknown>('GET', '/api/v1/master/rate-categories', token)
-    return normalizeLookupListResponse(response, 'Rate categories')
+    return normalizeRateCategoryListResponse(response)
+  },
+
+  async createRateCategory(token: string, payload: CreateRateCategoryRequest) {
+    const response = await request<unknown>('POST', '/api/v1/master/rate-categories', token, {
+      code: payload.code.trim(),
+      name: payload.name.trim(),
+      description: payload.description.trim() || null,
+      displayOrder: typeof payload.displayOrder === 'number' ? payload.displayOrder : null,
+    })
+    return normalizeRateCategoryResponse(response)
+  },
+
+  async updateRateCategory(token: string, uuid: string, payload: UpdateRateCategoryRequest) {
+    const response = await request<unknown>('PUT', `/api/v1/master/rate-categories/${uuid}`, token, {
+      code: payload.code.trim(),
+      name: payload.name.trim(),
+      description: payload.description.trim() || null,
+      displayOrder: typeof payload.displayOrder === 'number' ? payload.displayOrder : null,
+    })
+    return normalizeRateCategoryResponse(response)
+  },
+
+  deleteRateCategory(token: string, uuid: string) {
+    return request<void>('DELETE', `/api/v1/master/rate-categories/${uuid}`, token)
   },
 
   async getCollectionMethods(token: string) {

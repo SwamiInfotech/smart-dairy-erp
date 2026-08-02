@@ -189,7 +189,7 @@
   min-height: 100%;
   overflow: hidden;
   border: 1px solid rgba(124, 139, 174, 0.25);
-  border-radius: 14px;
+  border-radius: 0;
   background: rgba(255, 255, 255, 0.76);
   padding: 14px;
   display: flex;
@@ -884,12 +884,12 @@ input[readonly] {
   max-width: 100%;
   display: grid;
   gap: 12px;
-  border: 1px solid rgba(103, 124, 160, 0.2);
+  border: 1px solid rgba(191, 128, 74, 0.34);
   border-radius: 14px;
   padding: 14px;
   background:
-    radial-gradient(circle at 10% -15%, rgba(44, 127, 195, 0.08), rgba(44, 127, 195, 0) 40%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(245, 250, 255, 0.88) 100%);
+    radial-gradient(circle at 8% -10%, rgba(233, 146, 63, 0.2), rgba(233, 146, 63, 0) 42%),
+    linear-gradient(180deg, rgba(255, 252, 246, 0.96) 0%, rgba(248, 241, 232, 0.9) 100%);
 }
 
 .collection-form > * {
@@ -904,7 +904,7 @@ input[readonly] {
 .collection-form-head h3 {
   margin: 6px 0;
   font-size: 1.2rem;
-  color: #1f355e;
+  color: #7a461d;
   font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
 }
 
@@ -923,7 +923,7 @@ input[readonly] {
 .collection-field > span {
   margin: 0;
   font-weight: 700;
-  color: #27486d;
+  color: #7f4d25;
 }
 
 .collection-field input,
@@ -951,14 +951,14 @@ input[readonly] {
   padding: 0 14px;
   font-weight: 700;
   white-space: nowrap;
-  background: linear-gradient(135deg, #1b7f4f 0%, #2ea768 100%);
-  border-color: #237f52;
+  background: linear-gradient(135deg, #c5742e 0%, #e09543 100%);
+  border-color: #bc6d2a;
   color: #ffffff;
 }
 
 .collection-new-farmer-btn:hover {
-  background: linear-gradient(135deg, #176e45 0%, #27955d 100%);
-  border-color: #1f7048;
+  background: linear-gradient(135deg, #ab6325 0%, #c98336 100%);
+  border-color: #a65d20;
 }
 
 .collection-meta-row {
@@ -973,8 +973,8 @@ input[readonly] {
   gap: 10px;
   padding: 12px;
   border-radius: 12px;
-  border: 1px solid rgba(103, 124, 160, 0.2);
-  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(191, 128, 74, 0.3);
+  background: rgba(255, 246, 235, 0.8);
 }
 
 .collection-field-compact input,
@@ -1007,31 +1007,31 @@ input[readonly] {
   justify-self: start;
   min-width: 180px;
   font-weight: 700;
-  background: linear-gradient(135deg, #15608b 0%, #1f8c84 100%);
+  background: linear-gradient(135deg, #c26d25 0%, #e5953f 100%);
   color: #fff;
-  border-color: #1a7281;
+  border-color: #b96722;
 }
 
 .collection-submit:hover {
-  background: linear-gradient(135deg, #14557b 0%, #18766f 100%);
-  border-color: #16646e;
+  background: linear-gradient(135deg, #a95c1d 0%, #cb7e2f 100%);
+  border-color: #9f5417;
 }
 
 .collection-summary {
   min-width: 0;
   max-width: 100%;
-  border: 1px solid rgba(98, 121, 156, 0.22);
+  border: 1px solid rgba(184, 122, 68, 0.34);
   border-radius: 14px;
   padding: 14px;
   background:
-    radial-gradient(circle at 90% 10%, rgba(28, 161, 150, 0.1), rgba(28, 161, 150, 0) 35%),
-    linear-gradient(165deg, rgba(238, 251, 249, 0.95) 0%, rgba(245, 248, 255, 0.95) 100%);
+    radial-gradient(circle at 90% 12%, rgba(230, 150, 72, 0.18), rgba(230, 150, 72, 0) 36%),
+    linear-gradient(165deg, rgba(255, 249, 242, 0.96) 0%, rgba(246, 239, 230, 0.95) 100%);
 }
 
 .collection-summary h3 {
   margin: 2px 0 12px;
   font-size: 1rem;
-  color: #1f355e;
+  color: #7a461d;
   font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
 }
 
@@ -1041,22 +1041,22 @@ input[readonly] {
 }
 
 .collection-summary-grid article {
-  border: 1px solid rgba(115, 134, 168, 0.22);
+  border: 1px solid rgba(189, 128, 73, 0.3);
   border-radius: 11px;
-  background: rgba(255, 255, 255, 0.86);
+  background: rgba(255, 250, 244, 0.9);
   padding: 10px;
 }
 
 .collection-summary-grid p {
   margin: 0;
-  color: #5d6e8b;
+  color: #88572f;
   font-size: 0.86rem;
 }
 
 .collection-summary-grid strong {
   display: block;
   margin-top: 4px;
-  color: #164a62;
+  color: #6f3f19;
   font-size: 1.05rem;
 }
 
@@ -1064,13 +1064,13 @@ input[readonly] {
   margin-top: 12px;
   padding: 12px;
   border-radius: 12px;
-  border: 1px solid rgba(111, 134, 166, 0.22);
-  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(186, 124, 70, 0.32);
+  background: rgba(255, 243, 229, 0.82);
 }
 
 .collection-note-box p:last-child {
   margin: 6px 0 0;
-  color: #49617f;
+  color: #7f4e26;
   font-size: 0.9rem;
 }
 
@@ -1959,8 +1959,8 @@ tbody tr:hover {
 }
 
 .collection-submit {
-  background: linear-gradient(135deg, #176985 0%, #23908f 100%);
-  border-color: #1f7380;
+  background: linear-gradient(135deg, #c26d25 0%, #e5953f 100%);
+  border-color: #b96722;
   color: #ffffff;
 }
 
@@ -2032,6 +2032,15 @@ tbody tr:hover {
   color: var(--text-2);
 }
 
+.panel-rate-profiles .form label,
+.panel-rate-profiles .milk-rate-field > span,
+.panel-milk-rate .milk-rate-field > span,
+.panel-milk-rate .milk-rate-detail-row > label,
+.panel-milk-rate .milk-rate-slab-head h4 {
+  color: #5e320f;
+  font-weight: 700;
+}
+
 .message.error {
   color: #8f2f35;
   background: #fff0f1;
@@ -2045,8 +2054,8 @@ tbody tr:hover {
 }
 
 .collection-new-farmer-btn {
-  background: linear-gradient(135deg, var(--ok-1) 0%, var(--ok-2) 100%);
-  border-color: #237d5b;
+  background: linear-gradient(135deg, #c5742e 0%, #e09543 100%);
+  border-color: #bc6d2a;
   color: #ffffff;
 }
 
@@ -2075,7 +2084,7 @@ button:hover {
   font-size: 1.28rem;
 }
 
-.eyebrow {
+.topbar .eyebrow {
   color: rgba(255, 236, 217, 0.92);
 }
 
@@ -2092,6 +2101,54 @@ button:hover {
   color: #fff1df;
 }
 
+/* Rate category panel readability tune-up */
+.panel-rate-profiles .eyebrow {
+  color: #c17635;
+}
+
+.panel-rate-profiles .subtle {
+  color: #4f6078;
+}
+
+.panel-rate-profiles .form label,
+.panel-rate-profiles .form label > span,
+.panel-rate-profiles .milk-rate-field > span {
+  color: #5e320f;
+  font-weight: 700;
+}
+
+.panel-rate-profiles input,
+.panel-rate-profiles select,
+.panel-rate-profiles textarea {
+  color: #1f2c3d;
+  border-color: #c9d7eb;
+  background: #ffffff;
+}
+
+.panel-rate-profiles input::placeholder,
+.panel-rate-profiles textarea::placeholder,
+.panel-rate-profiles select:invalid {
+  color: #68778e;
+  opacity: 1;
+}
+
+.panel-rate-profiles .table-wrap th {
+  color: #8a5625;
+}
+
+.panel-rate-profiles .table-wrap td {
+  color: #3c4f67;
+}
+
+.panel-rate-profiles .milk-rate-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.panel-rate-profiles .milk-rate-form {
+  width: 100%;
+  max-width: 100%;
+}
+
 .current-shop-badge,
 .user-box p {
   border-color: rgba(255, 217, 183, 0.45);
@@ -2106,7 +2163,7 @@ button:hover {
 
 .left-sidebar {
   border: 1px solid rgba(133, 79, 35, 0.56);
-  border-radius: 12px;
+  border-radius: 0;
   background: linear-gradient(180deg, #6c3a1a 0%, #8c4c20 52%, #ab6028 100%);
   box-shadow: 0 12px 26px rgba(78, 46, 21, 0.3);
 }
@@ -2444,14 +2501,14 @@ button:hover {
   color: #fff2e4;
 }
 
-/* Compact mode: smaller header and 30% zoom-out across application pages */
+/* Compact mode: 20% smaller fonts across application pages */
 .app-shell {
-  font-size: 70%;
+  font-size: 80%;
 }
 
-@supports not (font-size: 70%) {
+@supports not (font-size: 80%) {
   .app-shell {
-    font-size: 70%;
+    font-size: 80%;
   }
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import {
   api,
@@ -8,6 +8,7 @@ import {
   saveAuth,
 } from './lib/api'
 import type {
+  CreateRateCategoryRequest,
   CreateMilkRateChartRequest,
   CreateTenantRequest,
   CreateSalesInvoiceItemRequest,
@@ -19,12 +20,14 @@ import type {
   PaymentMode,
   ProductResponse,
   PublicOnboardRequest,
+  RateCategoryResponse,
   SalesDashboardResponse,
   SalesInvoiceResponse,
   ShiftResponse,
   TenantResponse,
   TenantShopResponse,
 } from './types/api'
+import { RateCategory } from './components/RateCategory'
 import './App.css'
 
 type TabKey =
@@ -435,6 +438,7 @@ function App() {
   const [busy, setBusy] = useState(false)
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard')
   const [activeSidebarMenu, setActiveSidebarMenu] = useState('dashboard')
+  const bodyScrollRef = useRef<HTMLDivElement | null>(null)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true)
   const [loginDebug, setLoginDebug] = useState('')
   const [tenantLookupNote, setTenantLookupNote] = useState('')
@@ -534,7 +538,8 @@ function App() {
   >([])
   const [milkTypes, setMilkTypes] = useState<MilkTypeResponse[]>([])
   const [shifts, setShifts] = useState<ShiftResponse[]>([])
-  const [rateCategories, setRateCategories] = useState<MasterLookupResponse[]>([])
+  const [rateCategories, setRateCategories] = useState<RateCategoryResponse[]>([])
+  const [editingRateCategoryUuid, setEditingRateCategoryUuid] = useState('')
   const [collectionMethods, setCollectionMethods] = useState<MasterLookupResponse[]>([])
   const [paymentCycles, setPaymentCycles] = useState<MasterLookupResponse[]>([])
   const [farmerRateCharts, setFarmerRateCharts] = useState<MilkRateChartResponse[]>([])
@@ -629,6 +634,11 @@ function App() {
   const [tenantForm, setTenantForm] = useState<CreateTenantRequest>({
     code: '',
     name: '',
+  })
+  const [rateCategoryForm, setRateCategoryForm] = useState<CreateRateCategoryRequest>({
+    code: '',
+    name: '',
+    description: '',
   })
   const [editingTenantUuid, setEditingTenantUuid] = useState('')
   const [editingFarmerUuid, setEditingFarmerUuid] = useState('')
@@ -1142,9 +1152,21 @@ function App() {
   }, [token, tenantUuid])
 
   useEffect(() => {
-    if (!token || activeSidebarMenu !== 'milkRateCharts') return
+    if (!token || (activeSidebarMenu !== 'milkRateCharts' && activeSidebarMenu !== 'rateProfiles')) return
     void loadMilkRateLookups()
   }, [activeSidebarMenu, token])
+
+  useEffect(() => {
+    if (activeSidebarMenu !== 'rateProfiles') return
+    const target = bodyScrollRef.current
+    if (!target) return
+
+    target.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: 'auto',
+    })
+  }, [activeSidebarMenu])
 
   useEffect(() => {
     if (!token || activeSidebarMenu !== 'farmers') return
@@ -1572,6 +1594,89 @@ function App() {
     setEditingTenantUuid('')
     setTenantForm({ code: '', name: '' })
     setError('')
+  }
+
+  function resetRateCategoryForm() {
+    setRateCategoryForm({
+      code: '',
+      name: '',
+      description: '',
+    })
+    setEditingRateCategoryUuid('')
+  }
+
+  function onEditRateCategory(category: RateCategoryResponse) {
+    setEditingRateCategoryUuid(category.uuid)
+    setRateCategoryForm({
+      code: category.code,
+      name: category.name,
+      description: category.description || '',
+      displayOrder: typeof category.displayOrder === 'number' ? category.displayOrder : undefined,
+    })
+  }
+
+  function onCancelRateCategoryEdit() {
+    resetRateCategoryForm()
+    setError('')
+  }
+
+  async function onSubmitRateCategory(event: FormEvent) {
+    event.preventDefault()
+    if (!token) return
+
+    const payload: CreateRateCategoryRequest = {
+      code: rateCategoryForm.code.trim(),
+      name: rateCategoryForm.name.trim(),
+      description: rateCategoryForm.description.trim(),
+      displayOrder:
+        typeof rateCategoryForm.displayOrder === 'number' && Number.isFinite(rateCategoryForm.displayOrder)
+          ? rateCategoryForm.displayOrder
+          : undefined,
+    }
+
+    if (!payload.code || !payload.name) {
+      setError('Rate category code and name are required.')
+      return
+    }
+
+    if (editingRateCategoryUuid) {
+      const updated = await runAction(
+        () => api.updateRateCategory(token, editingRateCategoryUuid, payload),
+        'Rate category updated successfully.',
+      )
+      if (!updated) return
+
+      setRateCategories((prev) => prev.map((item) => (item.uuid === editingRateCategoryUuid ? updated : item)))
+      resetRateCategoryForm()
+      return
+    }
+
+    const created = await runAction(
+      () => api.createRateCategory(token, payload),
+      'Rate category created successfully.',
+    )
+    if (!created) return
+
+    setRateCategories((prev) => [created, ...prev])
+    resetRateCategoryForm()
+  }
+
+  async function onDeleteRateCategory(category: RateCategoryResponse) {
+    if (!token) return
+    const confirmed = window.confirm(`Delete rate category \"${category.name}\"?`)
+    if (!confirmed) return
+
+    const result = await runAction(
+      () => api.deleteRateCategory(token, category.uuid),
+      'Rate category deleted successfully.',
+    )
+    if (result === null) return
+
+    setRateCategories((prev) => prev.filter((item) => item.uuid !== category.uuid))
+
+    if (editingRateCategoryUuid === category.uuid) {
+      resetRateCategoryForm()
+    }
   }
 
   async function onCreateFarmer(event: FormEvent) {
@@ -2459,7 +2564,7 @@ function App() {
             </div>
           </header>
 
-          <div className="app-body-scroll">
+          <div className="app-body-scroll" ref={bodyScrollRef}>
             <div className={isSidebarCollapsed ? 'workspace-shell sidebar-collapsed' : 'workspace-shell'}>
               <aside className={isSidebarCollapsed ? 'left-sidebar collapsed' : 'left-sidebar'}>
               <div className="sidebar-head">
@@ -3225,6 +3330,156 @@ function App() {
               </section>
             )}
 
+              {activeSidebarMenu === 'rateProfiles' && (
+              <section className="panel panel-rate-profiles">
+                <div className="panel-head">
+                  <h2>Rate Profiles</h2>
+                  <button type="button" onClick={loadMilkRateLookups} disabled={busy}>
+                    Reload
+                  </button>
+                </div>
+
+                <div className="milk-rate-layout">
+                  <section className="milk-rate-form">
+                    <div className="milk-rate-form-head">
+                      <p className="eyebrow">Rate Category Master</p>
+                      <h3>{editingRateCategoryUuid ? 'Edit Rate Category' : 'Create Rate Category'}</h3>
+                      <p className="subtle">Connected to /api/v1/master/rate-categories (GET, POST, PUT, DELETE).</p>
+                    </div>
+
+                    <form className="form two-col" onSubmit={onSubmitRateCategory}>
+                      <label>
+                        Code
+                        <input
+                          required
+                          value={rateCategoryForm.code}
+                          onChange={(event) =>
+                            setRateCategoryForm((prev) => ({ ...prev, code: event.target.value }))
+                          }
+                          placeholder="Example: FAT_STD"
+                        />
+                      </label>
+
+                      <label>
+                        Name
+                        <input
+                          required
+                          value={rateCategoryForm.name}
+                          onChange={(event) =>
+                            setRateCategoryForm((prev) => ({ ...prev, name: event.target.value }))
+                          }
+                          placeholder="Example: Standard Fat"
+                        />
+                      </label>
+
+                      <label>
+                        Display Order
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={rateCategoryForm.displayOrder ?? ''}
+                          onChange={(event) =>
+                            setRateCategoryForm((prev) => ({
+                              ...prev,
+                              displayOrder:
+                                event.target.value.trim() === '' ? undefined : Number(event.target.value),
+                            }))
+                          }
+                          placeholder="0"
+                        />
+                      </label>
+
+                      <label className="span-2">
+                        Description
+                        <textarea
+                          rows={3}
+                          value={rateCategoryForm.description}
+                          onChange={(event) =>
+                            setRateCategoryForm((prev) => ({ ...prev, description: event.target.value }))
+                          }
+                          placeholder="Optional description"
+                        />
+                      </label>
+
+                      <div className="form-actions span-2">
+                        <button type="submit" disabled={busy}>
+                          {busy
+                            ? editingRateCategoryUuid
+                              ? 'Saving...'
+                              : 'Creating...'
+                            : editingRateCategoryUuid
+                              ? 'Save category'
+                              : 'Create category'}
+                        </button>
+                        {editingRateCategoryUuid && (
+                          <button type="button" onClick={onCancelRateCategoryEdit} disabled={busy}>
+                            Cancel edit
+                          </button>
+                        )}
+                      </div>
+                    </form>
+
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Code</th>
+                            <th>Name</th>
+                            <th>Display Order</th>
+                            <th>Active</th>
+                            <th>Description</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rateCategories.length === 0 && (
+                            <tr>
+                              <td colSpan={6}>No rate categories available.</td>
+                            </tr>
+                          )}
+                          {rateCategories.map((item) => (
+                            <tr key={item.uuid}>
+                              <td>{item.code}</td>
+                              <td>{item.name}</td>
+                              <td>{item.displayOrder ?? '-'}</td>
+                              <td>{item.active ? 'Yes' : 'No'}</td>
+                              <td>{item.description || '-'}</td>
+                              <td>
+                                <div className="farmer-row-actions">
+                                  <button
+                                    type="button"
+                                    className="farmer-action-icon icon-edit"
+                                    onClick={() => onEditRateCategory(item)}
+                                    disabled={busy}
+                                    title="Edit rate category"
+                                    aria-label="Edit rate category"
+                                  >
+                                    <span aria-hidden="true">✎</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="farmer-action-icon icon-delete"
+                                    onClick={() => onDeleteRateCategory(item)}
+                                    disabled={busy}
+                                    title="Delete rate category"
+                                    aria-label="Delete rate category"
+                                  >
+                                    <span aria-hidden="true">✕</span>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                </div>
+              </section>
+            )}
+
               {activeSidebarMenu === 'milkRateCharts' && (
               <section className="panel panel-milk-rate">
                 <div className="panel-head">
@@ -3246,23 +3501,13 @@ function App() {
                         <small className="subtle">Mapped from active shop context.</small>
                       </label>
 
-                      <label className="milk-rate-field">
-                        <span>Rate Category</span>
-                        <select
-                          required
-                          value={milkRateForm.rateCategoryUuid}
-                          onChange={(event) =>
-                            setMilkRateForm((prev) => ({ ...prev, rateCategoryUuid: event.target.value }))
-                          }
-                        >
-                          <option value="">Select rate category</option>
-                          {rateCategories.map((item) => (
-                            <option key={item.uuid} value={item.uuid}>
-                              {item.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      <RateCategory
+                        categories={rateCategories}
+                        value={milkRateForm.rateCategoryUuid}
+                        onChange={(value) =>
+                          setMilkRateForm((prev) => ({ ...prev, rateCategoryUuid: value }))
+                        }
+                      />
 
                       <label className="milk-rate-field">
                         <span>Collection Method</span>
