@@ -279,9 +279,12 @@ function resolveQualityFieldVisibility(collectionMethod: MasterLookupResponse | 
 
   const code = collectionMethod.code.trim().toLowerCase()
   const name = collectionMethod.name.trim().toLowerCase()
-  const label = `${code} ${name}`
+  const codeToken = code.replace(/[^a-z]/g, '')
+  const nameToken = name.replace(/[^a-z]/g, '')
+  const words = `${code} ${name}`
 
-  if (label.includes('fat')) {
+  // Prefer exact code/name key first because master names can contain extra words.
+  if (codeToken === 'fat' || nameToken === 'fat') {
     return {
       showFat: true,
       showSnf: false,
@@ -289,15 +292,7 @@ function resolveQualityFieldVisibility(collectionMethod: MasterLookupResponse | 
     }
   }
 
-  if (label.includes('mava')) {
-    return {
-      showFat: false,
-      showSnf: false,
-      showMava: true,
-    }
-  }
-
-  if (label.includes('snf')) {
+  if (codeToken === 'snf' || nameToken === 'snf') {
     return {
       showFat: false,
       showSnf: true,
@@ -305,10 +300,68 @@ function resolveQualityFieldVisibility(collectionMethod: MasterLookupResponse | 
     }
   }
 
+  if (codeToken === 'mava' || nameToken === 'mava') {
+    return {
+      showFat: false,
+      showSnf: false,
+      showMava: true,
+    }
+  }
+
+  // Fallback token checks when exact normalization is not available.
+  const hasFat = /\bfat\b/.test(words)
+  const hasSnf = /\bsnf\b/.test(words)
+  const hasMava = /\bmava\b/.test(words)
+
+  if (hasFat && !hasSnf && !hasMava) {
+    return {
+      showFat: true,
+      showSnf: false,
+      showMava: false,
+    }
+  }
+
+  if (hasSnf && !hasFat && !hasMava) {
+    return {
+      showFat: false,
+      showSnf: true,
+      showMava: false,
+    }
+  }
+
+  if (hasMava && !hasFat && !hasSnf) {
+    return {
+      showFat: false,
+      showSnf: false,
+      showMava: true,
+    }
+  }
+
   return {
     showFat: true,
     showSnf: true,
     showMava: true,
+  }
+}
+
+function explainQualityFieldVisibility(collectionMethod: MasterLookupResponse | null) {
+  const visibility = resolveQualityFieldVisibility(collectionMethod)
+  const summary = `${visibility.showFat ? 'FAT:show' : 'FAT:hide'}, ${visibility.showSnf ? 'SNF:show' : 'SNF:hide'}, ${visibility.showMava ? 'MAVA:show' : 'MAVA:hide'}`
+
+  if (!collectionMethod) {
+    return {
+      visibility,
+      reason: 'collection-method-missing -> fallback show all',
+      summary,
+    }
+  }
+
+  const code = collectionMethod.code.trim().toLowerCase()
+  const name = collectionMethod.name.trim().toLowerCase()
+  return {
+    visibility,
+    reason: `resolved from collection method code="${code}" name="${name}"`,
+    summary,
   }
 }
 
@@ -326,12 +379,6 @@ function pickCollectionQualityMetric(visibility: { showFat: boolean; showSnf: bo
   }
 
   return 'mixed' as const
-}
-
-function isWithinOptionalRange(value: number, from: number | null, to: number | null) {
-  const lowerBound = from ?? Number.NEGATIVE_INFINITY
-  const upperBound = to ?? Number.POSITIVE_INFINITY
-  return value >= lowerBound && value <= upperBound
 }
 
 function roundToTwo(value: number) {
@@ -554,11 +601,13 @@ function App() {
     collectionDate: toInputDate(new Date()),
     collectionTime: toInputTime(new Date()),
     quantity: 0,
+    rate: 0,
     fat: 0,
     snf: 0,
     mava: 0,
     remarks: '',
   })
+  const [selectedCollectionMethod, setSelectedCollectionMethod] = useState<MasterLookupResponse | null>(null)
 
   const selectedCollectionFarmer = useMemo(
     () => farmers.find((item) => item.uuid === collectionForm.farmerUuid) || null,
@@ -571,16 +620,22 @@ function App() {
     return milkRateCharts.find((item) => item.uuid === chartUuid) || null
   }, [milkRateCharts, selectedCollectionFarmer])
 
-  const selectedCollectionMethod = useMemo(() => {
-    const methodUuid = selectedCollectionMilkRateChart?.collectionMethodUuid || ''
-    if (!methodUuid) return null
-    return collectionMethods.find((item) => item.uuid === methodUuid) || null
-  }, [collectionMethods, selectedCollectionMilkRateChart])
-
   const collectionQualityVisibility = useMemo(
     () => resolveQualityFieldVisibility(selectedCollectionMethod),
     [selectedCollectionMethod],
   )
+
+  useEffect(() => {
+    const decision = explainQualityFieldVisibility(selectedCollectionMethod)
+    console.log('[MilkCollections:visibility] hide/show decision', {
+      methodUuid: selectedCollectionMethod?.uuid || null,
+      methodCode: selectedCollectionMethod?.code || null,
+      methodName: selectedCollectionMethod?.name || null,
+      reason: decision.reason,
+      summary: decision.summary,
+      visibility: decision.visibility,
+    })
+  }, [collectionQualityVisibility, selectedCollectionMethod])
 
   const activeCollectionQuality = useMemo(() => {
     const metricType = pickCollectionQualityMetric(collectionQualityVisibility)
@@ -616,31 +671,8 @@ function App() {
   }, [collectionForm.fat, collectionForm.mava, collectionForm.snf, collectionQualityVisibility])
 
   const calculatedCollectionRate = useMemo(() => {
-    if (!selectedCollectionMilkRateChart) {
-      return 0
-    }
-
-    const qualityValue = activeCollectionQuality.value
-    const defaultRate = roundToTwo(selectedCollectionMilkRateChart.details[0]?.rate ?? 0)
-
-    if (qualityValue <= 0) {
-      return defaultRate
-    }
-
-    const matchedDetail = selectedCollectionMilkRateChart.details.find((detail) => {
-      if (activeCollectionQuality.metric === 'fat') {
-        return isWithinOptionalRange(qualityValue, detail.fatFrom, detail.fatTo)
-      }
-
-      if (activeCollectionQuality.metric === 'snf') {
-        return isWithinOptionalRange(qualityValue, detail.snfFrom, detail.snfTo)
-      }
-
-      return isWithinOptionalRange(qualityValue, detail.mavaFrom, detail.mavaTo)
-    })
-
-    return roundToTwo(matchedDetail?.rate ?? defaultRate)
-  }, [activeCollectionQuality, selectedCollectionMilkRateChart])
+    return roundToTwo(Number(collectionForm.rate) || 0)
+  }, [collectionForm.rate])
 
   const calculatedCollectionAmount = useMemo(() => {
     const quantity = Number(collectionForm.quantity) || 0
@@ -683,6 +715,17 @@ function App() {
       },
     ],
   })
+
+  const selectedMilkRateMethod = useMemo(() => {
+    const methodUuid = milkRateForm.collectionMethodUuid || ''
+    if (!methodUuid) return null
+    return collectionMethods.find((item) => item.uuid === methodUuid) || null
+  }, [collectionMethods, milkRateForm.collectionMethodUuid])
+
+  const milkRateQualityVisibility = useMemo(
+    () => resolveQualityFieldVisibility(selectedMilkRateMethod),
+    [selectedMilkRateMethod],
+  )
 
   async function runAction<T>(action: () => Promise<T>, successMessage?: string) {
     setBusy(true)
@@ -783,32 +826,99 @@ function App() {
 
   async function onCollectionFarmerChange(event: ChangeEvent<HTMLSelectElement>) {
     const farmerUuid = event.target.value
-    setCollectionForm((prev) => ({ ...prev, farmerUuid }))
+    const selectedFarmerOptionLabel = event.target.options[event.target.selectedIndex]?.text || ''
+    const startedAt = new Date().toISOString()
+
+    console.groupCollapsed('[MilkCollections:onChange] Farmer change started')
+    console.log('timestamp', startedAt)
+    console.log('incoming farmerUuid', farmerUuid)
+    console.log('selected option label', selectedFarmerOptionLabel)
+    console.log('token available', Boolean(token))
+    console.log('cached counts before refresh', {
+      farmers: farmers.length,
+      milkRateCharts: milkRateCharts.length,
+      collectionMethods: collectionMethods.length,
+    })
+
+    setCollectionForm((prev) => ({ ...prev, farmerUuid, rate: 0 }))
+    setSelectedCollectionMethod(null)
 
     const selectedFarmer = farmers.find((item) => item.uuid === farmerUuid) || null
+    console.log('selected farmer from list', selectedFarmer)
+
     let chartSource = milkRateCharts
+    let methodSource = collectionMethods
 
     if (token && selectedFarmer?.milkRateChartUuid) {
       try {
-        const latestChartList = await api.getMilkRateCharts(token)
+        console.log('refreshing chart + method masters for farmer chart uuid', selectedFarmer.milkRateChartUuid)
+        const [latestChartList, latestMethodList] = await Promise.all([
+          api.getMilkRateCharts(token),
+          api.getCollectionMethods(token),
+        ])
         setMilkRateCharts(latestChartList)
+        setCollectionMethods(latestMethodList)
         chartSource = latestChartList
+        methodSource = latestMethodList
+        console.log('refresh success', {
+          milkRateCharts: latestChartList.length,
+          collectionMethods: latestMethodList.length,
+        })
       } catch (err) {
         console.warn('[MilkCollections:onChange] Unable to refresh milk rate charts.', err)
       }
+    } else {
+      console.log('refresh skipped', {
+        reason: !token ? 'token-not-available' : 'farmer-has-no-milk-rate-chart',
+      })
     }
 
     const selectedMilkRateChart = selectedFarmer?.milkRateChartUuid
       ? chartSource.find((item) => item.uuid === selectedFarmer.milkRateChartUuid) || null
       : null
+    const selectedMethodFromChart = selectedMilkRateChart?.collectionMethodUuid
+      ? methodSource.find((item) => item.uuid === selectedMilkRateChart.collectionMethodUuid) || null
+      : null
     const selectedRateFromDetails = roundToTwo(selectedMilkRateChart?.details[0]?.rate ?? 0)
+    const visibilityDecision = explainQualityFieldVisibility(selectedMethodFromChart)
+    const resolvedVisibility = visibilityDecision.visibility
+
+    console.log('resolved chain', {
+      farmerMilkRateChartUuid: selectedFarmer?.milkRateChartUuid || null,
+      selectedMilkRateChartUuid: selectedMilkRateChart?.uuid || null,
+      selectedMilkRateChartName: selectedMilkRateChart?.chartName || null,
+      selectedCollectionMethodUuid: selectedMilkRateChart?.collectionMethodUuid || null,
+      selectedCollectionMethodCode: selectedMethodFromChart?.code || null,
+      selectedCollectionMethodName: selectedMethodFromChart?.name || null,
+      selectedRateFromDetails,
+      visibilityReason: visibilityDecision.reason,
+      visibilitySummary: visibilityDecision.summary,
+      resolvedVisibility,
+    })
+
+    setSelectedCollectionMethod(selectedMethodFromChart)
+
+    setCollectionForm((prev) => ({
+      ...prev,
+      farmerUuid,
+      rate: selectedRateFromDetails,
+    }))
+
+    console.log('form update queued', {
+      farmerUuid,
+      rate: selectedRateFromDetails,
+      methodUuid: selectedMethodFromChart?.uuid || null,
+      visibility: resolvedVisibility,
+    })
 
     console.log('[MilkCollections:onChange] farmer selection', {
       farmerUuid,
       farmer: selectedFarmer,
       milkRateChart: selectedMilkRateChart,
+      method: selectedMethodFromChart,
       selectedRateFromDetails,
     })
+    console.groupEnd()
   }
 
   useEffect(() => {
@@ -843,6 +953,56 @@ function App() {
       }
     })
   }, [collectionQualityVisibility])
+
+  useEffect(() => {
+    setMilkRateForm((prev) => {
+      const firstDetail = prev.details[0]
+      if (!firstDetail) return prev
+
+      let changed = false
+      let nextFatFrom = firstDetail.fatFrom
+      let nextFatTo = firstDetail.fatTo
+      let nextSnfFrom = firstDetail.snfFrom
+      let nextSnfTo = firstDetail.snfTo
+      let nextMavaFrom = firstDetail.mavaFrom
+      let nextMavaTo = firstDetail.mavaTo
+
+      if (!milkRateQualityVisibility.showFat && (firstDetail.fatFrom !== null || firstDetail.fatTo !== null)) {
+        nextFatFrom = null
+        nextFatTo = null
+        changed = true
+      }
+
+      if (!milkRateQualityVisibility.showSnf && (firstDetail.snfFrom !== null || firstDetail.snfTo !== null)) {
+        nextSnfFrom = null
+        nextSnfTo = null
+        changed = true
+      }
+
+      if (!milkRateQualityVisibility.showMava && (firstDetail.mavaFrom !== null || firstDetail.mavaTo !== null)) {
+        nextMavaFrom = null
+        nextMavaTo = null
+        changed = true
+      }
+
+      if (!changed) return prev
+
+      return {
+        ...prev,
+        details: [
+          {
+            ...firstDetail,
+            fatFrom: nextFatFrom,
+            fatTo: nextFatTo,
+            snfFrom: nextSnfFrom,
+            snfTo: nextSnfTo,
+            mavaFrom: nextMavaFrom,
+            mavaTo: nextMavaTo,
+          },
+        ],
+      }
+    })
+  }, [milkRateQualityVisibility])
 
   async function loadSales() {
     if (!token) return
@@ -1551,6 +1711,63 @@ function App() {
       configEffectiveFrom: toInputDate(new Date()),
     })
     setSelectedFarmerRateChartUuid('')
+
+    // Refresh from backend so Milk Collection farmer dropdown stays in sync,
+    // then navigate back and preselect the newly created farmer.
+    try {
+      const [refreshedFarmers, refreshedCharts, refreshedMethods] = await Promise.all([
+        api.searchFarmers(token),
+        api.getMilkRateCharts(token),
+        api.getCollectionMethods(token),
+      ])
+
+      const farmerList = Array.isArray(refreshedFarmers)
+        ? refreshedFarmers
+        : Array.isArray(refreshedFarmers.content)
+          ? refreshedFarmers.content
+          : []
+
+      setFarmers(farmerList)
+      setMilkRateCharts(refreshedCharts)
+      setCollectionMethods(refreshedMethods)
+
+      const createdFarmer = farmerList.find((item) => item.uuid === created.uuid) || created
+      const selectedChart = createdFarmer.milkRateChartUuid
+        ? refreshedCharts.find((chart) => chart.uuid === createdFarmer.milkRateChartUuid) || null
+        : null
+      const selectedMethod = selectedChart?.collectionMethodUuid
+        ? refreshedMethods.find((method) => method.uuid === selectedChart.collectionMethodUuid) || null
+        : null
+      const selectedRateFromDetails = roundToTwo(selectedChart?.details[0]?.rate ?? 0)
+
+      setSelectedCollectionMethod(selectedMethod)
+      setCollectionForm((prev) => ({
+        ...prev,
+        farmerUuid: createdFarmer.uuid,
+        quantity: 0,
+        fat: 0,
+        snf: 0,
+        mava: 0,
+        rate: selectedRateFromDetails,
+      }))
+
+      setActiveSidebarMenu('milkCollections')
+      setActiveTab('milkCollections')
+    } catch (err) {
+      console.warn('[Farmers:create] Farmer created but refresh failed.', err)
+
+      setActiveSidebarMenu('milkCollections')
+      setActiveTab('milkCollections')
+      setCollectionForm((prev) => ({
+        ...prev,
+        farmerUuid: created.uuid,
+      }))
+    }
+  }
+
+  function onOpenFarmerFromCollection() {
+    setActiveSidebarMenu('farmers')
+    setActiveTab('farmers')
   }
 
   async function onCreateCollection(event: FormEvent) {
@@ -1659,6 +1876,8 @@ function App() {
         throw new Error('Select a valid collection method from the list.')
       }
 
+      const qualityVisibility = resolveQualityFieldVisibility(selectedCollectionMethod)
+
       if (!isUuid(milkRateForm.collectionMethodUuid)) {
         throw new Error('Collection method selection is invalid.')
       }
@@ -1686,12 +1905,12 @@ function App() {
       }
 
       const detailFields = [
-        ['FAT From', firstDetail.fatFrom],
-        ['FAT To', firstDetail.fatTo],
-        ['SNF From', firstDetail.snfFrom],
-        ['SNF To', firstDetail.snfTo],
-        ['Mava From', firstDetail.mavaFrom],
-        ['Mava To', firstDetail.mavaTo],
+        ['FAT From', qualityVisibility.showFat ? firstDetail.fatFrom : null],
+        ['FAT To', qualityVisibility.showFat ? firstDetail.fatTo : null],
+        ['SNF From', qualityVisibility.showSnf ? firstDetail.snfFrom : null],
+        ['SNF To', qualityVisibility.showSnf ? firstDetail.snfTo : null],
+        ['Mava From', qualityVisibility.showMava ? firstDetail.mavaFrom : null],
+        ['Mava To', qualityVisibility.showMava ? firstDetail.mavaTo : null],
       ] as const
 
       for (const [label, value] of detailFields) {
@@ -1706,12 +1925,12 @@ function App() {
         remarks: milkRateForm.remarks.trim(),
         details: [
           {
-            fatFrom: firstDetail.fatFrom,
-            fatTo: firstDetail.fatTo,
-            snfFrom: firstDetail.snfFrom,
-            snfTo: firstDetail.snfTo,
-            mavaFrom: firstDetail.mavaFrom,
-            mavaTo: firstDetail.mavaTo,
+            fatFrom: qualityVisibility.showFat ? firstDetail.fatFrom : null,
+            fatTo: qualityVisibility.showFat ? firstDetail.fatTo : null,
+            snfFrom: qualityVisibility.showSnf ? firstDetail.snfFrom : null,
+            snfTo: qualityVisibility.showSnf ? firstDetail.snfTo : null,
+            mavaFrom: qualityVisibility.showMava ? firstDetail.mavaFrom : null,
+            mavaTo: qualityVisibility.showMava ? firstDetail.mavaTo : null,
             rate,
           },
         ],
@@ -2485,97 +2704,98 @@ function App() {
                     </div>
 
                     <div className="collection-grid">
-                      <label className="collection-field collection-field-wide">
-                        <span>Farmer</span>
-                        <select
-                          required
-                          value={collectionForm.farmerUuid}
-                          onChange={onCollectionFarmerChange}
+                      <div className="collection-farmer-row collection-field-wide">
+                        <label className="collection-field">
+                          <span>Farmer</span>
+                          <select
+                            required
+                            value={collectionForm.farmerUuid}
+                            onChange={onCollectionFarmerChange}
+                          >
+                            <option value="">Select farmer</option>
+                            {farmers.map((farmer) => (
+                              <option key={farmer.uuid} value={farmer.uuid}>
+                                {farmer.farmerName} ({farmer.farmerCode || farmer.mobileNo || 'Farmer'})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <button
+                          type="button"
+                          className="collection-new-farmer-btn"
+                          onClick={onOpenFarmerFromCollection}
                         >
-                          <option value="">Select farmer</option>
-                          {farmers.map((farmer) => (
-                            <option key={farmer.uuid} value={farmer.uuid}>
-                              {farmer.farmerName} ({farmer.farmerCode || farmer.mobileNo || 'Farmer'})
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                          + New Farmer
+                        </button>
+                      </div>
 
-                      <label className="collection-field">
-                        <span>Shift</span>
-                        <select
-                          required
-                          value={collectionForm.shiftUuid}
-                          onChange={(event) =>
-                            setCollectionForm((prev) => ({ ...prev, shiftUuid: event.target.value }))
-                          }
-                        >
-                          <option value="">Select shift</option>
-                          {shifts.map((shift) => (
-                            <option key={shift.uuid} value={shift.uuid}>
-                              {shift.name} ({shift.code || 'Shift'})
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      <div className="collection-meta-row collection-field-wide">
+                        <label className="collection-field">
+                          <span>Collection Date</span>
+                          <input
+                            required
+                            type="date"
+                            value={collectionForm.collectionDate}
+                            onChange={(event) =>
+                              setCollectionForm((prev) => ({ ...prev, collectionDate: event.target.value }))
+                            }
+                          />
+                        </label>
 
-                      <label className="collection-field">
-                        <span>Milk Type</span>
-                        <select
-                          required
-                          value={collectionForm.milkTypeUuid}
-                          onChange={(event) =>
-                            setCollectionForm((prev) => ({ ...prev, milkTypeUuid: event.target.value }))
-                          }
-                        >
-                          <option value="">Select milk type</option>
-                          {milkTypes.map((item) => (
-                            <option key={item.uuid} value={item.uuid}>
-                              {item.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                        <label className="collection-field">
+                          <span>Shift</span>
+                          <select
+                            required
+                            value={collectionForm.shiftUuid}
+                            onChange={(event) =>
+                              setCollectionForm((prev) => ({ ...prev, shiftUuid: event.target.value }))
+                            }
+                          >
+                            <option value="">Select shift</option>
+                            {shifts.map((shift) => (
+                              <option key={shift.uuid} value={shift.uuid}>
+                                {shift.name} ({shift.code || 'Shift'})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
 
-                      <label className="collection-field">
-                        <span>Collection Date</span>
-                        <input
-                          required
-                          type="date"
-                          value={collectionForm.collectionDate}
-                          onChange={(event) =>
-                            setCollectionForm((prev) => ({ ...prev, collectionDate: event.target.value }))
-                          }
-                        />
-                      </label>
+                        <label className="collection-field">
+                          <span>Milk Type</span>
+                          <select
+                            required
+                            value={collectionForm.milkTypeUuid}
+                            onChange={(event) =>
+                              setCollectionForm((prev) => ({ ...prev, milkTypeUuid: event.target.value }))
+                            }
+                          >
+                            <option value="">Select milk type</option>
+                            {milkTypes.map((item) => (
+                              <option key={item.uuid} value={item.uuid}>
+                                {item.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
 
-                      <label className="collection-field">
-                        <span>Quantity (Liters)</span>
-                        <input
-                          required
-                          type="number"
-                          step="0.01"
-                          min="0.01"
-                          value={collectionForm.quantity}
-                          onChange={(event) =>
-                            setCollectionForm((prev) => ({ ...prev, quantity: Number(event.target.value) }))
-                          }
-                        />
-                      </label>
+                      <div className="collection-metric-row collection-field-wide">
+                        <label className="collection-field collection-field-compact">
+                          <span>Quantity (Liters)</span>
+                          <input
+                            required
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            value={collectionForm.quantity}
+                            onChange={(event) =>
+                              setCollectionForm((prev) => ({ ...prev, quantity: Number(event.target.value) }))
+                            }
+                          />
+                        </label>
 
-                      <label className="collection-field">
-                        <span>Rate</span>
-                        <input type="number" step="0.01" value={calculatedCollectionRate} disabled />
-                      </label>
-
-                      <label className="collection-field">
-                        <span>Amount</span>
-                        <input type="number" step="0.01" value={calculatedCollectionAmount} disabled />
-                      </label>
-
-                      <div className="collection-quality-grid collection-field-wide">
                         {collectionQualityVisibility.showFat && (
-                          <label className="collection-field">
+                          <label className="collection-field collection-field-compact">
                             <span>FAT</span>
                             <input
                               type="number"
@@ -2589,8 +2809,9 @@ function App() {
                             />
                           </label>
                         )}
+
                         {collectionQualityVisibility.showSnf && (
-                          <label className="collection-field">
+                          <label className="collection-field collection-field-compact">
                             <span>SNF</span>
                             <input
                               type="number"
@@ -2604,8 +2825,9 @@ function App() {
                             />
                           </label>
                         )}
+
                         {collectionQualityVisibility.showMava && (
-                          <label className="collection-field">
+                          <label className="collection-field collection-field-compact">
                             <span>Mava</span>
                             <input
                               type="number"
@@ -2619,7 +2841,19 @@ function App() {
                             />
                           </label>
                         )}
+
+                        <label className="collection-field collection-field-compact">
+                          <span>Rate</span>
+                          <input type="number" step="0.01" value={calculatedCollectionRate} disabled />
+                        </label>
+
+                        <label className="collection-field collection-field-compact">
+                          <span>Amount</span>
+                          <input type="number" step="0.01" value={calculatedCollectionAmount} disabled />
+                        </label>
                       </div>
+
+                      
 
                       <label className="collection-field collection-field-wide">
                         <span>Remarks</span>
@@ -2852,185 +3086,191 @@ function App() {
                         <p>Enter a from/to range for each quality parameter.</p>
                       </div>
 
-                      <div className="milk-rate-detail-row">
-                        <label>FAT</label>
-                        <div className="milk-rate-range">
-                          <input
-                            id="milk-rate-fat-from"
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            placeholder="From"
-                            value={milkRateForm.details[0]?.fatFrom ?? ''}
-                            onChange={(event) =>
-                              setMilkRateForm((prev) => ({
-                                ...prev,
-                                details: [
-                                  {
-                                    ...(prev.details[0] || {
-                                      fatFrom: null,
-                                      fatTo: null,
-                                      snfFrom: null,
-                                      snfTo: null,
-                                      mavaFrom: null,
-                                      mavaTo: null,
-                                      rate: 0,
-                                    }),
-                                    fatFrom: event.target.value === '' ? null : Number(event.target.value),
-                                  },
-                                ],
-                              }))
-                            }
-                          />
-                          <input
-                            id="milk-rate-fat-to"
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            placeholder="To"
-                            value={milkRateForm.details[0]?.fatTo ?? ''}
-                            onChange={(event) =>
-                              setMilkRateForm((prev) => ({
-                                ...prev,
-                                details: [
-                                  {
-                                    ...(prev.details[0] || {
-                                      fatFrom: null,
-                                      fatTo: null,
-                                      snfFrom: null,
-                                      snfTo: null,
-                                      mavaFrom: null,
-                                      mavaTo: null,
-                                      rate: 0,
-                                    }),
-                                    fatTo: event.target.value === '' ? null : Number(event.target.value),
-                                  },
-                                ],
-                              }))
-                            }
-                          />
+                      {milkRateQualityVisibility.showFat && (
+                        <div className="milk-rate-detail-row">
+                          <label>FAT</label>
+                          <div className="milk-rate-range">
+                            <input
+                              id="milk-rate-fat-from"
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              placeholder="From"
+                              value={milkRateForm.details[0]?.fatFrom ?? ''}
+                              onChange={(event) =>
+                                setMilkRateForm((prev) => ({
+                                  ...prev,
+                                  details: [
+                                    {
+                                      ...(prev.details[0] || {
+                                        fatFrom: null,
+                                        fatTo: null,
+                                        snfFrom: null,
+                                        snfTo: null,
+                                        mavaFrom: null,
+                                        mavaTo: null,
+                                        rate: 0,
+                                      }),
+                                      fatFrom: event.target.value === '' ? null : Number(event.target.value),
+                                    },
+                                  ],
+                                }))
+                              }
+                            />
+                            <input
+                              id="milk-rate-fat-to"
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              placeholder="To"
+                              value={milkRateForm.details[0]?.fatTo ?? ''}
+                              onChange={(event) =>
+                                setMilkRateForm((prev) => ({
+                                  ...prev,
+                                  details: [
+                                    {
+                                      ...(prev.details[0] || {
+                                        fatFrom: null,
+                                        fatTo: null,
+                                        snfFrom: null,
+                                        snfTo: null,
+                                        mavaFrom: null,
+                                        mavaTo: null,
+                                        rate: 0,
+                                      }),
+                                      fatTo: event.target.value === '' ? null : Number(event.target.value),
+                                    },
+                                  ],
+                                }))
+                              }
+                            />
+                          </div>
                         </div>
-                      </div>
+                      )}
 
-                      <div className="milk-rate-detail-row">
-                        <label>SNF</label>
-                        <div className="milk-rate-range">
-                          <input
-                            id="milk-rate-snf-from"
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            placeholder="From"
-                            value={milkRateForm.details[0]?.snfFrom ?? ''}
-                            onChange={(event) =>
-                              setMilkRateForm((prev) => ({
-                                ...prev,
-                                details: [
-                                  {
-                                    ...(prev.details[0] || {
-                                      fatFrom: null,
-                                      fatTo: null,
-                                      snfFrom: null,
-                                      snfTo: null,
-                                      mavaFrom: null,
-                                      mavaTo: null,
-                                      rate: 0,
-                                    }),
-                                    snfFrom: event.target.value === '' ? null : Number(event.target.value),
-                                  },
-                                ],
-                              }))
-                            }
-                          />
-                          <input
-                            id="milk-rate-snf-to"
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            placeholder="To"
-                            value={milkRateForm.details[0]?.snfTo ?? ''}
-                            onChange={(event) =>
-                              setMilkRateForm((prev) => ({
-                                ...prev,
-                                details: [
-                                  {
-                                    ...(prev.details[0] || {
-                                      fatFrom: null,
-                                      fatTo: null,
-                                      snfFrom: null,
-                                      snfTo: null,
-                                      mavaFrom: null,
-                                      mavaTo: null,
-                                      rate: 0,
-                                    }),
-                                    snfTo: event.target.value === '' ? null : Number(event.target.value),
-                                  },
-                                ],
-                              }))
-                            }
-                          />
+                      {milkRateQualityVisibility.showSnf && (
+                        <div className="milk-rate-detail-row">
+                          <label>SNF</label>
+                          <div className="milk-rate-range">
+                            <input
+                              id="milk-rate-snf-from"
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              placeholder="From"
+                              value={milkRateForm.details[0]?.snfFrom ?? ''}
+                              onChange={(event) =>
+                                setMilkRateForm((prev) => ({
+                                  ...prev,
+                                  details: [
+                                    {
+                                      ...(prev.details[0] || {
+                                        fatFrom: null,
+                                        fatTo: null,
+                                        snfFrom: null,
+                                        snfTo: null,
+                                        mavaFrom: null,
+                                        mavaTo: null,
+                                        rate: 0,
+                                      }),
+                                      snfFrom: event.target.value === '' ? null : Number(event.target.value),
+                                    },
+                                  ],
+                                }))
+                              }
+                            />
+                            <input
+                              id="milk-rate-snf-to"
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              placeholder="To"
+                              value={milkRateForm.details[0]?.snfTo ?? ''}
+                              onChange={(event) =>
+                                setMilkRateForm((prev) => ({
+                                  ...prev,
+                                  details: [
+                                    {
+                                      ...(prev.details[0] || {
+                                        fatFrom: null,
+                                        fatTo: null,
+                                        snfFrom: null,
+                                        snfTo: null,
+                                        mavaFrom: null,
+                                        mavaTo: null,
+                                        rate: 0,
+                                      }),
+                                      snfTo: event.target.value === '' ? null : Number(event.target.value),
+                                    },
+                                  ],
+                                }))
+                              }
+                            />
+                          </div>
                         </div>
-                      </div>
+                      )}
 
-                      <div className="milk-rate-detail-row">
-                        <label>Mava</label>
-                        <div className="milk-rate-range">
-                          <input
-                            id="milk-rate-mava-from"
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            placeholder="From"
-                            value={milkRateForm.details[0]?.mavaFrom ?? ''}
-                            onChange={(event) =>
-                              setMilkRateForm((prev) => ({
-                                ...prev,
-                                details: [
-                                  {
-                                    ...(prev.details[0] || {
-                                      fatFrom: null,
-                                      fatTo: null,
-                                      snfFrom: null,
-                                      snfTo: null,
-                                      mavaFrom: null,
-                                      mavaTo: null,
-                                      rate: 0,
-                                    }),
-                                    mavaFrom: event.target.value === '' ? null : Number(event.target.value),
-                                  },
-                                ],
-                              }))
-                            }
-                          />
-                          <input
-                            id="milk-rate-mava-to"
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            placeholder="To"
-                            value={milkRateForm.details[0]?.mavaTo ?? ''}
-                            onChange={(event) =>
-                              setMilkRateForm((prev) => ({
-                                ...prev,
-                                details: [
-                                  {
-                                    ...(prev.details[0] || {
-                                      fatFrom: null,
-                                      fatTo: null,
-                                      snfFrom: null,
-                                      snfTo: null,
-                                      mavaFrom: null,
-                                      mavaTo: null,
-                                      rate: 0,
-                                    }),
-                                    mavaTo: event.target.value === '' ? null : Number(event.target.value),
-                                  },
-                                ],
-                              }))
-                            }
-                          />
+                      {milkRateQualityVisibility.showMava && (
+                        <div className="milk-rate-detail-row">
+                          <label>Mava</label>
+                          <div className="milk-rate-range">
+                            <input
+                              id="milk-rate-mava-from"
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              placeholder="From"
+                              value={milkRateForm.details[0]?.mavaFrom ?? ''}
+                              onChange={(event) =>
+                                setMilkRateForm((prev) => ({
+                                  ...prev,
+                                  details: [
+                                    {
+                                      ...(prev.details[0] || {
+                                        fatFrom: null,
+                                        fatTo: null,
+                                        snfFrom: null,
+                                        snfTo: null,
+                                        mavaFrom: null,
+                                        mavaTo: null,
+                                        rate: 0,
+                                      }),
+                                      mavaFrom: event.target.value === '' ? null : Number(event.target.value),
+                                    },
+                                  ],
+                                }))
+                              }
+                            />
+                            <input
+                              id="milk-rate-mava-to"
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              placeholder="To"
+                              value={milkRateForm.details[0]?.mavaTo ?? ''}
+                              onChange={(event) =>
+                                setMilkRateForm((prev) => ({
+                                  ...prev,
+                                  details: [
+                                    {
+                                      ...(prev.details[0] || {
+                                        fatFrom: null,
+                                        fatTo: null,
+                                        snfFrom: null,
+                                        snfTo: null,
+                                        mavaFrom: null,
+                                        mavaTo: null,
+                                        rate: 0,
+                                      }),
+                                      mavaTo: event.target.value === '' ? null : Number(event.target.value),
+                                    },
+                                  ],
+                                }))
+                              }
+                            />
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
 
                     <label className="milk-rate-field milk-rate-field-wide">
@@ -3271,13 +3511,13 @@ function App() {
                   <form className="farmer-form" onSubmit={onCreateFarmer}>
                     <div className="farmer-form-head">
                       <p className="eyebrow">Farmer Master</p>
-                      <h3>Create Farmer</h3>
+                      <h3>Create Farmer</h3>                    
                     </div>
 
                     <div className="farmer-grid">
                       <div className="farmer-grid-group farmer-field-wide">
-                        <div className="farmer-grid-title">Identity</div>
-                        <div className="farmer-grid-cols farmer-grid-cols-two">
+                        <div className="farmer-grid-title">Identity & Contact</div>
+                        <div className="farmer-grid-cols farmer-grid-cols-identity">
                           <label className="farmer-field">
                             <span>Farmer Code</span>
                             <input required value={farmerForm.farmerCode} readOnly />
@@ -3293,12 +3533,9 @@ function App() {
                             />
                           </label>
                         </div>
-                      </div>
 
-                      <div className="farmer-grid-group farmer-field-wide">
-                        <div className="farmer-grid-title">Contact</div>
-                        <div className="farmer-grid-cols farmer-grid-cols-three">
-                          <label className="farmer-field">
+                        <div className="farmer-grid-cols farmer-grid-cols-contact">
+                          <label className="farmer-field farmer-field-numeric farmer-field-phone">
                             <span>Mobile</span>
                             <input
                               required
@@ -3310,7 +3547,7 @@ function App() {
                               }
                             />
                           </label>
-                          <label className="farmer-field">
+                          <label className="farmer-field farmer-field-numeric farmer-field-phone">
                             <span>Alternate Mobile</span>
                             <input
                               inputMode="numeric"
@@ -3321,7 +3558,8 @@ function App() {
                               }
                             />
                           </label>
-                          <label className="farmer-field farmer-field-wide-col">
+
+                          <label className="farmer-field">
                             <span>Email</span>
                             <input
                               value={farmerForm.email}
@@ -3364,6 +3602,8 @@ function App() {
                               }
                             />
                           </label>
+                        </div>
+                        <div className="farmer-grid-cols farmer-grid-cols-two">
                           <label className="farmer-field">
                             <span>State</span>
                             <input
@@ -3373,7 +3613,7 @@ function App() {
                               }
                             />
                           </label>
-                          <label className="farmer-field">
+                          <label className="farmer-field farmer-field-numeric">
                             <span>Pincode</span>
                             <input
                               inputMode="numeric"
@@ -3394,12 +3634,8 @@ function App() {
                             />
                           </label>
                         </div>
-                      </div>
-
-                      <div className="farmer-grid-group farmer-field-wide">
-                        <div className="farmer-grid-title">Compliance</div>
                         <div className="farmer-grid-cols farmer-grid-cols-two">
-                          <label className="farmer-field">
+                          <label className="farmer-field farmer-field-numeric">
                             <span>Aadhar No</span>
                             <input
                               inputMode="numeric"
@@ -3417,6 +3653,27 @@ function App() {
                               value={farmerForm.panNo}
                               onChange={(event) =>
                                 setFarmerForm((prev) => ({ ...prev, panNo: event.target.value }))
+                              }
+                            />
+                          </label>
+                        </div>
+                        <div className="farmer-grid-cols farmer-grid-cols-two">
+                          <label className="farmer-field">
+                            <span>Photo URL</span>
+                            <input
+                              value={farmerForm.photoUrl}
+                              onChange={(event) =>
+                                setFarmerForm((prev) => ({ ...prev, photoUrl: event.target.value }))
+                              }
+                            />
+                          </label>
+
+                          <label className="farmer-field">
+                            <span>Remarks</span>
+                            <input
+                              value={farmerForm.remarks}
+                              onChange={(event) =>
+                                setFarmerForm((prev) => ({ ...prev, remarks: event.target.value }))
                               }
                             />
                           </label>
@@ -3498,25 +3755,6 @@ function App() {
                         </div>
                       </div>
 
-                      <label className="farmer-field farmer-field-wide">
-                        <span>Photo URL</span>
-                        <input
-                          value={farmerForm.photoUrl}
-                          onChange={(event) =>
-                            setFarmerForm((prev) => ({ ...prev, photoUrl: event.target.value }))
-                          }
-                        />
-                      </label>
-
-                      <label className="farmer-field farmer-field-wide">
-                        <span>Remarks</span>
-                        <input
-                          value={farmerForm.remarks}
-                          onChange={(event) =>
-                            setFarmerForm((prev) => ({ ...prev, remarks: event.target.value }))
-                          }
-                        />
-                      </label>
                     </div>
                     <button type="submit" disabled={busy} className="farmer-submit">
                       {busy ? 'Creating...' : 'Create farmer'}

@@ -398,6 +398,10 @@ input[readonly] {
   font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
 }
 
+.farmer-form-head .subtle {
+  margin-top: 4px;
+}
+
 .farmer-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -407,10 +411,10 @@ input[readonly] {
 .farmer-grid-group {
   display: grid;
   gap: 10px;
-  padding: 12px;
+  padding: 13px;
   border: 1px solid rgba(103, 124, 160, 0.2);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.74);
+  background: rgba(255, 255, 255, 0.78);
 }
 
 .farmer-grid-title {
@@ -432,8 +436,17 @@ input[readonly] {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.farmer-grid-cols-identity {
+  grid-template-columns: minmax(120px, 0.3fr) minmax(0, 1.7fr);
+}
+
 .farmer-grid-cols-three {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.farmer-grid-cols-contact {
+  grid-template-columns: max-content max-content minmax(220px, 1fr);
+  align-items: end;
 }
 
 .farmer-field {
@@ -454,6 +467,21 @@ input[readonly] {
   min-height: 44px;
 }
 
+.farmer-field-numeric input {
+  text-align: left;
+  letter-spacing: 0.01em;
+}
+
+.farmer-field-phone input {
+  width: 30ch;
+  min-width: 30ch;
+  max-width: 30ch;
+}
+
+.farmer-field-phone {
+  justify-self: start;
+}
+
 .farmer-chart-response {
   width: 100%;
   min-height: 150px;
@@ -472,6 +500,26 @@ input[readonly] {
 
 .farmer-field-wide {
   grid-column: 1 / -1;
+}
+
+@media (max-width: 1120px) {
+  .farmer-grid-cols-contact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .farmer-grid-cols-contact .farmer-field:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .farmer-grid-cols-contact {
+    grid-template-columns: 1fr;
+  }
+
+  .farmer-grid-cols-contact .farmer-field:last-child {
+    grid-column: auto;
+  }
 }
 
 .farmer-submit {
@@ -562,14 +610,67 @@ input[readonly] {
   grid-column: 1 / -1;
 }
 
-.collection-quality-grid {
+.collection-farmer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.collection-new-farmer-btn {
+  min-height: 46px;
+  padding: 0 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: linear-gradient(135deg, #1b7f4f 0%, #2ea768 100%);
+  border-color: #237f52;
+  color: #ffffff;
+}
+
+.collection-new-farmer-btn:hover {
+  background: linear-gradient(135deg, #176e45 0%, #27955d 100%);
+  border-color: #1f7048;
+}
+
+.collection-meta-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.collection-metric-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   padding: 12px;
   border-radius: 12px;
   border: 1px solid rgba(103, 124, 160, 0.2);
   background: rgba(255, 255, 255, 0.72);
+}
+
+.collection-field-compact input,
+.collection-field-compact select {
+  min-height: 42px;
+}
+
+@media (max-width: 980px) {
+  .collection-farmer-row {
+    grid-template-columns: 1fr;
+  }
+
+  .collection-meta-row {
+    grid-template-columns: 1fr;
+  }
+
+  .collection-metric-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .collection-metric-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .collection-submit {
