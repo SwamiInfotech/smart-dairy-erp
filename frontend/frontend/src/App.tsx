@@ -2431,7 +2431,6 @@ function App() {
           <header className="topbar">
             <div>
               <p className="eyebrow">Smart Dairy ERP</p>
-              <h1>Web Console</h1>
               <p className="topbar-breadcrumb">Dashboard / Operations / Agent Workspace</p>
             </div>
             <div className="user-box">

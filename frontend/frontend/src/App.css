@@ -86,6 +86,11 @@
   font-weight: 700;
 }
 
+.workspace-frame .topbar > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
 .user-box {
   display: flex;
   gap: 10px;
@@ -2434,9 +2439,9 @@ button:hover {
   margin-top: 0;
   opacity: 1;
   padding: 8px 10px;
-  border-top: 1px solid rgba(199, 130, 66, 0.45);
-  background: linear-gradient(180deg, rgba(255, 245, 233, 0.35) 0%, rgba(255, 236, 216, 0.55) 100%);
-  color: #8a4f22;
+  border-top: 1px solid rgba(225, 159, 92, 0.65);
+  background: linear-gradient(145deg, #8a4a1d 0%, #b96528 52%, #d7863a 100%);
+  color: #fff2e4;
 }
 
 /* Compact mode: smaller header and 30% zoom-out across application pages */
@@ -2461,7 +2466,7 @@ button:hover {
 }
 
 .topbar-breadcrumb {
-  margin-top: 1px;
+  margin-top: 0;
   font-size: 0.68rem;
 }
 
