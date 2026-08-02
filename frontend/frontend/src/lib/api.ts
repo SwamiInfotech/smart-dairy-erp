@@ -1,6 +1,10 @@
 import type {
   ApiResponse,
   AuthTokenResponse,
+  CollectionMethodResponse,
+  CreateCollectionMethodRequest,
+  CreatePaymentCycleRequest,
+  CreateShiftRequest,
   CreateTenantRequest,
   CreateCustomerRequest,
   CreateFarmerRequest,
@@ -16,6 +20,7 @@ import type {
   MilkRateChartResponse,
   MilkTypeResponse,
   PageResult,
+  PaymentCycleResponse,
   ProductResponse,
   PublicOnboardRequest,
   PublicOnboardResponse,
@@ -24,6 +29,8 @@ import type {
   ShiftResponse,
   TenantResponse,
   TenantShopResponse,
+  UpdateCollectionMethodRequest,
+  UpdatePaymentCycleRequest,
   UpdateRateCategoryRequest,
   UpdateTenantRequest,
 } from '../types/api'
@@ -216,8 +223,10 @@ export const BACKEND_MODULES: Record<string, BackendModuleDefinition> = {
   collectionMethods: {
     label: 'Collection Methods',
     endpoints: [
-      { method: 'GET', path: '/api/v1/collection-methods' },
-      { method: 'POST', path: '/api/v1/collection-methods' },
+      { method: 'GET', path: '/api/v1/master/collection-methods' },
+      { method: 'POST', path: '/api/v1/master/collection-methods' },
+      { method: 'PUT', path: '/api/v1/master/collection-methods/{uuid}' },
+      { method: 'DELETE', path: '/api/v1/master/collection-methods/{uuid}' },
     ],
   },
   paymentCycles: {
@@ -253,6 +262,7 @@ export const BACKEND_MODULES: Record<string, BackendModuleDefinition> = {
     label: 'Shifts',
     endpoints: [
       { method: 'GET', path: '/api/v1/master/shifts' },
+      { method: 'POST', path: '/api/v1/master/shifts' },
     ],
   },
 }
@@ -635,11 +645,21 @@ function normalizeShiftsResponse(payload: unknown): ShiftResponse[] {
       }
 
       const description = readString(record, 'description', 'desc') || null
+      const displayOrderValue = readNumber(record, 'displayOrder', 'display_order', 'sortOrder', 'order')
+      const rawActive = record?.active ?? record?.enabled
+      const activeValue =
+        typeof rawActive === 'boolean'
+          ? rawActive
+          : typeof rawActive === 'string'
+            ? rawActive.trim().toLowerCase() === 'true'
+            : true
       return {
         uuid,
         code,
         name,
         description,
+        displayOrder: Number.isFinite(displayOrderValue) ? displayOrderValue : null,
+        active: activeValue,
       }
     })
     .filter((item): item is ShiftResponse => Boolean(item))
@@ -722,6 +742,158 @@ function normalizeLookupListResponse(payload: unknown, label: string): MasterLoo
 
   if (normalized.length === 0) {
     throw new ApiError(`No ${label.toLowerCase()} are configured in master data.`, 404)
+  }
+
+  return normalized
+}
+
+function normalizeCollectionMethodResponse(payload: unknown): CollectionMethodResponse {
+  const record = asRecord(payload)
+  if (!record) {
+    throw new ApiError('Collection method response format is invalid.', 500)
+  }
+
+  const uuid = readString(record, 'uuid', 'id', 'collectionMethodUuid', 'methodUuid')
+  const code = readString(record, 'code', 'methodCode', 'collectionMethodCode')
+  const name = readString(record, 'name', 'methodName', 'collectionMethodName')
+
+  if (!uuid || !code || !name) {
+    throw new ApiError('Collection method response format is invalid.', 500)
+  }
+
+  const readOptionalNumber = (...keys: string[]) => {
+    for (const key of keys) {
+      const value = record[key]
+      if (typeof value === 'number' && Number.isFinite(value)) return value
+      if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) {
+        return Number(value)
+      }
+    }
+    return null
+  }
+
+  const rawActive = record.active ?? record.enabled
+  const active =
+    typeof rawActive === 'boolean'
+      ? rawActive
+      : typeof rawActive === 'string'
+        ? rawActive.trim().toLowerCase() === 'true'
+        : true
+
+  return {
+    uuid,
+    code,
+    name,
+    description: readString(record, 'description', 'remarks', 'note') || null,
+    displayOrder: readOptionalNumber('displayOrder', 'display_order', 'sortOrder', 'order'),
+    active,
+  }
+}
+
+function normalizeCollectionMethodListResponse(payload: unknown): CollectionMethodResponse[] {
+  const root = asRecord(payload)
+  const directArray = Array.isArray(payload) ? payload : null
+  const nestedArray =
+    (Array.isArray(root?.content) ? root.content : null) ||
+    (Array.isArray(root?.items) ? root.items : null) ||
+    (Array.isArray(root?.data) ? root.data : null) ||
+    (Array.isArray(root?.list) ? root.list : null) ||
+    (Array.isArray(root?.rows) ? root.rows : null) ||
+    (Array.isArray(root?.collectionMethods) ? root.collectionMethods : null)
+
+  const source = directArray || nestedArray
+  if (!source) {
+    throw new ApiError('Collection methods response format is invalid.', 500)
+  }
+
+  const normalized = source
+    .map((item) => {
+      try {
+        return normalizeCollectionMethodResponse(item)
+      } catch {
+        return null
+      }
+    })
+    .filter((item): item is CollectionMethodResponse => Boolean(item))
+
+  if (normalized.length === 0) {
+    throw new ApiError('No collection methods are configured in master data.', 404)
+  }
+
+  return normalized
+}
+
+function normalizePaymentCycleResponse(payload: unknown): PaymentCycleResponse {
+  const record = asRecord(payload)
+  if (!record) {
+    throw new ApiError('Payment cycle response format is invalid.', 500)
+  }
+
+  const uuid = readString(record, 'uuid', 'id', 'paymentCycleUuid')
+  const code = readString(record, 'code', 'cycleCode', 'paymentCycleCode')
+  const name = readString(record, 'name', 'cycleName', 'paymentCycleName')
+
+  if (!uuid || !code || !name) {
+    throw new ApiError('Payment cycle response format is invalid.', 500)
+  }
+
+  const readOptionalNumber = (...keys: string[]) => {
+    for (const key of keys) {
+      const value = record[key]
+      if (typeof value === 'number' && Number.isFinite(value)) return value
+      if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) {
+        return Number(value)
+      }
+    }
+    return null
+  }
+
+  const rawActive = record.active ?? record.enabled
+  const active =
+    typeof rawActive === 'boolean'
+      ? rawActive
+      : typeof rawActive === 'string'
+        ? rawActive.trim().toLowerCase() === 'true'
+        : true
+
+  return {
+    uuid,
+    code,
+    name,
+    description: readString(record, 'description', 'remarks', 'note') || null,
+    displayOrder: readOptionalNumber('displayOrder', 'display_order', 'sortOrder', 'order'),
+    active,
+  }
+}
+
+function normalizePaymentCycleListResponse(payload: unknown): PaymentCycleResponse[] {
+  const root = asRecord(payload)
+  const directArray = Array.isArray(payload) ? payload : null
+  const nestedArray =
+    (Array.isArray(root?.content) ? root.content : null) ||
+    (Array.isArray(root?.items) ? root.items : null) ||
+    (Array.isArray(root?.data) ? root.data : null) ||
+    (Array.isArray(root?.list) ? root.list : null) ||
+    (Array.isArray(root?.rows) ? root.rows : null) ||
+    (Array.isArray(root?.paymentCycles) ? root.paymentCycles : null)
+
+  const source = directArray || nestedArray
+  if (!source) {
+    throw new ApiError('Payment cycles response format is invalid.', 500)
+  }
+
+  const normalized = source
+    .map((item) => {
+      try {
+        return normalizePaymentCycleResponse(item)
+      } catch {
+        return null
+      }
+    })
+    .filter((item): item is PaymentCycleResponse => Boolean(item))
+
+  if (normalized.length === 0) {
+    throw new ApiError('No payment cycles are configured in master data.', 404)
   }
 
   return normalized
@@ -1578,6 +1750,17 @@ export const api = {
     return normalizeShiftsResponse(response)
   },
 
+  async createShift(token: string, payload: CreateShiftRequest) {
+    const response = await request<unknown>('POST', '/api/v1/master/shifts', token, {
+      code: payload.code.trim(),
+      name: payload.name.trim(),
+      description: payload.description.trim() || null,
+      displayOrder: payload.displayOrder,
+    })
+    const normalized = normalizeShiftsResponse([response])
+    return normalized[0]
+  },
+
   async createMilkRateChart(token: string, payload: CreateMilkRateChartRequest) {
     validateMilkRateChartPayload(payload)
     const response = await request<unknown>('POST', '/api/v1/milk-rate-charts', token, {
@@ -1641,12 +1824,60 @@ export const api = {
 
   async getCollectionMethods(token: string) {
     const response = await request<unknown>('GET', '/api/v1/master/collection-methods', token)
-    return normalizeLookupListResponse(response, 'Collection methods')
+    return normalizeCollectionMethodListResponse(response)
+  },
+
+  async createCollectionMethod(token: string, payload: CreateCollectionMethodRequest) {
+    const response = await request<unknown>('POST', '/api/v1/master/collection-methods', token, {
+      code: payload.code.trim(),
+      name: payload.name.trim(),
+      description: payload.description.trim() || null,
+      displayOrder: typeof payload.displayOrder === 'number' ? payload.displayOrder : null,
+    })
+    return normalizeCollectionMethodResponse(response)
+  },
+
+  async updateCollectionMethod(token: string, uuid: string, payload: UpdateCollectionMethodRequest) {
+    const response = await request<unknown>('PUT', `/api/v1/master/collection-methods/${uuid}`, token, {
+      code: payload.code.trim(),
+      name: payload.name.trim(),
+      description: payload.description.trim() || null,
+      displayOrder: typeof payload.displayOrder === 'number' ? payload.displayOrder : null,
+    })
+    return normalizeCollectionMethodResponse(response)
+  },
+
+  deleteCollectionMethod(token: string, uuid: string) {
+    return request<void>('DELETE', `/api/v1/master/collection-methods/${uuid}`, token)
   },
 
   async getPaymentCycles(token: string) {
     const response = await request<unknown>('GET', '/api/v1/payment-cycles', token)
-    return normalizeLookupListResponse(response, 'Payment cycles')
+    return normalizePaymentCycleListResponse(response)
+  },
+
+  async createPaymentCycle(token: string, payload: CreatePaymentCycleRequest) {
+    const response = await request<unknown>('POST', '/api/v1/payment-cycles', token, {
+      code: payload.code.trim(),
+      name: payload.name.trim(),
+      description: payload.description.trim() || null,
+      displayOrder: typeof payload.displayOrder === 'number' ? payload.displayOrder : null,
+    })
+    return normalizePaymentCycleResponse(response)
+  },
+
+  async updatePaymentCycle(token: string, uuid: string, payload: UpdatePaymentCycleRequest) {
+    const response = await request<unknown>('PUT', `/api/v1/payment-cycles/${uuid}`, token, {
+      code: payload.code.trim(),
+      name: payload.name.trim(),
+      description: payload.description.trim() || null,
+      displayOrder: typeof payload.displayOrder === 'number' ? payload.displayOrder : null,
+    })
+    return normalizePaymentCycleResponse(response)
+  },
+
+  deletePaymentCycle(token: string, uuid: string) {
+    return request<void>('DELETE', `/api/v1/payment-cycles/${uuid}`, token)
   },
 
   searchSales(token: string, page = 0, size = 10) {

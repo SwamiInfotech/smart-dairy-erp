@@ -2149,6 +2149,140 @@ button:hover {
   max-width: 100%;
 }
 
+.collection-methods-layout {
+  display: grid;
+  gap: 12px;
+}
+
+.collection-methods-blueprint-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.collection-methods-blueprint {
+  border: 1px solid rgba(181, 196, 219, 0.55);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+  padding: 10px;
+}
+
+.collection-methods-blueprint h4 {
+  margin: 0;
+  color: #2f4261;
+  font-size: 0.94rem;
+}
+
+.collection-methods-field-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.collection-methods-field-list li {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(78px, auto) minmax(76px, auto);
+  gap: 8px;
+  align-items: center;
+  border: 1px solid rgba(196, 209, 228, 0.5);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 6px 8px;
+}
+
+.collection-methods-field-list .field-name {
+  color: #223654;
+  font-weight: 700;
+}
+
+.collection-methods-field-list .field-type {
+  color: #5a6b85;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.collection-methods-field-list .field-required {
+  justify-self: start;
+  border-radius: 999px;
+  font-size: 0.73rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 3px 8px;
+}
+
+.collection-methods-field-list .field-required.yes {
+  background: #ffe7cb;
+  color: #8b4b1a;
+}
+
+.collection-methods-field-list .field-required.no {
+  background: #e8eff8;
+  color: #39577f;
+}
+
+.collection-methods-field-list .field-rule {
+  grid-column: 1 / -1;
+  color: #6d7f9d;
+  font-size: 0.76rem;
+  font-family: 'Consolas', 'Courier New', monospace;
+}
+
+.collection-methods-card {
+  border: 1px solid rgba(140, 155, 181, 0.25);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.collection-methods-head {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.collection-methods-head h3 {
+  margin: 0;
+  color: #31435f;
+  font-size: 1rem;
+}
+
+.panel-collection-methods .eyebrow {
+  color: #c17635;
+}
+
+.panel-collection-methods .subtle {
+  color: #4f6078;
+}
+
+.panel-payment-cycles .eyebrow {
+  color: #c17635;
+}
+
+.panel-payment-cycles .subtle {
+  color: #4f6078;
+}
+
+.panel-shifts .eyebrow {
+  color: #c17635;
+}
+
+.panel-shifts .subtle {
+  color: #4f6078;
+}
+
+@media (max-width: 980px) {
+  .collection-methods-blueprint-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .collection-methods-field-list li {
+    grid-template-columns: minmax(0, 1fr) minmax(70px, auto) minmax(74px, auto);
+  }
+}
+
 .current-shop-badge,
 .user-box p {
   border-color: rgba(255, 217, 183, 0.45);

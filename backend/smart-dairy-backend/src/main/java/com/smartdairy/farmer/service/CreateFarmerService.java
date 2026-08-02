@@ -199,12 +199,12 @@ public class CreateFarmerService {
             throw new BusinessException("Milk Rate Chart does not match collection method.");
         }
 
-        if (effectiveFrom.isBefore(milkRateChart.getEffectiveFrom())
+        /*if (effectiveFrom.isBefore(milkRateChart.getEffectiveFrom())
                 || (milkRateChart.getEffectiveTo() != null && effectiveFrom.isAfter(milkRateChart.getEffectiveTo()))) {
             log.error("Milk Rate Chart uuid={} is not applicable for effective date={}",
                     milkRateChart.getUuid(), effectiveFrom);
             throw new BusinessException("Milk Rate Chart is not applicable for effective date.");
-        }
+        }*/
     }
 
     private UUID resolveMilkTypeUuid(CreateFarmerRequest request) {

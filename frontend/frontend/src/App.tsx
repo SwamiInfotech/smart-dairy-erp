@@ -8,7 +8,11 @@ import {
   saveAuth,
 } from './lib/api'
 import type {
+  CollectionMethodResponse,
+  CreateCollectionMethodRequest,
+  CreatePaymentCycleRequest,
   CreateRateCategoryRequest,
+  CreateShiftRequest,
   CreateMilkRateChartRequest,
   CreateTenantRequest,
   CreateSalesInvoiceItemRequest,
@@ -18,6 +22,7 @@ import type {
   MilkRateChartResponse,
   MilkTypeResponse,
   PaymentMode,
+  PaymentCycleResponse,
   ProductResponse,
   PublicOnboardRequest,
   RateCategoryResponse,
@@ -27,6 +32,9 @@ import type {
   TenantResponse,
   TenantShopResponse,
 } from './types/api'
+import { CollectionMethods } from './components/CollectionMethods'
+import { PaymentCycles } from './components/PaymentCycles'
+import { Shift } from './components/Shift'
 import { RateCategory } from './components/RateCategory'
 import './App.css'
 
@@ -538,10 +546,28 @@ function App() {
   >([])
   const [milkTypes, setMilkTypes] = useState<MilkTypeResponse[]>([])
   const [shifts, setShifts] = useState<ShiftResponse[]>([])
+  const [shiftForm, setShiftForm] = useState<CreateShiftRequest>({
+    code: '',
+    name: '',
+    description: '',
+    displayOrder: 0,
+  })
   const [rateCategories, setRateCategories] = useState<RateCategoryResponse[]>([])
   const [editingRateCategoryUuid, setEditingRateCategoryUuid] = useState('')
-  const [collectionMethods, setCollectionMethods] = useState<MasterLookupResponse[]>([])
-  const [paymentCycles, setPaymentCycles] = useState<MasterLookupResponse[]>([])
+  const [collectionMethods, setCollectionMethods] = useState<CollectionMethodResponse[]>([])
+  const [collectionMethodForm, setCollectionMethodForm] = useState<CreateCollectionMethodRequest>({
+    code: '',
+    name: '',
+    description: '',
+  })
+  const [editingCollectionMethodUuid, setEditingCollectionMethodUuid] = useState('')
+  const [paymentCycles, setPaymentCycles] = useState<PaymentCycleResponse[]>([])
+  const [paymentCycleForm, setPaymentCycleForm] = useState<CreatePaymentCycleRequest>({
+    code: '',
+    name: '',
+    description: '',
+  })
+  const [editingPaymentCycleUuid, setEditingPaymentCycleUuid] = useState('')
   const [farmerRateCharts, setFarmerRateCharts] = useState<MilkRateChartResponse[]>([])
   const [selectedFarmerRateChartUuid, setSelectedFarmerRateChartUuid] = useState('')
   const [farmerMappedFieldError, setFarmerMappedFieldError] = useState('')
@@ -700,15 +726,7 @@ function App() {
   )
 
   useEffect(() => {
-    const decision = explainQualityFieldVisibility(selectedCollectionMethod)
-    console.log('[MilkCollections:visibility] hide/show decision', {
-      methodUuid: selectedCollectionMethod?.uuid || null,
-      methodCode: selectedCollectionMethod?.code || null,
-      methodName: selectedCollectionMethod?.name || null,
-      reason: decision.reason,
-      summary: decision.summary,
-      visibility: decision.visibility,
-    })
+    explainQualityFieldVisibility(selectedCollectionMethod)
   }, [collectionQualityVisibility, selectedCollectionMethod])
 
   const activeCollectionQuality = useMemo(() => {
@@ -744,9 +762,10 @@ function App() {
     return { metric: 'fat' as const, value: 0 }
   }, [collectionForm.fat, collectionForm.mava, collectionForm.snf, collectionQualityVisibility])
 
-  const calculatedCollectionRate = useMemo(() => {
-    return roundToTwo(Number(collectionForm.rate) || 0)
-  }, [collectionForm.rate])
+  const calculatedCollectionRate = useMemo(
+    () => roundToTwo(Number(collectionForm.rate) || 0),
+    [collectionForm.rate],
+  )
 
   const calculatedCollectionAmount = useMemo(() => {
     const quantity = Number(collectionForm.quantity) || 0
@@ -898,34 +917,244 @@ function App() {
     }
   }
 
+  async function loadCollectionMethodsView() {
+    if (!token) return
+
+    const methodList = await runAction(() => api.getCollectionMethods(token))
+
+    if (methodList) {
+      setCollectionMethods(methodList)
+    }
+  }
+
+  async function loadPaymentCyclesView() {
+    if (!token) return
+    const paymentCycleList = await runAction(() => api.getPaymentCycles(token))
+    if (paymentCycleList) {
+      setPaymentCycles(paymentCycleList)
+    }
+  }
+
+  async function loadShiftsView() {
+    if (!token) return
+    const shiftList = await runAction(() => api.getShifts(token))
+    if (shiftList) {
+      setShifts(shiftList)
+    }
+  }
+
+  function resetCollectionMethodForm() {
+    setCollectionMethodForm({
+      code: '',
+      name: '',
+      description: '',
+    })
+    setEditingCollectionMethodUuid('')
+  }
+
+  function onEditCollectionMethod(method: CollectionMethodResponse) {
+    setEditingCollectionMethodUuid(method.uuid)
+    setCollectionMethodForm({
+      code: method.code,
+      name: method.name,
+      description: method.description || '',
+      displayOrder: typeof method.displayOrder === 'number' ? method.displayOrder : undefined,
+    })
+  }
+
+  function onCancelCollectionMethodEdit() {
+    resetCollectionMethodForm()
+    setError('')
+  }
+
+  function resetPaymentCycleForm() {
+    setPaymentCycleForm({
+      code: '',
+      name: '',
+      description: '',
+    })
+    setEditingPaymentCycleUuid('')
+  }
+
+  function onEditPaymentCycle(cycle: PaymentCycleResponse) {
+    setEditingPaymentCycleUuid(cycle.uuid)
+    setPaymentCycleForm({
+      code: cycle.code,
+      name: cycle.name,
+      description: cycle.description || '',
+      displayOrder: typeof cycle.displayOrder === 'number' ? cycle.displayOrder : undefined,
+    })
+  }
+
+  function onCancelPaymentCycleEdit() {
+    resetPaymentCycleForm()
+    setError('')
+  }
+
+  async function onSubmitCollectionMethod() {
+    if (!token) return
+
+    const payload: CreateCollectionMethodRequest = {
+      code: collectionMethodForm.code.trim(),
+      name: collectionMethodForm.name.trim(),
+      description: collectionMethodForm.description.trim(),
+      displayOrder:
+        typeof collectionMethodForm.displayOrder === 'number' && Number.isFinite(collectionMethodForm.displayOrder)
+          ? collectionMethodForm.displayOrder
+          : undefined,
+    }
+
+    if (!payload.code || !payload.name) {
+      setError('Collection method code and name are required.')
+      return
+    }
+
+    if (editingCollectionMethodUuid) {
+      const updated = await runAction(
+        () => api.updateCollectionMethod(token, editingCollectionMethodUuid, payload),
+        'Collection method updated successfully.',
+      )
+      if (!updated) return
+
+      setCollectionMethods((prev) => prev.map((item) => (item.uuid === editingCollectionMethodUuid ? updated : item)))
+      resetCollectionMethodForm()
+      return
+    }
+
+    const created = await runAction(
+      () => api.createCollectionMethod(token, payload),
+      'Collection method created successfully.',
+    )
+    if (!created) return
+
+    setCollectionMethods((prev) => [created, ...prev])
+    resetCollectionMethodForm()
+  }
+
+  async function onDeleteCollectionMethod(method: CollectionMethodResponse) {
+    if (!token) return
+    const confirmed = window.confirm(`Delete collection method \"${method.name}\"?`)
+    if (!confirmed) return
+
+    const result = await runAction(
+      () => api.deleteCollectionMethod(token, method.uuid),
+      'Collection method deleted successfully.',
+    )
+    if (result === null) return
+
+    setCollectionMethods((prev) => prev.filter((item) => item.uuid !== method.uuid))
+
+    if (editingCollectionMethodUuid === method.uuid) {
+      resetCollectionMethodForm()
+    }
+  }
+
+  async function onSubmitPaymentCycle() {
+    if (!token) return
+
+    const payload: CreatePaymentCycleRequest = {
+      code: paymentCycleForm.code.trim(),
+      name: paymentCycleForm.name.trim(),
+      description: paymentCycleForm.description.trim(),
+      displayOrder:
+        typeof paymentCycleForm.displayOrder === 'number' && Number.isFinite(paymentCycleForm.displayOrder)
+          ? paymentCycleForm.displayOrder
+          : undefined,
+    }
+
+    if (!payload.code || !payload.name) {
+      setError('Payment cycle code and name are required.')
+      return
+    }
+
+    if (editingPaymentCycleUuid) {
+      const updated = await runAction(
+        () => api.updatePaymentCycle(token, editingPaymentCycleUuid, payload),
+        'Payment cycle updated successfully.',
+      )
+      if (!updated) return
+
+      setPaymentCycles((prev) => prev.map((item) => (item.uuid === editingPaymentCycleUuid ? updated : item)))
+      resetPaymentCycleForm()
+      return
+    }
+
+    const created = await runAction(
+      () => api.createPaymentCycle(token, payload),
+      'Payment cycle created successfully.',
+    )
+    if (!created) return
+
+    setPaymentCycles((prev) => [created, ...prev])
+    resetPaymentCycleForm()
+  }
+
+  async function onDeletePaymentCycle(cycle: PaymentCycleResponse) {
+    if (!token) return
+    const confirmed = window.confirm(`Delete payment cycle \"${cycle.name}\"?`)
+    if (!confirmed) return
+
+    const result = await runAction(
+      () => api.deletePaymentCycle(token, cycle.uuid),
+      'Payment cycle deleted successfully.',
+    )
+    if (result === null) return
+
+    setPaymentCycles((prev) => prev.filter((item) => item.uuid !== cycle.uuid))
+
+    if (editingPaymentCycleUuid === cycle.uuid) {
+      resetPaymentCycleForm()
+    }
+  }
+
+  async function onSubmitShift() {
+    if (!token) return
+
+    const payload: CreateShiftRequest = {
+      code: shiftForm.code.trim(),
+      name: shiftForm.name.trim(),
+      description: shiftForm.description.trim(),
+      displayOrder: Number(shiftForm.displayOrder),
+    }
+
+    if (!payload.code || !payload.name) {
+      setError('Shift code and name are required.')
+      return
+    }
+
+    if (!Number.isFinite(payload.displayOrder)) {
+      setError('Display order is required for shift.')
+      return
+    }
+
+    const created = await runAction(
+      () => api.createShift(token, payload),
+      'Shift created successfully.',
+    )
+    if (!created) return
+
+    setShifts((prev) => [created, ...prev])
+    setShiftForm({
+      code: '',
+      name: '',
+      description: '',
+      displayOrder: 0,
+    })
+  }
+
   async function onCollectionFarmerChange(event: ChangeEvent<HTMLSelectElement>) {
     const farmerUuid = event.target.value
-    const selectedFarmerOptionLabel = event.target.options[event.target.selectedIndex]?.text || ''
-    const startedAt = new Date().toISOString()
-
-    console.groupCollapsed('[MilkCollections:onChange] Farmer change started')
-    console.log('timestamp', startedAt)
-    console.log('incoming farmerUuid', farmerUuid)
-    console.log('selected option label', selectedFarmerOptionLabel)
-    console.log('token available', Boolean(token))
-    console.log('cached counts before refresh', {
-      farmers: farmers.length,
-      milkRateCharts: milkRateCharts.length,
-      collectionMethods: collectionMethods.length,
-    })
 
     setCollectionForm((prev) => ({ ...prev, farmerUuid, rate: 0 }))
     setSelectedCollectionMethod(null)
 
     const selectedFarmer = farmers.find((item) => item.uuid === farmerUuid) || null
-    console.log('selected farmer from list', selectedFarmer)
 
     let chartSource = milkRateCharts
     let methodSource = collectionMethods
 
     if (token && selectedFarmer?.milkRateChartUuid) {
       try {
-        console.log('refreshing chart + method masters for farmer chart uuid', selectedFarmer.milkRateChartUuid)
         const [latestChartList, latestMethodList] = await Promise.all([
           api.getMilkRateCharts(token),
           api.getCollectionMethods(token),
@@ -934,17 +1163,8 @@ function App() {
         setCollectionMethods(latestMethodList)
         chartSource = latestChartList
         methodSource = latestMethodList
-        console.log('refresh success', {
-          milkRateCharts: latestChartList.length,
-          collectionMethods: latestMethodList.length,
-        })
-      } catch (err) {
-        console.warn('[MilkCollections:onChange] Unable to refresh milk rate charts.', err)
+      } catch {
       }
-    } else {
-      console.log('refresh skipped', {
-        reason: !token ? 'token-not-available' : 'farmer-has-no-milk-rate-chart',
-      })
     }
 
     const selectedMilkRateChart = selectedFarmer?.milkRateChartUuid
@@ -954,21 +1174,7 @@ function App() {
       ? methodSource.find((item) => item.uuid === selectedMilkRateChart.collectionMethodUuid) || null
       : null
     const selectedRateFromDetails = roundToTwo(selectedMilkRateChart?.details[0]?.rate ?? 0)
-    const visibilityDecision = explainQualityFieldVisibility(selectedMethodFromChart)
-    const resolvedVisibility = visibilityDecision.visibility
-
-    console.log('resolved chain', {
-      farmerMilkRateChartUuid: selectedFarmer?.milkRateChartUuid || null,
-      selectedMilkRateChartUuid: selectedMilkRateChart?.uuid || null,
-      selectedMilkRateChartName: selectedMilkRateChart?.chartName || null,
-      selectedCollectionMethodUuid: selectedMilkRateChart?.collectionMethodUuid || null,
-      selectedCollectionMethodCode: selectedMethodFromChart?.code || null,
-      selectedCollectionMethodName: selectedMethodFromChart?.name || null,
-      selectedRateFromDetails,
-      visibilityReason: visibilityDecision.reason,
-      visibilitySummary: visibilityDecision.summary,
-      resolvedVisibility,
-    })
+    explainQualityFieldVisibility(selectedMethodFromChart)
 
     setSelectedCollectionMethod(selectedMethodFromChart)
 
@@ -977,22 +1183,6 @@ function App() {
       farmerUuid,
       rate: selectedRateFromDetails,
     }))
-
-    console.log('form update queued', {
-      farmerUuid,
-      rate: selectedRateFromDetails,
-      methodUuid: selectedMethodFromChart?.uuid || null,
-      visibility: resolvedVisibility,
-    })
-
-    console.log('[MilkCollections:onChange] farmer selection', {
-      farmerUuid,
-      farmer: selectedFarmer,
-      milkRateChart: selectedMilkRateChart,
-      method: selectedMethodFromChart,
-      selectedRateFromDetails,
-    })
-    console.groupEnd()
   }
 
   useEffect(() => {
@@ -1027,6 +1217,58 @@ function App() {
       }
     })
   }, [collectionQualityVisibility])
+
+  useEffect(() => {
+    const fatVisible = collectionQualityVisibility.showFat
+    const snfVisible = collectionQualityVisibility.showSnf
+    const mavaVisible = collectionQualityVisibility.showMava
+
+    if (!fatVisible && !snfVisible && !mavaVisible) {
+      return
+    }
+
+    const fatValue = Number(collectionForm.fat) || 0
+    const snfValue = Number(collectionForm.snf) || 0
+    const mavaValue = Number(collectionForm.mava) || 0
+    const details = selectedCollectionMilkRateChart?.details || []
+
+    const isInRange = (value: number, from: number | null, to: number | null) => {
+      if (from === null || to === null) return false
+      return value >= from && value <= to
+    }
+
+    const matchedDetail = details.find((detail) => {
+      if (fatVisible) {
+        if (!isInRange(fatValue, detail.fatFrom, detail.fatTo)) return false
+      }
+
+      if (snfVisible) {
+        if (!isInRange(snfValue, detail.snfFrom, detail.snfTo)) return false
+      }
+
+      if (mavaVisible) {
+        if (!isInRange(mavaValue, detail.mavaFrom, detail.mavaTo)) return false
+      }
+
+      return true
+    })
+
+    const nextRate = roundToTwo(Number(matchedDetail?.rate) || 0)
+
+    setCollectionForm((prev) => {
+      const currentRate = roundToTwo(Number(prev.rate) || 0)
+      if (currentRate === nextRate) return prev
+      return { ...prev, rate: nextRate }
+    })
+  }, [
+    collectionForm.fat,
+    collectionForm.snf,
+    collectionForm.mava,
+    collectionQualityVisibility.showFat,
+    collectionQualityVisibility.showSnf,
+    collectionQualityVisibility.showMava,
+    selectedCollectionMilkRateChart,
+  ])
 
   useEffect(() => {
     setMilkRateForm((prev) => {
@@ -1154,6 +1396,21 @@ function App() {
   useEffect(() => {
     if (!token || (activeSidebarMenu !== 'milkRateCharts' && activeSidebarMenu !== 'rateProfiles')) return
     void loadMilkRateLookups()
+  }, [activeSidebarMenu, token])
+
+  useEffect(() => {
+    if (!token || activeSidebarMenu !== 'collectionMethods') return
+    void loadCollectionMethodsView()
+  }, [activeSidebarMenu, token])
+
+  useEffect(() => {
+    if (!token || activeSidebarMenu !== 'paymentCycles') return
+    void loadPaymentCyclesView()
+  }, [activeSidebarMenu, token])
+
+  useEffect(() => {
+    if (!token || activeSidebarMenu !== 'shifts') return
+    void loadShiftsView()
   }, [activeSidebarMenu, token])
 
   useEffect(() => {
@@ -1920,8 +2177,7 @@ function App() {
 
       setActiveSidebarMenu('milkCollections')
       setActiveTab('milkCollections')
-    } catch (err) {
-      console.warn('[Farmers:create] Farmer created but refresh failed.', err)
+    } catch {
 
       setActiveSidebarMenu('milkCollections')
       setActiveTab('milkCollections')
@@ -3327,6 +3583,71 @@ function App() {
                     </tbody>
                   </table>
                 </div>
+              </section>
+            )}
+
+              {activeSidebarMenu === 'collectionMethods' && (
+              <section className="panel panel-collection-methods">
+                <div className="panel-head">
+                  <h2>Collection Methods</h2>
+                  <button type="button" onClick={loadCollectionMethodsView} disabled={busy}>
+                    Reload
+                  </button>
+                </div>
+
+                <CollectionMethods
+                  methods={collectionMethods}
+                  form={collectionMethodForm}
+                  busy={busy}
+                  editingUuid={editingCollectionMethodUuid}
+                  onFormChange={setCollectionMethodForm}
+                  onSubmit={onSubmitCollectionMethod}
+                  onCancelEdit={onCancelCollectionMethodEdit}
+                  onEdit={onEditCollectionMethod}
+                  onDelete={onDeleteCollectionMethod}
+                />
+              </section>
+            )}
+
+              {activeSidebarMenu === 'paymentCycles' && (
+              <section className="panel panel-payment-cycles">
+                <div className="panel-head">
+                  <h2>Payment Cycles</h2>
+                  <button type="button" onClick={loadPaymentCyclesView} disabled={busy}>
+                    Reload
+                  </button>
+                </div>
+
+                <PaymentCycles
+                  cycles={paymentCycles}
+                  form={paymentCycleForm}
+                  busy={busy}
+                  editingUuid={editingPaymentCycleUuid}
+                  onFormChange={setPaymentCycleForm}
+                  onSubmit={onSubmitPaymentCycle}
+                  onCancelEdit={onCancelPaymentCycleEdit}
+                  onEdit={onEditPaymentCycle}
+                  onDelete={onDeletePaymentCycle}
+                />
+              </section>
+            )}
+
+              {activeSidebarMenu === 'shifts' && (
+              <section className="panel panel-shifts">
+                <div className="panel-head">
+                  <h2>Shifts</h2>
+                  <button type="button" onClick={loadShiftsView} disabled={busy}>
+                    Reload
+                  </button>
+                </div>
+
+                <Shift
+                  shifts={shifts}
+                  form={shiftForm}
+                  busy={busy}
+                  onFormChange={setShiftForm}
+                  onSubmit={onSubmitShift}
+                />
               </section>
             )}
 

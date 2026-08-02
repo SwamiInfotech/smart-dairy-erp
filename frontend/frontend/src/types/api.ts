@@ -154,6 +154,15 @@ export type ShiftResponse = {
   code: string
   name: string
   description: string | null
+  displayOrder: number | null
+  active: boolean
+}
+
+export type CreateShiftRequest = {
+  code: string
+  name: string
+  description: string
+  displayOrder: number
 }
 
 export type MasterLookupResponse = {
@@ -161,6 +170,52 @@ export type MasterLookupResponse = {
   code: string
   name: string
   description: string | null
+}
+
+export type CollectionMethodResponse = {
+  uuid: string
+  code: string
+  name: string
+  description: string | null
+  displayOrder: number | null
+  active: boolean
+}
+
+export type PaymentCycleResponse = {
+  uuid: string
+  code: string
+  name: string
+  description: string | null
+  displayOrder: number | null
+  active: boolean
+}
+
+export type CreateCollectionMethodRequest = {
+  code: string
+  name: string
+  description: string
+  displayOrder?: number
+}
+
+export type UpdateCollectionMethodRequest = {
+  code: string
+  name: string
+  description: string
+  displayOrder?: number
+}
+
+export type CreatePaymentCycleRequest = {
+  code: string
+  name: string
+  description: string
+  displayOrder?: number
+}
+
+export type UpdatePaymentCycleRequest = {
+  code: string
+  name: string
+  description: string
+  displayOrder?: number
 }
 
 export type RateCategoryResponse = {
