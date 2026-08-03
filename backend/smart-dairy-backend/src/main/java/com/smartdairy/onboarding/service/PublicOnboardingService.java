@@ -11,12 +11,11 @@ import com.smartdairy.company.entity.Company;
 import com.smartdairy.company.repository.CompanyRepository;
 import com.smartdairy.master.entity.MilkType;
 import com.smartdairy.master.repository.MilkTypeRepository;
-import com.smartdairy.shift.entity.Shift;
-import com.smartdairy.shift.repository.ShiftRepository;
 import com.smartdairy.onboarding.dto.PublicOnboardingRequest;
 import com.smartdairy.onboarding.dto.PublicOnboardingResponse;
 import com.smartdairy.tenant.entity.Tenant;
 import com.smartdairy.tenant.repository.TenantRepository;
+import com.smartdairy.tenant.service.TenantDefaultMasterDataService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -40,7 +39,7 @@ public class PublicOnboardingService {
     private final BranchRepository branchRepository;
     private final AppUserRepository appUserRepository;
     private final MilkTypeRepository milkTypeRepository;
-    private final ShiftRepository shiftRepository;
+    private final TenantDefaultMasterDataService defaultMasterDataService;
     private final PasswordEncoder passwordEncoder;
 
     @Transactional
@@ -116,12 +115,11 @@ public class PublicOnboardingService {
             Company savedCompany = companyRepository.save(company);
             Branch savedBranch = branchRepository.save(branch);
             AppUser savedAdminUser = appUserRepository.save(adminUser);
-            
+
+            defaultMasterDataService.createDefaultMasters(savedTenant.getUuid());
+
             // Create default milk types for tenant
             createDefaultMilkTypes(savedTenant.getUuid());
-
-            // Create default shifts for tenant
-            createDefaultShifts(savedTenant.getUuid());
 
             LocalDate trialStart = LocalDate.now();
 
@@ -238,25 +236,5 @@ public class PublicOnboardingService {
         milkType.setDisplayOrder(displayOrder);
         milkType.setActive(Boolean.TRUE);
         milkTypeRepository.save(milkType);
-    }
-
-    private void createDefaultShifts(java.util.UUID tenantUuid) {
-        saveShiftIfMissing(tenantUuid, "MORNING", "Morning", "Morning Milk Collection", 1);
-        saveShiftIfMissing(tenantUuid, "EVENING", "Evening", "Evening Milk Collection", 2);
-    }
-
-    private void saveShiftIfMissing(java.util.UUID tenantUuid, String code, String name, String description, int displayOrder) {
-        if (shiftRepository.existsByCodeAndTenantUuid(code, tenantUuid)) {
-            return;
-        }
-
-        Shift shift = new Shift();
-        shift.setTenantUuid(tenantUuid);
-        shift.setCode(code);
-        shift.setName(name);
-        shift.setDescription(description);
-        shift.setDisplayOrder(displayOrder);
-        shift.setActive(Boolean.TRUE);
-        shiftRepository.save(shift);
     }
 }

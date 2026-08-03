@@ -16,4 +16,8 @@ public interface CollectionMethodRepository extends JpaRepository<CollectionMeth
 
     boolean existsByCodeIgnoreCaseAndUuidNot(String code, UUID uuid);
 
+    Optional<CollectionMethod> findByCodeAndTenantUuid(String code, UUID tenantUuid);
+
+    boolean existsByCodeAndTenantUuid(String code, UUID tenantUuid);
+
 }

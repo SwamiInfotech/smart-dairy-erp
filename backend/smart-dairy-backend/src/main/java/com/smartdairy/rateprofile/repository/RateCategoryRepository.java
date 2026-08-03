@@ -16,4 +16,8 @@ public interface RateCategoryRepository extends JpaRepository<RateCategory, Long
 
     boolean existsByCodeIgnoreCaseAndUuidNot(String code, UUID uuid);
 
+    Optional<RateCategory> findByCodeAndTenantUuid(String code, UUID tenantUuid);
+
+    boolean existsByCodeAndTenantUuid(String code, UUID tenantUuid);
+
 }
