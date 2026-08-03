@@ -239,6 +239,40 @@ function findTenantUuidByCompany(entries: TenantDirectoryEntry[], companyName: s
   return matched?.tenantUuid || ''
 }
 
+function buildNextCollectionNo(existingCollectionNos: string[]) {
+  const normalizedCollectionNos = existingCollectionNos
+    .map((item) => item?.trim() || '')
+    .filter(Boolean)
+
+  if (!normalizedCollectionNos.length) {
+    return 'COL-001'
+  }
+
+  let highestNumber = 0
+  let selectedPrefix = 'COL'
+  let selectedWidth = 3
+
+  for (const rawCode of normalizedCollectionNos) {
+    const match = rawCode.match(/^(.*?)(\d+)$/)
+    if (!match) continue
+
+    const prefix = match[1] || 'COL'
+    const numberPart = match[2]
+    const numberValue = Number(numberPart)
+
+    if (Number.isNaN(numberValue)) continue
+
+    if (numberValue > highestNumber) {
+      highestNumber = numberValue
+      selectedPrefix = prefix
+      selectedWidth = numberPart.length
+    }
+  }
+
+  const nextNumber = highestNumber + 1
+  return `${selectedPrefix}${String(nextNumber).padStart(selectedWidth, '0')}`
+}
+
 function buildNextProductCode(existingCodes: string[]) {
   let highestNumber = 0
   let selectedPrefix = 'PRD'
@@ -447,7 +481,7 @@ function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard')
   const [activeSidebarMenu, setActiveSidebarMenu] = useState('dashboard')
   const bodyScrollRef = useRef<HTMLDivElement | null>(null)
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [loginDebug, setLoginDebug] = useState('')
   const [tenantLookupNote, setTenantLookupNote] = useState('')
   const [resolvingTenantUuid, setResolvingTenantUuid] = useState(false)
@@ -583,6 +617,11 @@ function App() {
     [farmers],
   )
 
+  const nextCollectionNo = useMemo(
+    () => buildNextCollectionNo((Array.isArray(collections) ? collections : []).map((item) => item.collectionNo)),
+    [collections],
+  )
+
   const pushToast = useCallback((kind: ToastKind, text: string) => {
     const normalizedText = text.trim()
     if (!normalizedText) return
@@ -695,6 +734,7 @@ function App() {
   })
 
   const [collectionForm, setCollectionForm] = useState({
+    collectionNo: nextCollectionNo,
     farmerUuid: '',
     shiftUuid: '',
     milkTypeUuid: '',
@@ -703,7 +743,7 @@ function App() {
     quantity: 0,
     rate: 0,
     fat: 0,
-    snf: 0,
+    snf: null as number | null,
     mava: 0,
     remarks: '',
   })
@@ -1142,9 +1182,7 @@ function App() {
     })
   }
 
-  async function onCollectionFarmerChange(event: ChangeEvent<HTMLSelectElement>) {
-    const farmerUuid = event.target.value
-
+  async function applyCollectionFarmerSelection(farmerUuid: string) {
     setCollectionForm((prev) => ({ ...prev, farmerUuid, rate: 0 }))
     setSelectedCollectionMethod(null)
 
@@ -1185,6 +1223,24 @@ function App() {
     }))
   }
 
+  async function onCollectionFarmerChange(event: ChangeEvent<HTMLSelectElement>) {
+    await applyCollectionFarmerSelection(event.target.value)
+  }
+
+  useEffect(() => {
+    if (!Array.isArray(farmers) || farmers.length === 0) {
+      setCollectionForm((prev) => (prev.farmerUuid === '' ? prev : { ...prev, farmerUuid: '' }))
+      return
+    }
+
+    const hasSelectedFarmer = farmers.some((item) => item.uuid === collectionForm.farmerUuid)
+    if (collectionForm.farmerUuid && hasSelectedFarmer) {
+      return
+    }
+
+    void applyCollectionFarmerSelection(farmers[0].uuid)
+  }, [collectionForm.farmerUuid, farmers])
+
   useEffect(() => {
     setCollectionForm((prev) => {
       let changed = false
@@ -1197,8 +1253,8 @@ function App() {
         changed = true
       }
 
-      if (!collectionQualityVisibility.showSnf && prev.snf !== 0) {
-        nextSnf = 0
+      if (!collectionQualityVisibility.showSnf && prev.snf !== null) {
+        nextSnf = null
         changed = true
       }
 
@@ -1228,7 +1284,7 @@ function App() {
     }
 
     const fatValue = Number(collectionForm.fat) || 0
-    const snfValue = Number(collectionForm.snf) || 0
+    const snfValue = Number(collectionForm.snf ?? 0)
     const mavaValue = Number(collectionForm.mava) || 0
     const details = selectedCollectionMilkRateChart?.details || []
 
@@ -1551,6 +1607,16 @@ function App() {
       }
     })
   }, [nextFarmerCode])
+
+  useEffect(() => {
+    setCollectionForm((prev) => {
+      if (prev.collectionNo === nextCollectionNo) return prev
+      return {
+        ...prev,
+        collectionNo: nextCollectionNo,
+      }
+    })
+  }, [nextCollectionNo])
 
   useEffect(() => {
     setCustomerForm((prev) => {
@@ -2318,7 +2384,7 @@ function App() {
         throw new Error('Collection date is required.')
       }
 
-      if (collectionForm.fat < 0 || collectionForm.snf < 0 || collectionForm.mava < 0) {
+      if (collectionForm.fat < 0 || (collectionForm.snf ?? 0) < 0 || collectionForm.mava < 0) {
         throw new Error('FAT, SNF, and Mava cannot be negative values.')
       }
 
@@ -2326,8 +2392,10 @@ function App() {
 
       const systemCollectionTime = toInputTime(new Date())
 
+      const { collectionNo, ...collectionPayload } = collectionForm
+
       return api.createMilkCollection(token, {
-        ...collectionForm,
+        ...collectionPayload,
         farmerUuid: selectedFarmer.uuid,
         shiftUuid: selectedShift.uuid,
         milkTypeUuid: selectedMilkType.uuid,
@@ -2342,6 +2410,7 @@ function App() {
 
     if (!created) return
     setCollections((prev) => [created, ...prev])
+    setCollectionForm((prev) => ({ ...prev, collectionNo: created.collectionNo }))
   }
 
   async function onCreateMilkRateChart(event: FormEvent) {
@@ -3335,13 +3404,18 @@ function App() {
                     <div className="collection-grid">
                       <div className="collection-farmer-row collection-field-wide">
                         <label className="collection-field">
+                          <span>Collection No</span>
+                          <input type="text" value={collectionForm.collectionNo} disabled readOnly />
+                        </label>
+
+                        <label className="collection-field">
                           <span>Farmer</span>
                           <select
                             required
                             value={collectionForm.farmerUuid}
                             onChange={onCollectionFarmerChange}
                           >
-                            <option value="">Select farmer</option>
+                            <option value="">Select Farmer</option>
                             {farmers.map((farmer) => (
                               <option key={farmer.uuid} value={farmer.uuid}>
                                 {farmer.farmerName} ({farmer.farmerCode || farmer.mobileNo || 'Farmer'})
@@ -3353,8 +3427,10 @@ function App() {
                           type="button"
                           className="collection-new-farmer-btn"
                           onClick={onOpenFarmerFromCollection}
+                          aria-label="Create New Farmer"
+                          title="Create New Farmer"
                         >
-                          + New Farmer
+                          +
                         </button>
                       </div>
 
@@ -3446,9 +3522,12 @@ function App() {
                               type="number"
                               step="0.1"
                               min="0"
-                              value={collectionForm.snf}
+                              value={collectionForm.snf ?? ''}
                               onChange={(event) =>
-                                setCollectionForm((prev) => ({ ...prev, snf: Number(event.target.value) }))
+                                setCollectionForm((prev) => ({
+                                  ...prev,
+                                  snf: event.target.value === '' ? null : Number(event.target.value),
+                                }))
                               }
                               placeholder="Optional"
                             />

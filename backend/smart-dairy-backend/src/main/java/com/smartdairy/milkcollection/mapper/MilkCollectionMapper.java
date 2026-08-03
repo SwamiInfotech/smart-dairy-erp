@@ -39,8 +39,6 @@ public abstract class MilkCollectionMapper {
     protected void afterMapping(@MappingTarget MilkCollection entity) {
 
         entity.setLocked(false);
-        entity.setEntryType(EntryType.LIVE);
-        entity.setEntrySource(EntrySource.WEB);
     }
 
     @Mapping(target = "farmerUuid", source = "farmer.uuid")

@@ -1,6 +1,8 @@
 package com.smartdairy.milkcollection.service;
 
 import com.smartdairy.exception.ResourceNotFoundException;
+import com.smartdairy.common.enums.EntryType;
+import com.smartdairy.common.enums.EntrySource;
 import com.smartdairy.farmer.entity.Farmer;
 import com.smartdairy.farmer.repository.FarmerRepository;
 import com.smartdairy.inventory.service.MilkInventoryService;
@@ -74,6 +76,10 @@ public class CreateMilkCollectionService {
         entity.setCalculatedRate(result.calculatedRate());
 
         entity.setGrossAmount(result.grossAmount());
+
+        entity.setEntryType(EntryType.REGULAR);
+
+        entity.setEntrySource(EntrySource.WEB);
 
         MilkCollection saved = repository.save(entity);
         milkInventoryService.stockIn(saved);

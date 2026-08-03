@@ -4,6 +4,10 @@ import com.smartdairy.collectionmethod.entity.CollectionMethod;
 import com.smartdairy.collectionmethod.repository.CollectionMethodRepository;
 import com.smartdairy.paymentcycle.entity.PaymentCycle;
 import com.smartdairy.paymentcycle.repository.PaymentCycleRepository;
+import com.smartdairy.product.entity.Product;
+import com.smartdairy.product.enums.ProductType;
+import com.smartdairy.product.enums.UnitType;
+import com.smartdairy.product.repository.ProductRepository;
 import com.smartdairy.rateprofile.entity.RateCategory;
 import com.smartdairy.rateprofile.repository.RateCategoryRepository;
 import com.smartdairy.shift.entity.Shift;
@@ -12,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Service
@@ -23,12 +28,14 @@ public class TenantDefaultMasterDataService {
     private final CollectionMethodRepository collectionMethodRepository;
     private final PaymentCycleRepository paymentCycleRepository;
     private final ShiftRepository shiftRepository;
+    private final ProductRepository productRepository;
 
     public void createDefaultMasters(UUID tenantUuid) {
         createDefaultRateCategories(tenantUuid);
         createDefaultCollectionMethods(tenantUuid);
         createDefaultPaymentCycles(tenantUuid);
         createDefaultShifts(tenantUuid);
+        createDefaultProducts(tenantUuid);
     }
 
     private void createDefaultRateCategories(UUID tenantUuid) {
@@ -109,5 +116,29 @@ public class TenantDefaultMasterDataService {
         shift.setDisplayOrder(displayOrder);
         shift.setActive(Boolean.TRUE);
         shiftRepository.save(shift);
+    }
+
+    private void createDefaultProducts(UUID tenantUuid) {
+        saveProductIfMissing(tenantUuid, "PRD001", "Buffalo Milk");
+        saveProductIfMissing(tenantUuid, "PRD002", "Cow Milk");
+    }
+
+    private void saveProductIfMissing(UUID tenantUuid, String code, String name) {
+        if (productRepository.existsByProductCodeAndTenantUuid(code, tenantUuid)
+                || productRepository.existsByProductNameIgnoreCaseAndTenantUuid(name, tenantUuid)) {
+            return;
+        }
+
+        Product product = new Product();
+        product.setTenantUuid(tenantUuid);
+        product.setProductCode(code);
+        product.setProductName(name);
+        product.setProductType(ProductType.RAW_MILK);
+        product.setUnitType(UnitType.LITER);
+        product.setPurchasePrice(BigDecimal.ZERO);
+        product.setSellingPrice(BigDecimal.ZERO);
+        product.setMinimumStock(BigDecimal.ZERO);
+        product.setActive(Boolean.TRUE);
+        productRepository.save(product);
     }
 }

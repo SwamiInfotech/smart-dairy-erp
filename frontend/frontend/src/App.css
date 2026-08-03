@@ -941,19 +941,58 @@ input[readonly] {
 
 .collection-farmer-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 0.3fr) minmax(0, 1fr) auto;
   gap: 10px;
   align-items: end;
 }
 
+.collection-farmer-row .collection-field:nth-child(2) {
+  min-width: 0;
+}
+
+.collection-farmer-row .collection-field:first-child {
+  min-width: 0;
+}
+
+.collection-farmer-row .collection-field:nth-child(2) {
+  min-width: 0;
+}
+
 .collection-new-farmer-btn {
   min-height: 46px;
-  padding: 0 14px;
+  min-width: 46px;
+  padding: 0 12px;
   font-weight: 700;
   white-space: nowrap;
   background: linear-gradient(135deg, #c5742e 0%, #e09543 100%);
   border-color: #bc6d2a;
   color: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(197, 116, 46, 0.16);
+  position: relative;
+}
+
+.collection-new-farmer-btn::after {
+  content: 'Create New Farmer';
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 8px);
+  transform: translateX(-50%);
+  background: rgba(18, 35, 62, 0.95);
+  color: #fff;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+  z-index: 2;
+}
+
+.collection-new-farmer-btn:hover::after {
+  opacity: 1;
 }
 
 .collection-new-farmer-btn:hover {

@@ -2,9 +2,13 @@ package com.smartdairy.common.enums;
 
 public enum EntryType {
 
-    LIVE,
+    REGULAR,
 
     BACKDATED,
+
+    CORRECTION,
+
+    ADJUSTMENT,
 
     IMPORT
 

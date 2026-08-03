@@ -4,12 +4,14 @@ public enum EntrySource {
 
     WEB,
 
-    ANDROID,
-
-    IOS,
+    MOBILE,
 
     API,
 
-    IMPORT
+    EXCEL_IMPORT,
+
+    DEVICE,
+
+    SYSTEM
 
 }
