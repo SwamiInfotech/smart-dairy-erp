@@ -8,6 +8,7 @@ import com.smartdairy.loan.dto.UpdateLoanRequest;
 import com.smartdairy.loan.service.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/v1/loans")
 @RequiredArgsConstructor
 public class LoanController {
@@ -31,6 +33,7 @@ public class LoanController {
     @PostMapping
     public ResponseEntity<ApiResponse<LoanResponse>> create(
             @Valid @RequestBody CreateLoanRequest request) {
+        log.info("Received request to create loan.");
 
         LoanResponse response = service.create(request);
 
@@ -41,6 +44,7 @@ public class LoanController {
     @GetMapping("/{uuid}")
     public ResponseEntity<ApiResponse<LoanResponse>> getByUuid(
             @PathVariable UUID uuid) {
+        log.info("Received request to fetch loan with uuid={}.", uuid);
 
         return ResponseEntity.ok(ApiResponse.success(
                 "Loan retrieved successfully.",
@@ -50,6 +54,7 @@ public class LoanController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<Page<LoanResponse>>> search(LoanSearchRequest request, Pageable pageable) {
+        log.info("Received request to search loans.");
 
         return ResponseEntity.ok(ApiResponse.success("Loans retrieved successfully.", getAllLoanService.search(
                 request,
@@ -59,6 +64,7 @@ public class LoanController {
 
     @PutMapping("/{uuid}")
     public ResponseEntity<ApiResponse<LoanResponse>> update(@PathVariable UUID uuid, @Valid @RequestBody UpdateLoanRequest request) {
+        log.info("Received request to update loan with uuid={}.", uuid);
 
         return ResponseEntity.ok(ApiResponse.success("Loan updated successfully.", updateLoanService.update(uuid, request)
 
@@ -67,6 +73,7 @@ public class LoanController {
 
     @DeleteMapping("/{uuid}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID uuid) {
+        log.info("Received request to delete loan with uuid={}.", uuid);
 
         deleteLoanService.delete(uuid);
 
@@ -77,6 +84,7 @@ public class LoanController {
 
     @PatchMapping("/{uuid}/approve")
     public ResponseEntity<ApiResponse<LoanResponse>> approve(@PathVariable UUID uuid) {
+        log.info("Received request to approve loan with uuid={}.", uuid);
 
         return ResponseEntity.ok(ApiResponse.success(
                 "Loan approved successfully.",

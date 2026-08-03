@@ -8,6 +8,7 @@ import com.smartdairy.product.dto.UpdateProductRequest;
 import com.smartdairy.product.service.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/v1/products")
 @RequiredArgsConstructor
 public class ProductController {
@@ -34,6 +36,7 @@ public class ProductController {
     @PostMapping
     public ResponseEntity<ApiResponse<ProductResponse>> create(
             @Valid @RequestBody CreateProductRequest request) {
+        log.info("Received request to create product.");
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
@@ -44,6 +47,7 @@ public class ProductController {
     @GetMapping("/{uuid}")
     public ResponseEntity<ApiResponse<ProductResponse>> get(
             @PathVariable UUID uuid) {
+        log.info("Received request to fetch product with uuid={}.", uuid);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -60,6 +64,7 @@ public class ProductController {
                     sort = "productName",
                     direction = Sort.Direction.ASC)
             Pageable pageable) {
+        log.info("Received request to search products.");
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -71,6 +76,7 @@ public class ProductController {
     public ResponseEntity<ApiResponse<ProductResponse>> update(
             @PathVariable UUID uuid,
             @Valid @RequestBody UpdateProductRequest request) {
+        log.info("Received request to update product with uuid={}.", uuid);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -81,6 +87,7 @@ public class ProductController {
     @DeleteMapping("/{uuid}")
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable UUID uuid) {
+        log.info("Received request to delete product with uuid={}.", uuid);
 
         deleteProductService.delete(uuid);
 
@@ -93,6 +100,7 @@ public class ProductController {
     @PatchMapping("/{uuid}/activate")
     public ResponseEntity<ApiResponse<Void>> activate(
             @PathVariable UUID uuid) {
+        log.info("Received request to activate product with uuid={}.", uuid);
 
         activateProductService.activate(uuid);
 
@@ -105,6 +113,7 @@ public class ProductController {
     @PatchMapping("/{uuid}/deactivate")
     public ResponseEntity<ApiResponse<Void>> deactivate(
             @PathVariable UUID uuid) {
+        log.info("Received request to deactivate product with uuid={}.", uuid);
 
         deactivateProductService.deactivate(uuid);
 

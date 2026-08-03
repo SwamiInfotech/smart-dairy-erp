@@ -6,6 +6,7 @@ import com.smartdairy.tenant.dto.TenantResponse;
 import com.smartdairy.tenant.service.TenantService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/v1/tenants")
 @RequiredArgsConstructor
 public class TenantController {
@@ -27,17 +29,20 @@ public class TenantController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<TenantResponse>> create(@Valid @RequestBody CreateTenantRequest request) {
+        log.info("Received request to create tenant.");
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Tenant created successfully.", tenantService.create(request)));
     }
 
     @GetMapping
     public ApiResponse<List<TenantResponse>> getAll() {
+        log.info("Received request to fetch all tenants.");
         return ApiResponse.success("Tenants fetched successfully.", tenantService.getAll());
     }
 
     @GetMapping("/{tenantUuid}")
     public ApiResponse<TenantResponse> getByUuid(@PathVariable UUID tenantUuid) {
+        log.info("Received request to fetch tenant with uuid={}.", tenantUuid);
         return ApiResponse.success("Tenant fetched successfully.", tenantService.getByUuid(tenantUuid));
     }
 }

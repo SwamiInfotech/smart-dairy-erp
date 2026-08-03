@@ -6,6 +6,7 @@ import com.smartdairy.branch.dto.CreateBranchRequest;
 import com.smartdairy.common.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/v1/branches")
 @RequiredArgsConstructor
 public class CreateBranchController {
@@ -22,6 +24,7 @@ public class CreateBranchController {
     @PostMapping
     public ResponseEntity<ApiResponse<BranchResponse>> create(
             @Valid @RequestBody CreateBranchRequest request) {
+        log.info("Received request to create branch.");
 
         BranchResponse response = service.create(request);
 

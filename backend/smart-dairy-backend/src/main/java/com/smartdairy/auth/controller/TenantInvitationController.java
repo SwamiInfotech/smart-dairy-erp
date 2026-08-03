@@ -6,6 +6,7 @@ import com.smartdairy.auth.service.TenantInvitationService;
 import com.smartdairy.common.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
 public class TenantInvitationController {
@@ -31,6 +33,7 @@ public class TenantInvitationController {
             @PathVariable UUID tenantUuid,
             @Valid @RequestBody CreateTenantInvitationRequest request,
             Authentication authentication) {
+        log.info("Received request to create invitation for tenant={} by user={}.", tenantUuid, authentication.getName());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Tenant invitation created successfully.",
                         tenantInvitationService.create(tenantUuid, request, authentication)));
@@ -40,12 +43,14 @@ public class TenantInvitationController {
     public ApiResponse<List<TenantInvitationResponse>> listByTenant(
             @PathVariable UUID tenantUuid,
             Authentication authentication) {
+        log.info("Received request to list invitations for tenant={} by user={}.", tenantUuid, authentication.getName());
         return ApiResponse.success("Tenant invitations fetched successfully.",
                 tenantInvitationService.listByTenant(tenantUuid, authentication));
     }
 
     @GetMapping("/tenant-invitations/my-invitations")
     public ApiResponse<List<TenantInvitationResponse>> myInvitations(Authentication authentication) {
+        log.info("Received request to list invitations for user={}.", authentication.getName());
         return ApiResponse.success("Your invitations fetched successfully.",
                 tenantInvitationService.listMyInvitations(authentication));
     }
@@ -54,6 +59,7 @@ public class TenantInvitationController {
     public ApiResponse<TenantInvitationResponse> accept(
             @PathVariable UUID invitationToken,
             Authentication authentication) {
+        log.info("Received request to accept invitation token={} by user={}.", invitationToken, authentication.getName());
         return ApiResponse.success("Invitation accepted successfully.",
                 tenantInvitationService.accept(invitationToken, authentication));
     }
@@ -62,6 +68,7 @@ public class TenantInvitationController {
     public ApiResponse<TenantInvitationResponse> reject(
             @PathVariable UUID invitationToken,
             Authentication authentication) {
+        log.info("Received request to reject invitation token={} by user={}.", invitationToken, authentication.getName());
         return ApiResponse.success("Invitation rejected successfully.",
                 tenantInvitationService.reject(invitationToken, authentication));
     }
@@ -71,6 +78,7 @@ public class TenantInvitationController {
             @PathVariable UUID tenantUuid,
             @PathVariable UUID invitationToken,
             Authentication authentication) {
+        log.info("Received request to cancel invitation token={} in tenant={} by user={}.", invitationToken, tenantUuid, authentication.getName());
         return ApiResponse.success("Tenant invitation cancelled successfully.",
                 tenantInvitationService.cancel(tenantUuid, invitationToken, authentication));
     }

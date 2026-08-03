@@ -6,6 +6,7 @@ import com.smartdairy.auth.service.AuthService;
 import com.smartdairy.common.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 public class AuthController {
@@ -25,6 +27,7 @@ public class AuthController {
     public ApiResponse<AuthTokenResponse> login(
             @RequestHeader("X-Tenant-Id") UUID tenantUuid,
             @Valid @RequestBody LoginRequest request) {
+        log.info("Received login request for user={}.", request.username());
         LoginRequest effectiveRequest = request.tenantUuid() == null
                 ? new LoginRequest(request.username(), request.password(), tenantUuid)
                 : request;

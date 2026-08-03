@@ -9,6 +9,7 @@ import com.smartdairy.customer.service.command.UpdateCustomerService;
 import com.smartdairy.customer.service.query.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/v1/customers")
 @RequiredArgsConstructor
 public class CustomerController {
@@ -38,6 +40,7 @@ public class CustomerController {
     @PostMapping
     public ResponseEntity<ApiResponse<CustomerResponse>> create(
             @Valid @RequestBody CreateCustomerRequest request) {
+        log.info("Received request to create customer.");
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
@@ -55,6 +58,7 @@ public class CustomerController {
                     sort = "customerName",
                     direction = Sort.Direction.ASC)
             Pageable pageable) {
+        log.info("Received request to search customers.");
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -65,6 +69,7 @@ public class CustomerController {
     @GetMapping("/{uuid}")
     public ResponseEntity<ApiResponse<CustomerResponse>> get(
             @PathVariable UUID uuid) {
+        log.info("Received request to fetch customer with uuid={}.", uuid);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -76,6 +81,7 @@ public class CustomerController {
     public ResponseEntity<ApiResponse<CustomerResponse>> update(
             @PathVariable UUID uuid,
             @Valid @RequestBody UpdateCustomerRequest request) {
+        log.info("Received request to update customer with uuid={}.", uuid);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -86,6 +92,7 @@ public class CustomerController {
     @PatchMapping("/{uuid}/activate")
     public ResponseEntity<ApiResponse<CustomerResponse>> activate(
             @PathVariable UUID uuid) {
+        log.info("Received request to activate customer with uuid={}.", uuid);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -96,6 +103,7 @@ public class CustomerController {
     @PatchMapping("/{uuid}/deactivate")
     public ResponseEntity<ApiResponse<CustomerResponse>> deactivate(
             @PathVariable UUID uuid) {
+        log.info("Received request to deactivate customer with uuid={}.", uuid);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -106,6 +114,7 @@ public class CustomerController {
     @GetMapping("/{uuid}/ledger")
     public ResponseEntity<ApiResponse<List<CustomerLedgerResponse>>> ledger(
             @PathVariable UUID uuid) {
+        log.info("Received request to fetch ledger for customer uuid={}.", uuid);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -115,6 +124,7 @@ public class CustomerController {
 
     @GetMapping("/{uuid}/statement")
     public ResponseEntity<ApiResponse<List<CustomerStatementResponse>>> statement(@PathVariable UUID uuid) {
+        log.info("Received request to fetch statement for customer uuid={}.", uuid);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -125,6 +135,7 @@ public class CustomerController {
 
     @GetMapping("/outstanding")
     public ResponseEntity<ApiResponse<List<CustomerOutstandingResponse>>> outstanding() {
+        log.info("Received request to fetch customer outstanding.");
 
         return ResponseEntity.ok(
                 ApiResponse.success(

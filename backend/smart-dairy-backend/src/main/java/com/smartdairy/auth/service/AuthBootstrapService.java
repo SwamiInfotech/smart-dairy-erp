@@ -10,11 +10,13 @@ import com.smartdairy.tenant.entity.Tenant;
 import com.smartdairy.tenant.repository.TenantRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AuthBootstrapService {
 
@@ -40,6 +42,7 @@ public class AuthBootstrapService {
     @PostConstruct
     void ensureDefaultUser() {
         String username = defaultUsername.trim();
+        log.info("Checking default user setup for username={}.", username.isBlank() ? "(blank)" : username);
 
         if (username.isBlank()) {
             return;
@@ -50,6 +53,7 @@ public class AuthBootstrapService {
             if (!syncExistingDefaultUser) {
                 return;
             }
+            log.info("Syncing existing default user: {}.", username);
 
             boolean changed = false;
             String fullName = defaultFullName.trim();
@@ -89,6 +93,7 @@ public class AuthBootstrapService {
         Tenant tenant = tenantRepository.findByUuid(tenantUuid)
                 .orElseThrow(() -> new IllegalStateException("Tenant not found for default user: " + tenantUuid));
 
+        log.info("Creating default user: {}.", username);
         AppUser user = new AppUser();
         user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(defaultPassword));

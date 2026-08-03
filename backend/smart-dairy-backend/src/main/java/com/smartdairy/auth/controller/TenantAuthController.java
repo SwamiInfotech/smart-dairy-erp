@@ -14,6 +14,7 @@ import com.smartdairy.company.repository.CompanyRepository;
 import com.smartdairy.tenant.entity.Tenant;
 import com.smartdairy.tenant.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class TenantAuthController {
@@ -39,6 +41,7 @@ public class TenantAuthController {
      */
     @GetMapping("/my-shops")
     public ResponseEntity<List<TenantDTO>> getMyShops(Authentication authentication) {
+        log.info("Received request to get shops for user={}.", authentication.getName());
         AppUser appUser = appUserRepository.findByUsernameIgnoreCase(authentication.getName())
                 .orElseThrow(() -> new IllegalStateException("User not found"));
 
@@ -68,7 +71,7 @@ public class TenantAuthController {
     public ResponseEntity<?> switchTenant(
             @PathVariable UUID tenantUuid,
             Authentication authentication) {
-        
+        log.info("Received request to switch to tenant={} for user={}.", tenantUuid, authentication.getName());
         AppUser appUser = appUserRepository.findByUsernameIgnoreCase(authentication.getName())
                 .orElseThrow(() -> new IllegalStateException("User not found"));
 
@@ -121,7 +124,7 @@ public class TenantAuthController {
     public ResponseEntity<?> setPrimaryShop(
             @PathVariable UUID tenantUuid,
             Authentication authentication) {
-        
+        log.info("Received request to set primary shop={} for user={}.", tenantUuid, authentication.getName());
         AppUser appUser = appUserRepository.findByUsernameIgnoreCase(authentication.getName())
                 .orElseThrow(() -> new IllegalStateException("User not found"));
 

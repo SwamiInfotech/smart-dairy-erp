@@ -9,6 +9,7 @@ import com.smartdairy.production.service.query.GetProductionBatchService;
 import com.smartdairy.production.service.query.SearchProductionBatchService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/v1/production-batches")
 @RequiredArgsConstructor
 public class ProductionBatchController {
@@ -33,6 +35,7 @@ public class ProductionBatchController {
     @PostMapping
     public ResponseEntity<ApiResponse<ProductionBatchResponse>> create(
             @Valid @RequestBody CreateProductionBatchRequest request) {
+        log.info("Received request to create production batch.");
 
         ProductionBatchResponse response = createService.create(request);
 
@@ -45,6 +48,7 @@ public class ProductionBatchController {
     @GetMapping("/{uuid}")
     public ResponseEntity<ApiResponse<ProductionBatchResponse>> get(
             @PathVariable UUID uuid) {
+        log.info("Received request to fetch production batch with uuid={}.", uuid);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -61,6 +65,7 @@ public class ProductionBatchController {
                     sort = "productionDate",
                     direction = Sort.Direction.DESC)
             Pageable pageable) {
+        log.info("Received request to search production batches.");
 
         return ResponseEntity.ok(
                 ApiResponse.success(

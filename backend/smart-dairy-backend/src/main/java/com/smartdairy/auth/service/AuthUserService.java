@@ -12,6 +12,7 @@ import com.smartdairy.tenant.context.TenantContextHolder;
 import com.smartdairy.tenant.entity.Tenant;
 import com.smartdairy.tenant.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AuthUserService {
 
@@ -32,6 +34,7 @@ public class AuthUserService {
     @Transactional
     public AuthUserResponse create(CreateUserRequest request) {
         String username = request.username().trim();
+        log.info("Creating user with username={}.", username);
         String fullName = request.fullName().trim();
 
         if (username.isBlank()) {
@@ -83,6 +86,7 @@ public class AuthUserService {
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
         String username = request.username().trim();
+        log.info("Resetting password for username={}.", username);
         if (username.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username is required");
         }

@@ -7,6 +7,7 @@ import com.smartdairy.settlement.service.GenerateSettlementService;
 import com.smartdairy.settlement.service.PaySettlementService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/v1/settlements")
 @RequiredArgsConstructor
 public class SettlementController {
@@ -24,6 +26,7 @@ public class SettlementController {
     @PostMapping("/generate")
     public ResponseEntity<ApiResponse<SettlementResponse>> generate(
             @Valid @RequestBody GenerateSettlementRequest request) {
+        log.info("Received request to generate settlement.");
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
@@ -34,6 +37,7 @@ public class SettlementController {
     @PatchMapping("/{uuid}/pay")
     public ResponseEntity<ApiResponse<SettlementResponse>> pay(
             @PathVariable UUID uuid) {
+        log.info("Received request to pay settlement with uuid={}.", uuid);
 
         return ResponseEntity.ok(
                 ApiResponse.success(

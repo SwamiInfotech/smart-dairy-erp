@@ -7,6 +7,7 @@ import com.smartdairy.farmer.service.CreateFarmerService;
 import com.smartdairy.farmer.service.GetAllFarmerList;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +16,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/v1/farmers")
 @RequiredArgsConstructor
 public class FarmerController {
@@ -25,6 +27,7 @@ public class FarmerController {
     @PostMapping
     public ResponseEntity<ApiResponse<FarmerResponse>> create(
             @Valid @RequestBody CreateFarmerRequest request) {
+        log.info("Received request to create farmer.");
 
         FarmerResponse response = createFarmerService.create(request);
 
@@ -38,6 +41,7 @@ public class FarmerController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<FarmerResponse>>> getAllFarmers() {
+        log.info("Received request to fetch all farmers.");
 
         List<FarmerResponse> response = getAllFarmerList.getAllFarmers();
 

@@ -13,6 +13,7 @@ import com.smartdairy.rateprofile.repository.RateCategoryRepository;
 import com.smartdairy.shift.entity.Shift;
 import com.smartdairy.shift.repository.ShiftRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,7 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional
 public class TenantDefaultMasterDataService {
@@ -31,6 +33,7 @@ public class TenantDefaultMasterDataService {
     private final ProductRepository productRepository;
 
     public void createDefaultMasters(UUID tenantUuid) {
+        log.info("Creating default master data for tenant={}.", tenantUuid);
         createDefaultRateCategories(tenantUuid);
         createDefaultCollectionMethods(tenantUuid);
         createDefaultPaymentCycles(tenantUuid);

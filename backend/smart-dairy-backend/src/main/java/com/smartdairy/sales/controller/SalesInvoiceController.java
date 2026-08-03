@@ -9,6 +9,7 @@ import com.smartdairy.sales.service.command.UpdateSalesInvoiceService;
 import com.smartdairy.sales.service.query.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/v1/sales")
 @RequiredArgsConstructor
 public class SalesInvoiceController {
@@ -42,6 +44,7 @@ public class SalesInvoiceController {
     @PostMapping
     public ResponseEntity<ApiResponse<SalesInvoiceResponse>> create(
             @Valid @RequestBody CreateSalesInvoiceRequest request) {
+        log.info("Received request to create sales invoice.");
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
@@ -53,6 +56,7 @@ public class SalesInvoiceController {
     public ResponseEntity<ApiResponse<SalesInvoiceResponse>> update(
             @PathVariable UUID uuid,
             @Valid @RequestBody UpdateSalesInvoiceRequest request) {
+        log.info("Received request to update sales invoice with uuid={}.", uuid);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -63,6 +67,7 @@ public class SalesInvoiceController {
     @PatchMapping("/{uuid}/cancel")
     public ResponseEntity<ApiResponse<SalesInvoiceResponse>> cancel(
             @PathVariable UUID uuid) {
+        log.info("Received request to cancel sales invoice with uuid={}.", uuid);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -73,6 +78,7 @@ public class SalesInvoiceController {
     @GetMapping("/{uuid}")
     public ResponseEntity<ApiResponse<SalesInvoiceResponse>> get(
             @PathVariable UUID uuid) {
+        log.info("Received request to fetch sales invoice with uuid={}.", uuid);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -90,6 +96,7 @@ public class SalesInvoiceController {
                     sort = "invoiceDate",
                     direction = Sort.Direction.DESC)
             Pageable pageable) {
+        log.info("Received request to search sales invoices.");
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -99,6 +106,7 @@ public class SalesInvoiceController {
 
     @GetMapping("/dashboard")
     public ResponseEntity<ApiResponse<SalesDashboardResponse>> dashboard(@RequestParam LocalDate fromDate, @RequestParam LocalDate toDate) {
+        log.info("Received request for sales dashboard from={} to={}.", fromDate, toDate);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -112,6 +120,7 @@ public class SalesInvoiceController {
     @GetMapping("/reports/product-wise")
     public ResponseEntity<ApiResponse<List<ProductSalesReportResponse>>> productWiseReport(@RequestParam LocalDate fromDate,
                                                                                            @RequestParam LocalDate toDate) {
+        log.info("Received request for product-wise sales report from={} to={}.", fromDate, toDate);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -124,6 +133,7 @@ public class SalesInvoiceController {
     public ResponseEntity<ApiResponse<List<CustomerSalesReportResponse>>> customerWiseReport(
             @RequestParam LocalDate fromDate,
             @RequestParam LocalDate toDate) {
+        log.info("Received request for customer-wise sales report from={} to={}.", fromDate, toDate);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -136,6 +146,7 @@ public class SalesInvoiceController {
     public ResponseEntity<ApiResponse<List<DailySalesReportResponse>>> dailyReport(
             @RequestParam LocalDate fromDate,
             @RequestParam LocalDate toDate) {
+        log.info("Received request for daily sales report from={} to={}.", fromDate, toDate);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -145,6 +156,7 @@ public class SalesInvoiceController {
 
     @GetMapping("/reports/monthly")
     public ResponseEntity<ApiResponse<List<MonthlySalesReportResponse>>> monthlyReport() {
+        log.info("Received request for monthly sales report.");
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -156,6 +168,7 @@ public class SalesInvoiceController {
     @GetMapping("/number/{invoiceNo}")
     public ResponseEntity<ApiResponse<SalesInvoiceResponse>> getByInvoiceNumber(
             @PathVariable String invoiceNo) {
+        log.info("Received request to fetch sales invoice by number={}.", invoiceNo);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -167,6 +180,7 @@ public class SalesInvoiceController {
     @PatchMapping("/{uuid}/lock")
     public ResponseEntity<ApiResponse<SalesInvoiceResponse>> lock(
             @PathVariable UUID uuid) {
+        log.info("Received request to lock sales invoice with uuid={}.", uuid);
 
         return ResponseEntity.ok(
                 ApiResponse.success(

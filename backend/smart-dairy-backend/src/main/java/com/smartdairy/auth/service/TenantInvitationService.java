@@ -14,6 +14,7 @@ import com.smartdairy.exception.ResourceNotFoundException;
 import com.smartdairy.tenant.entity.Tenant;
 import com.smartdairy.tenant.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class TenantInvitationService {
 
@@ -37,6 +39,7 @@ public class TenantInvitationService {
 
     @Transactional
     public TenantInvitationResponse create(UUID tenantUuid, CreateTenantInvitationRequest request, Authentication authentication) {
+        log.info("Creating invitation in tenant={} by inviter={}.", tenantUuid, authentication.getName());
         AppUser inviter = getAuthenticatedUser(authentication);
         Tenant tenant = getActiveTenant(tenantUuid);
         UserTenant inviterAccess = requireTenantAccess(inviter, tenantUuid);
@@ -103,77 +106,98 @@ public class TenantInvitationService {
 
     @Transactional
     public TenantInvitationResponse accept(UUID invitationToken, Authentication authentication) {
-        AppUser user = getAuthenticatedUser(authentication);
-        TenantInvitation invitation = getInvitation(invitationToken);
-        ensureNotExpired(invitation);
-        ensureInvitationBelongsToUser(invitation, user);
+        log.info("Accepting invitation token={} by user={}.", invitationToken, authentication.getName());
+        try {
+            AppUser user = getAuthenticatedUser(authentication);
+            TenantInvitation invitation = getInvitation(invitationToken);
+            ensureNotExpired(invitation);
+            ensureInvitationBelongsToUser(invitation, user);
 
-        if (user.hasAccessToTenant(invitation.getTenantUuid())) {
+            if (user.hasAccessToTenant(invitation.getTenantUuid())) {
+                invitation.setStatus(TenantInvitationStatus.ACCEPTED);
+                invitation.setAcceptedByUser(user);
+                invitation.setRespondedAt(LocalDateTime.now());
+                return toResponse(tenantInvitationRepository.save(invitation));
+            }
+
+            Tenant tenant = invitation.getTenant();
+            UserTenant userTenant = new UserTenant();
+            userTenant.setAppUser(user);
+            userTenant.setTenant(tenant);
+            userTenant.setTenantUuid(tenant.getUuid());
+            userTenant.setRole(invitation.getRole());
+            userTenant.setPermissions(invitation.getPermissions());
+            userTenant.setIsOwner(invitation.getRole() == UserTenantRole.OWNER);
+            userTenant.setIsAdmin(invitation.getRole() == UserTenantRole.ADMIN || invitation.getRole() == UserTenantRole.OWNER);
+            userTenant.setIsPrimary(!hasAnyActiveTenantAccess(user));
+            userTenant.setActive(Boolean.TRUE);
+
+            user.getUserTenants().add(userTenant);
+            if (Boolean.TRUE.equals(userTenant.getIsPrimary())) {
+                user.setDefaultTenantUuid(tenant.getUuid());
+            }
+
+            appUserRepository.save(user);
+
             invitation.setStatus(TenantInvitationStatus.ACCEPTED);
             invitation.setAcceptedByUser(user);
             invitation.setRespondedAt(LocalDateTime.now());
+
             return toResponse(tenantInvitationRepository.save(invitation));
+        } catch (RuntimeException ex) {
+            log.warn("Failed to accept invitation token={} by user={}: {}", invitationToken, authentication.getName(), ex.getMessage());
+            throw ex;
         }
-
-        Tenant tenant = invitation.getTenant();
-        UserTenant userTenant = new UserTenant();
-        userTenant.setAppUser(user);
-        userTenant.setTenant(tenant);
-        userTenant.setTenantUuid(tenant.getUuid());
-        userTenant.setRole(invitation.getRole());
-        userTenant.setPermissions(invitation.getPermissions());
-        userTenant.setIsOwner(invitation.getRole() == UserTenantRole.OWNER);
-        userTenant.setIsAdmin(invitation.getRole() == UserTenantRole.ADMIN || invitation.getRole() == UserTenantRole.OWNER);
-        userTenant.setIsPrimary(!hasAnyActiveTenantAccess(user));
-        userTenant.setActive(Boolean.TRUE);
-
-        user.getUserTenants().add(userTenant);
-        if (Boolean.TRUE.equals(userTenant.getIsPrimary())) {
-            user.setDefaultTenantUuid(tenant.getUuid());
-        }
-
-        appUserRepository.save(user);
-
-        invitation.setStatus(TenantInvitationStatus.ACCEPTED);
-        invitation.setAcceptedByUser(user);
-        invitation.setRespondedAt(LocalDateTime.now());
-
-        return toResponse(tenantInvitationRepository.save(invitation));
     }
 
     @Transactional
     public TenantInvitationResponse reject(UUID invitationToken, Authentication authentication) {
-        AppUser user = getAuthenticatedUser(authentication);
-        TenantInvitation invitation = getInvitation(invitationToken);
-        ensureNotExpired(invitation);
-        ensureInvitationBelongsToUser(invitation, user);
+        log.info("Rejecting invitation token={} by user={}.", invitationToken, authentication.getName());
+        try {
+            AppUser user = getAuthenticatedUser(authentication);
+            TenantInvitation invitation = getInvitation(invitationToken);
+            ensureNotExpired(invitation);
+            ensureInvitationBelongsToUser(invitation, user);
 
-        invitation.setStatus(TenantInvitationStatus.REJECTED);
-        invitation.setAcceptedByUser(user);
-        invitation.setRespondedAt(LocalDateTime.now());
-        invitation.setActive(Boolean.FALSE);
+            invitation.setStatus(TenantInvitationStatus.REJECTED);
+            invitation.setAcceptedByUser(user);
+            invitation.setRespondedAt(LocalDateTime.now());
+            invitation.setActive(Boolean.FALSE);
 
-        return toResponse(tenantInvitationRepository.save(invitation));
+            return toResponse(tenantInvitationRepository.save(invitation));
+        } catch (RuntimeException ex) {
+            log.warn("Failed to reject invitation token={} by user={}: {}", invitationToken, authentication.getName(), ex.getMessage());
+            throw ex;
+        }
     }
 
     @Transactional
     public TenantInvitationResponse cancel(UUID tenantUuid, UUID invitationToken, Authentication authentication) {
-        AppUser requester = getAuthenticatedUser(authentication);
-        requireCanManageTenant(requester, tenantUuid);
+        log.info("Cancelling invitation token={} in tenant={} by user={}.", invitationToken, tenantUuid, authentication.getName());
+        try {
+            AppUser requester = getAuthenticatedUser(authentication);
+            requireCanManageTenant(requester, tenantUuid);
 
-        TenantInvitation invitation = getInvitation(invitationToken);
-        if (!invitation.getTenantUuid().equals(tenantUuid)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Invitation not found for this shop");
+            TenantInvitation invitation = getInvitation(invitationToken);
+            if (!invitation.getTenantUuid().equals(tenantUuid)) {
+                log.warn("Invitation token={} not found in tenant={} for user={}.", invitationToken, tenantUuid, authentication.getName());
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Invitation not found for this shop");
+            }
+            if (invitation.getStatus() != TenantInvitationStatus.PENDING) {
+                log.warn("Invitation token={} in tenant={} cannot be cancelled because status={} for user={}.",
+                        invitationToken, tenantUuid, invitation.getStatus(), authentication.getName());
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Only pending invitations can be cancelled");
+            }
+
+            invitation.setStatus(TenantInvitationStatus.CANCELLED);
+            invitation.setRespondedAt(LocalDateTime.now());
+            invitation.setActive(Boolean.FALSE);
+
+            return toResponse(tenantInvitationRepository.save(invitation));
+        } catch (RuntimeException ex) {
+            log.warn("Failed to cancel invitation token={} in tenant={} by user={}: {}", invitationToken, tenantUuid, authentication.getName(), ex.getMessage());
+            throw ex;
         }
-        if (invitation.getStatus() != TenantInvitationStatus.PENDING) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only pending invitations can be cancelled");
-        }
-
-        invitation.setStatus(TenantInvitationStatus.CANCELLED);
-        invitation.setRespondedAt(LocalDateTime.now());
-        invitation.setActive(Boolean.FALSE);
-
-        return toResponse(tenantInvitationRepository.save(invitation));
     }
 
     private AppUser getAuthenticatedUser(Authentication authentication) {

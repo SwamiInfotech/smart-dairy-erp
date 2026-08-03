@@ -17,6 +17,7 @@ import com.smartdairy.tenant.entity.Tenant;
 import com.smartdairy.tenant.repository.TenantRepository;
 import com.smartdairy.tenant.service.TenantDefaultMasterDataService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -28,6 +29,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class PublicOnboardingService {
 
@@ -45,6 +47,7 @@ public class PublicOnboardingService {
     @Transactional
     public PublicOnboardingResponse onboard(PublicOnboardingRequest request) {
         String tenantCode = request.tenantCode().trim();
+        log.info("Starting onboarding for tenant code={}.", tenantCode);
         String tenantName = request.tenantName().trim();
         String companyCode = request.companyCode().trim();
         String companyName = request.companyName().trim();
@@ -61,6 +64,7 @@ public class PublicOnboardingService {
             tenant.setName(tenantName);
             tenant.setActive(Boolean.TRUE);
             Tenant savedTenant = tenantRepository.save(tenant);
+            log.info("Tenant created with uuid={}, code={}.", savedTenant.getUuid(), savedTenant.getCode());
 
             Company company = new Company();
             company.setTenantUuid(savedTenant.getUuid());
@@ -122,6 +126,7 @@ public class PublicOnboardingService {
             createDefaultMilkTypes(savedTenant.getUuid());
 
             LocalDate trialStart = LocalDate.now();
+            log.info("Onboarding completed successfully for tenant={}.", savedTenant.getCode());
 
             return new PublicOnboardingResponse(
                     savedTenant.getUuid(),

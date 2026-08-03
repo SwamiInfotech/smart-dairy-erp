@@ -12,6 +12,7 @@ import com.smartdairy.company.entity.Company;
 import com.smartdairy.company.repository.CompanyRepository;
 import com.smartdairy.security.jwt.JwtService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AuthService {
 
@@ -33,6 +35,7 @@ public class AuthService {
     private final BranchRepository branchRepository;
 
     public AuthTokenResponse login(LoginRequest request) {
+        log.info("Processing login for user={}.", request.username());
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.username(), request.password())
         );

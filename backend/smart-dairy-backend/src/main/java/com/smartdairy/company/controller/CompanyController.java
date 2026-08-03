@@ -6,6 +6,7 @@ import com.smartdairy.company.dto.CreateCompanyRequest;
 import com.smartdairy.company.service.CreateCompanyService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDateTime;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/v1/companies")
 @RequiredArgsConstructor
 public class CompanyController {
@@ -25,6 +27,7 @@ public class CompanyController {
     @PostMapping
     public ResponseEntity<ApiResponse<CompanyResponse>> create(
             @Valid @RequestBody CreateCompanyRequest request) {
+        log.info("Received request to create company.");
 
         CompanyResponse response = service.create(request);
 

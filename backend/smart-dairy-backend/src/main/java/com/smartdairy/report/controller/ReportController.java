@@ -6,12 +6,14 @@ import com.smartdairy.report.service.GetCustomerSalesReportService;
 import com.smartdairy.report.service.GetProductSalesReportService;
 import com.smartdairy.report.service.GetSalesSummaryReportService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/v1/reports")
 @RequiredArgsConstructor
 public class ReportController {
@@ -24,6 +26,7 @@ public class ReportController {
     @PostMapping("/sales-summary")
     public ResponseEntity<ApiResponse<SalesSummaryReportResponse>> salesSummary(
             @RequestBody SalesSummaryReportRequest request) {
+        log.info("Received request to generate sales summary report.");
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -35,6 +38,7 @@ public class ReportController {
     @PostMapping("/customer-sales")
     public ResponseEntity<ApiResponse<List<CustomerSalesReportResponse>>> customerSales(
             @RequestBody CustomerSalesReportRequest request) {
+        log.info("Received request to generate customer sales report.");
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -46,6 +50,7 @@ public class ReportController {
     @PostMapping("/product-sales")
     public ResponseEntity<ApiResponse<List<ProductSalesReportResponse>>> productSales(
             @RequestBody ProductSalesReportRequest request) {
+        log.info("Received request to generate product sales report.");
 
         return ResponseEntity.ok(
                 ApiResponse.success(

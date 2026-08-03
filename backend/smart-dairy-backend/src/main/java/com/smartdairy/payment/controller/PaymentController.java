@@ -9,6 +9,7 @@ import com.smartdairy.payment.service.GetPaymentService;
 import com.smartdairy.payment.service.SearchPaymentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/v1/payments")
 @RequiredArgsConstructor
 public class PaymentController {
@@ -31,6 +33,7 @@ public class PaymentController {
     @PostMapping
     public ResponseEntity<ApiResponse<PaymentResponse>> create(
             @Valid @RequestBody CreatePaymentRequest request) {
+        log.info("Received request to create payment.");
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
@@ -41,6 +44,7 @@ public class PaymentController {
     @GetMapping("/{uuid}")
     public ResponseEntity<ApiResponse<PaymentResponse>> getByUuid(
             @PathVariable UUID uuid) {
+        log.info("Received request to fetch payment with uuid={}.", uuid);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -52,6 +56,7 @@ public class PaymentController {
     public ResponseEntity<ApiResponse<Page<PaymentResponse>>> search(
             PaymentSearchRequest request,
             Pageable pageable) {
+        log.info("Received request to search payments.");
 
         return ResponseEntity.ok(
                 ApiResponse.success(

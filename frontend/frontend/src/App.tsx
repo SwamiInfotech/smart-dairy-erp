@@ -2418,6 +2418,11 @@ function App() {
     if (!token) return
 
     const created = await runAction(async () => {
+      const selectedBranchContext = branchName || currentShop?.name || milkRateForm.branchUuid.trim()
+      if (!selectedBranchContext) {
+        throw new Error('Branch context is required for milk rate chart.')
+      }
+
       if (!milkRateForm.branchUuid.trim()) {
         throw new Error('Branch UUID is required for milk rate chart.')
       }
@@ -2466,6 +2471,10 @@ function App() {
         throw new Error('Effective from date is required.')
       }
 
+      if (!milkRateForm.effectiveTo.trim()) {
+        throw new Error('Effective to date is required.')
+      }
+
       if (milkRateForm.effectiveTo.trim() && milkRateForm.effectiveTo < milkRateForm.effectiveFrom) {
         throw new Error('Effective to date cannot be before effective from date.')
       }
@@ -2478,6 +2487,24 @@ function App() {
       const rate = Number(firstDetail.rate)
       if (!Number.isFinite(rate) || rate <= 0) {
         throw new Error('Rate must be greater than 0.')
+      }
+
+      if (qualityVisibility.showFat) {
+        if (firstDetail.fatFrom === null || firstDetail.fatTo === null) {
+          throw new Error('FAT From and FAT To are required.')
+        }
+      }
+
+      if (qualityVisibility.showSnf) {
+        if (firstDetail.snfFrom === null || firstDetail.snfTo === null) {
+          throw new Error('SNF From and SNF To are required.')
+        }
+      }
+
+      if (qualityVisibility.showMava) {
+        if (firstDetail.mavaFrom === null || firstDetail.mavaTo === null) {
+          throw new Error('Mava From and Mava To are required.')
+        }
       }
 
       const detailFields = [
@@ -3954,6 +3981,7 @@ function App() {
                       <label className="milk-rate-field">
                         <span>Effective To</span>
                         <input
+                          required
                           type="date"
                           value={milkRateForm.effectiveTo}
                           onChange={(event) =>
@@ -3969,7 +3997,7 @@ function App() {
                           type="number"
                           step="0.01"
                           min="0.01"
-                          value={milkRateForm.details[0]?.rate ?? 0}
+                          value={milkRateForm.details[0]?.rate ?? ''}
                           onChange={(event) =>
                             setMilkRateForm((prev) => ({
                               ...prev,
@@ -4005,6 +4033,7 @@ function App() {
                           <div className="milk-rate-range">
                             <input
                               id="milk-rate-fat-from"
+                              required
                               type="number"
                               step="0.1"
                               min="0"
@@ -4032,6 +4061,7 @@ function App() {
                             />
                             <input
                               id="milk-rate-fat-to"
+                              required
                               type="number"
                               step="0.1"
                               min="0"
@@ -4067,6 +4097,7 @@ function App() {
                           <div className="milk-rate-range">
                             <input
                               id="milk-rate-snf-from"
+                              required
                               type="number"
                               step="0.1"
                               min="0"
@@ -4094,6 +4125,7 @@ function App() {
                             />
                             <input
                               id="milk-rate-snf-to"
+                              required
                               type="number"
                               step="0.1"
                               min="0"
@@ -4129,6 +4161,7 @@ function App() {
                           <div className="milk-rate-range">
                             <input
                               id="milk-rate-mava-from"
+                              required
                               type="number"
                               step="0.1"
                               min="0"
@@ -4156,6 +4189,7 @@ function App() {
                             />
                             <input
                               id="milk-rate-mava-to"
+                              required
                               type="number"
                               step="0.1"
                               min="0"
