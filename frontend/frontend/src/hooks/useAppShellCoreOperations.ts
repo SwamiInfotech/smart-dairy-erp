@@ -54,6 +54,8 @@ export function useAppShellCoreOperations(state: AppShellState) {
     setTenants: entities.setTenants,
     setFarmers: entities.setFarmers,
     setSales: entities.setSales,
+    setInventoryTransactions: entities.setInventoryTransactions,
+    setInventoryCurrentStock: entities.setInventoryCurrentStock,
     setCollections: entities.setCollections,
     setMilkTypes: entities.setMilkTypes,
     setShifts: entities.setShifts,

@@ -48,6 +48,7 @@ export function useAppShellCommercialOperations(state: AppShellState) {
     setTenantForm: forms.setTenantForm,
     setEditingTenantUuid: forms.setEditingTenantUuid,
     setSales: entities.setSales,
+    setInventoryTransactions: entities.setInventoryTransactions,
     setSalesForm: forms.setSalesForm,
   })
 
@@ -77,6 +78,7 @@ export function useAppShellCommercialOperations(state: AppShellState) {
     milkTypes: entities.milkTypes,
     selectedCollectionMethod: forms.selectedCollectionMethod,
     runAction,
+    setError: session.setError,
     setCollections: entities.setCollections,
     setCollectionForm: forms.setCollectionForm,
   })

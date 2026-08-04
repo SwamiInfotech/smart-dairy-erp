@@ -3,8 +3,10 @@ import { useCallback } from 'react'
 import { api } from '../lib/api'
 import { resolveCustomerSelection } from '../lib/uiHelpers'
 import type {
+  CreateInventoryTransactionRequest,
   CreateSalesInvoiceItemRequest,
   CustomerResponse,
+  InventoryTransactionResponse,
   ProductResponse,
   SalesInvoiceResponse,
   TenantResponse,
@@ -66,6 +68,7 @@ type UseCommercialCrudParams = {
   setTenantForm: React.Dispatch<React.SetStateAction<CreateTenantRequest>>
   setEditingTenantUuid: React.Dispatch<React.SetStateAction<string>>
   setSales: React.Dispatch<React.SetStateAction<SalesInvoiceResponse[]>>
+  setInventoryTransactions: React.Dispatch<React.SetStateAction<InventoryTransactionResponse[]>>
   setSalesForm: React.Dispatch<React.SetStateAction<SalesForm>>
 }
 
@@ -88,6 +91,7 @@ export function useCommercialCrud({
   setTenantForm,
   setEditingTenantUuid,
   setSales,
+  setInventoryTransactions,
   setSalesForm,
 }: UseCommercialCrudParams) {
   const onCreateProduct = useCallback(
@@ -216,6 +220,25 @@ export function useCommercialCrud({
     [branchUuid, customers, runAction, salesCustomerInput, salesForm, setError, setSales, token],
   )
 
+  const onCreateInventoryTransaction = useCallback(
+    async (payload: CreateInventoryTransactionRequest) => {
+      if (!token) return
+
+      const created = await runAction(
+        () => api.createInventoryTransaction(token, payload),
+        'Inventory transaction created successfully.',
+      )
+
+      if (!created) return
+
+      setInventoryTransactions((prev) => {
+        const remaining = prev.filter((item) => item.uuid !== created.uuid)
+        return [created, ...remaining]
+      })
+    },
+    [runAction, setInventoryTransactions, token],
+  )
+
   const updateSalesItem = useCallback(
     (index: number, field: keyof CreateSalesInvoiceItemRequest, value: string) => {
       setSalesForm((prev) => {
@@ -247,6 +270,7 @@ export function useCommercialCrud({
     onEditTenant,
     onCancelTenantEdit,
     onCreateSales,
+    onCreateInventoryTransaction,
     updateSalesItem,
     addSalesItemRow,
   }

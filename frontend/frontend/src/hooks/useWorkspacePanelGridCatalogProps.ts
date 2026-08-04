@@ -25,6 +25,8 @@ export function useWorkspacePanelGridCatalogProps({
     products: entities.products,
     customers: entities.customers,
     sales: entities.sales,
+    inventoryTransactions: entities.inventoryTransactions,
+    inventoryCurrentStock: entities.inventoryCurrentStock,
     loadDashboard: ops.dataLoading.loadDashboard,
     openPrimarySection: ops.shell.openPrimarySection,
     productForm: forms.productForm,
@@ -54,6 +56,14 @@ export function useWorkspacePanelGridCatalogProps({
       collectionComputation.isCollectionDateWithinRateChart,
     onCollectionFarmerChange: ops.collectionFarmerSelection.onCollectionFarmerChange,
     onCreateCollection: ops.collectionCrud.onCreateCollection,
+    onCreateMultipleCollections: ops.collectionCrud.onCreateMultipleCollections,
+    editingCollectionUuid: ops.collectionCrud.editingCollectionUuid,
+    onEditCollection: ops.collectionCrud.onEditCollection,
+    onCancelCollectionEdit: ops.collectionCrud.onCancelCollectionEdit,
+    onDeleteCollection: ops.collectionCrud.onDeleteCollection,
     loadCollections: ops.dataLoading.loadCollections,
+    loadInventoryTransactions: ops.dataLoading.loadInventoryTransactions,
+    loadInventoryCurrentStock: ops.dataLoading.loadInventoryCurrentStock,
+    onCreateInventoryTransaction: ops.commercialCrud.onCreateInventoryTransaction,
   }
 }

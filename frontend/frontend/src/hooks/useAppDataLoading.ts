@@ -4,6 +4,8 @@ import type {
   CollectionMethodResponse,
   CustomerResponse,
   FarmerResponse,
+  InventoryCurrentStockResponse,
+  InventoryTransactionResponse,
   MilkRateChartResponse,
   MilkTypeResponse,
   PaymentCycleResponse,
@@ -42,6 +44,8 @@ type UseAppDataLoadingParams = {
   setTenants: React.Dispatch<React.SetStateAction<TenantResponse[]>>
   setFarmers: React.Dispatch<React.SetStateAction<FarmerResponse[]>>
   setSales: React.Dispatch<React.SetStateAction<SalesInvoiceResponse[]>>
+  setInventoryTransactions: React.Dispatch<React.SetStateAction<InventoryTransactionResponse[]>>
+  setInventoryCurrentStock: React.Dispatch<React.SetStateAction<InventoryCurrentStockResponse[]>>
   setCollections: React.Dispatch<React.SetStateAction<CollectionListItem[]>>
   setMilkTypes: React.Dispatch<React.SetStateAction<MilkTypeResponse[]>>
   setShifts: React.Dispatch<React.SetStateAction<ShiftResponse[]>>
@@ -65,6 +69,8 @@ export function useAppDataLoading({
   setTenants,
   setFarmers,
   setSales,
+  setInventoryTransactions,
+  setInventoryCurrentStock,
   setCollections,
   setMilkTypes,
   setShifts,
@@ -197,6 +203,22 @@ export function useAppDataLoading({
     }
   }, [runAction, setSales, token])
 
+  const loadInventoryTransactions = useCallback(async () => {
+    if (!token) return
+    const result = await runAction(() => api.searchInventoryTransactions(token))
+    if (result) {
+      setInventoryTransactions(result)
+    }
+  }, [runAction, setInventoryTransactions, token])
+
+  const loadInventoryCurrentStock = useCallback(async () => {
+    if (!token) return
+    const result = await runAction(() => api.searchInventoryCurrentStock(token))
+    if (result) {
+      setInventoryCurrentStock(result)
+    }
+  }, [runAction, setInventoryCurrentStock, token])
+
   const loadMilkRateLookups = useCallback(async () => {
     if (!token) return
     const [rateCategoryList, collectionMethodList] = await Promise.all([
@@ -308,6 +330,12 @@ export function useAppDataLoading({
     void loadFarmerConfigLookups()
   }, [activeSidebarMenu, loadFarmerConfigLookups, token])
 
+  useEffect(() => {
+    if (!token || activeSidebarMenu !== 'inventory') return
+    void loadInventoryTransactions()
+    void loadInventoryCurrentStock()
+  }, [activeSidebarMenu, loadInventoryCurrentStock, loadInventoryTransactions, token])
+
   return {
     loadDashboard,
     loadProducts,
@@ -316,6 +344,8 @@ export function useAppDataLoading({
     loadFarmers,
     loadCollections,
     loadSales,
+    loadInventoryTransactions,
+    loadInventoryCurrentStock,
     loadCollectionMethodsView,
     loadPaymentCyclesView,
     loadShiftsView,

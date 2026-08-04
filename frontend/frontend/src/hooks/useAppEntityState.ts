@@ -4,6 +4,8 @@ import type {
   CollectionMethodResponse,
   CustomerResponse,
   FarmerResponse,
+  InventoryCurrentStockResponse,
+  InventoryTransactionResponse,
   MilkRateChartResponse,
   MilkTypeResponse,
   PaymentCycleResponse,
@@ -36,6 +38,8 @@ export function useAppEntityState() {
   const [tenants, setTenants] = useState<TenantResponse[]>([])
   const [farmers, setFarmers] = useState<FarmerResponse[]>([])
   const [sales, setSales] = useState<SalesInvoiceResponse[]>([])
+  const [inventoryTransactions, setInventoryTransactions] = useState<InventoryTransactionResponse[]>([])
+  const [inventoryCurrentStock, setInventoryCurrentStock] = useState<InventoryCurrentStockResponse[]>([])
   const [collections, setCollections] = useState<CollectionListItem[]>([])
   const [milkTypes, setMilkTypes] = useState<MilkTypeResponse[]>([])
   const [shifts, setShifts] = useState<ShiftResponse[]>([])
@@ -61,6 +65,10 @@ export function useAppEntityState() {
     setFarmers,
     sales,
     setSales,
+    inventoryTransactions,
+    setInventoryTransactions,
+    inventoryCurrentStock,
+    setInventoryCurrentStock,
     collections,
     setCollections,
     milkTypes,

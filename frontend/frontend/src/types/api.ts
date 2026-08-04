@@ -106,6 +106,39 @@ export type ProductResponse = {
   active: boolean
 }
 
+export type InventoryTransactionDirection = 'IN' | 'OUT' | 'ADJUSTMENT'
+
+export type InventoryTransactionResponse = {
+  uuid: string
+  transactionDate: string
+  direction: InventoryTransactionDirection
+  productUuid: string
+  productCode: string
+  productName: string
+  quantity: number
+  unitRate: number
+  amount: number
+  referenceNo: string
+  remarks: string
+}
+
+export type InventoryCurrentStockResponse = {
+  productUuid: string
+  productCode: string
+  productName: string
+  currentStock: number
+}
+
+export type CreateInventoryTransactionRequest = {
+  transactionDate: string
+  direction: InventoryTransactionDirection
+  productUuid: string
+  quantity: number
+  unitRate: number
+  referenceNo: string
+  remarks: string
+}
+
 export type CreateProductRequest = {
   productCode: string
   productName: string

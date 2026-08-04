@@ -99,26 +99,32 @@ export function WorkspaceSidebar({
             </section>
           ))
         ) : (
-          <div className="collapsed-menu-grid">
-            {Array.from(new Set(sidebarGroups.flatMap((group) => group.items))).map((key) => {
-              const isUiTab = key in tabLabels
-              const label = isUiTab ? tabLabels[key as keyof typeof tabLabels] : key
-              const iconClass = iconMap[key] || 'icon-generic'
+          <div className="collapsed-sidebar-groups" aria-label="Collapsed navigation groups">
+            {sidebarGroups.map((group) => (
+              <section className="collapsed-sidebar-group" key={group.title} aria-label={group.title}>
+                <div className="collapsed-menu-grid">
+                  {group.items.map((key) => {
+                    const isUiTab = key in tabLabels
+                    const label = isUiTab ? tabLabels[key as keyof typeof tabLabels] : key
+                    const iconClass = iconMap[key] || 'icon-generic'
 
-              return (
-                <button
-                  type="button"
-                  key={key}
-                  title={label}
-                  aria-label={label}
-                  data-label={label}
-                  className={activeSidebarMenu === key ? 'menu-btn collapsed-menu-btn active' : 'menu-btn collapsed-menu-btn'}
-                  onClick={() => onSelectSidebarMenu(key, isUiTab)}
-                >
-                  <span aria-hidden="true" className={`collapsed-menu-icon ${iconClass}`} />
-                </button>
-              )
-            })}
+                    return (
+                      <button
+                        type="button"
+                        key={key}
+                        title={`${group.title}: ${label}`}
+                        aria-label={`${group.title}: ${label}`}
+                        data-label={label}
+                        className={activeSidebarMenu === key ? 'menu-btn collapsed-menu-btn active' : 'menu-btn collapsed-menu-btn'}
+                        onClick={() => onSelectSidebarMenu(key, isUiTab)}
+                      >
+                        <span aria-hidden="true" className={`collapsed-menu-icon ${iconClass}`} />
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         )}
       </div>

@@ -80,14 +80,12 @@ export function useCollectionComputation<TCollectionForm extends CollectionFormS
 
   const calculatedCollectionAmount = useMemo(() => {
     const quantity = Number(collectionForm.quantity) || 0
-    const qualityValue = activeCollectionQuality.value
-
-    if (quantity <= 0 || qualityValue <= 0 || calculatedCollectionRate <= 0) {
+    if (quantity <= 0 || calculatedCollectionRate <= 0) {
       return 0
     }
 
-    return roundToTwo(quantity * qualityValue * calculatedCollectionRate)
-  }, [activeCollectionQuality.value, calculatedCollectionRate, collectionForm.quantity])
+    return roundToTwo(quantity * calculatedCollectionRate)
+  }, [calculatedCollectionRate, collectionForm.quantity])
 
   useEffect(() => {
     setCollectionForm((prev) => {

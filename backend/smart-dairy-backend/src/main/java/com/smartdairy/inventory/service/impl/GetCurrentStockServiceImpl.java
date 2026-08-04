@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -41,5 +42,10 @@ public class GetCurrentStockServiceImpl implements GetCurrentStockService {
                 product.getProductCode(),
                 product.getProductName(),
                 stock);
+    }
+
+    @Override
+    public List<CurrentStockResponse> getCurrentStockForAllProducts() {
+        return productRepository.getCurrentStockForAllProducts();
     }
 }

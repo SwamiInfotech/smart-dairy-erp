@@ -3,6 +3,7 @@ import { CollectionMethodsPanel } from './CollectionMethodsPanel'
 import { CustomersPage } from './CustomersPage'
 import { DashboardPage } from './DashboardPage'
 import { FarmersPage } from './FarmersPage'
+import { InventoryTransactionsPage } from './InventoryTransactionsPage'
 import { MilkCollectionsPage } from './MilkCollectionsPage'
 import { MilkRateChartsPage } from './MilkRateChartsPage'
 import { PaymentCyclesPanel } from './PaymentCyclesPanel'
@@ -13,6 +14,7 @@ import { ShiftsPanel } from './ShiftsPanel'
 import { TenantsPage } from './TenantsPage'
 import type {
   CollectionMethodResponse,
+  CreateInventoryTransactionRequest,
   CreateCollectionMethodRequest,
   CreateMilkRateChartRequest,
   CreatePaymentCycleRequest,
@@ -22,7 +24,8 @@ import type {
   CreateTenantRequest,
   CustomerResponse,
   FarmerResponse,
-  MasterLookupResponse,
+  InventoryCurrentStockResponse,
+  InventoryTransactionResponse,
   MilkRateChartResponse,
   MilkTypeResponse,
   PaymentCycleResponse,
@@ -48,8 +51,16 @@ type CollectionListItem = {
   uuid: string
   collectionNo: string
   farmerName: string
+  farmerUuid?: string
+  shiftUuid?: string
+  milkTypeUuid?: string
   collectionDate: string
+  collectionTime?: string
   quantity: number
+  fat?: number | null
+  snf?: number | null
+  mava?: number | null
+  remarks?: string | null
   grossAmount: number
 }
 
@@ -138,6 +149,8 @@ type WorkspacePanelGridProps = {
   products: ProductResponse[]
   customers: CustomerResponse[]
   sales: SalesInvoiceResponse[]
+  inventoryTransactions: InventoryTransactionResponse[]
+  inventoryCurrentStock: InventoryCurrentStockResponse[]
   loadDashboard: () => void | Promise<void>
   openPrimarySection: (section: TabKey) => void
   productForm: ProductFormState
@@ -156,16 +169,30 @@ type WorkspacePanelGridProps = {
   setCollectionForm: Dispatch<SetStateAction<CollectionFormState>>
   shifts: ShiftResponse[]
   milkTypes: MilkTypeResponse[]
-  selectedCollectionFarmer: FarmerResponse | null
-  selectedCollectionMilkRateChart: MilkRateChartResponse | null
-  selectedCollectionMethod: MasterLookupResponse | null
   collectionQualityVisibility: CollectionQualityVisibility
   calculatedCollectionRate: number
   calculatedCollectionAmount: number
   isCollectionDateWithinRateChart: boolean
   onCollectionFarmerChange: (event: ChangeEvent<HTMLSelectElement>) => void | Promise<void>
   onCreateCollection: (event: FormEvent<HTMLFormElement>) => void | Promise<void>
+  onCreateMultipleCollections: (entries: {
+    farmerUuid: string
+    quantity: number
+    fat: number
+    snf: number | null
+    mava: number
+    remarks: string
+  }[]) => void | Promise<void>
+  editingCollectionUuid: string
+  onEditCollection: (item: CollectionListItem) => void
+  onCancelCollectionEdit: () => void
+  onDeleteCollection: (item: CollectionListItem) => void | Promise<void>
   loadCollections: () => void | Promise<void>
+  loadInventoryTransactions: () => void | Promise<void>
+  loadInventoryCurrentStock: () => void | Promise<void>
+  onCreateInventoryTransaction: (
+    payload: CreateInventoryTransactionRequest,
+  ) => void | Promise<void>
   collectionMethods: CollectionMethodResponse[]
   collectionMethodForm: CreateCollectionMethodRequest
   editingCollectionMethodUuid: string
@@ -261,6 +288,8 @@ export function WorkspacePanelGrid({
   products,
   customers,
   sales,
+  inventoryTransactions,
+  inventoryCurrentStock,
   loadDashboard,
   openPrimarySection,
   productForm,
@@ -279,16 +308,21 @@ export function WorkspacePanelGrid({
   setCollectionForm,
   shifts,
   milkTypes,
-  selectedCollectionFarmer,
-  selectedCollectionMilkRateChart,
-  selectedCollectionMethod,
   collectionQualityVisibility,
   calculatedCollectionRate,
   calculatedCollectionAmount,
   isCollectionDateWithinRateChart,
   onCollectionFarmerChange,
   onCreateCollection,
+  onCreateMultipleCollections,
+  editingCollectionUuid,
+  onEditCollection,
+  onCancelCollectionEdit,
+  onDeleteCollection,
   loadCollections,
+  loadInventoryTransactions,
+  loadInventoryCurrentStock,
+  onCreateInventoryTransaction,
   collectionMethods,
   collectionMethodForm,
   editingCollectionMethodUuid,
@@ -418,10 +452,8 @@ export function WorkspacePanelGrid({
           farmers={farmers}
           shifts={shifts}
           milkTypes={milkTypes}
+          milkRateCharts={milkRateCharts}
           collections={collections}
-          selectedCollectionFarmer={selectedCollectionFarmer}
-          selectedCollectionMilkRateChart={selectedCollectionMilkRateChart}
-          selectedCollectionMethod={selectedCollectionMethod}
           collectionQualityVisibility={collectionQualityVisibility}
           calculatedCollectionRate={calculatedCollectionRate}
           calculatedCollectionAmount={calculatedCollectionAmount}
@@ -429,6 +461,11 @@ export function WorkspacePanelGrid({
           onCollectionFarmerChange={onCollectionFarmerChange}
           onOpenFarmerFromCollection={() => openPrimarySection('farmers')}
           onCreateCollection={onCreateCollection}
+          onCreateMultipleCollections={onCreateMultipleCollections}
+          editingCollectionUuid={editingCollectionUuid}
+          onEditCollection={onEditCollection}
+          onCancelCollectionEdit={onCancelCollectionEdit}
+          onDeleteCollection={onDeleteCollection}
           loadCollections={loadCollections}
         />
       )}
@@ -568,6 +605,18 @@ export function WorkspacePanelGrid({
           onSubmitTenant={onSubmitTenant}
           onEditTenant={onEditTenant}
           onCancelTenantEdit={onCancelTenantEdit}
+        />
+      )}
+
+      {activeSidebarMenu === 'inventory' && (
+        <InventoryTransactionsPage
+          busy={busy}
+          products={products}
+          transactions={inventoryTransactions}
+          currentStockRows={inventoryCurrentStock}
+          loadInventoryTransactions={loadInventoryTransactions}
+          loadInventoryCurrentStock={loadInventoryCurrentStock}
+          onCreateInventoryTransaction={onCreateInventoryTransaction}
         />
       )}
     </main>
