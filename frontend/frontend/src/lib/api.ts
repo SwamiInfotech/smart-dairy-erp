@@ -255,7 +255,10 @@ export const BACKEND_MODULES: Record<string, BackendModuleDefinition> = {
   milkRateCharts: {
     label: 'Milk Rate Charts',
     endpoints: [
+      { method: 'GET', path: '/api/v1/milk-rate-charts' },
       { method: 'POST', path: '/api/v1/milk-rate-charts' },
+      { method: 'PUT', path: '/api/v1/milk-rate-charts/{uuid}' },
+      { method: 'DELETE', path: '/api/v1/milk-rate-charts/{uuid}' },
     ],
   },
   shifts: {
@@ -1779,6 +1782,30 @@ export const api = {
       })),
     })
     return normalizeMilkRateChartResponse(response)
+  },
+
+  async updateMilkRateChart(token: string, uuid: string, payload: CreateMilkRateChartRequest) {
+    validateMilkRateChartPayload(payload)
+    const response = await request<unknown>('PUT', `/api/v1/milk-rate-charts/${uuid}`, token, {
+      ...payload,
+      chartName: payload.chartName.trim(),
+      effectiveTo: payload.effectiveTo.trim() ? payload.effectiveTo : null,
+      remarks: payload.remarks.trim(),
+      details: payload.details.map((detail) => ({
+        fatFrom: detail.fatFrom,
+        fatTo: detail.fatTo,
+        snfFrom: detail.snfFrom,
+        snfTo: detail.snfTo,
+        mavaFrom: detail.mavaFrom,
+        mavaTo: detail.mavaTo,
+        rate: detail.rate,
+      })),
+    })
+    return normalizeMilkRateChartResponse(response)
+  },
+
+  deleteMilkRateChart(token: string, uuid: string) {
+    return request<void>('DELETE', `/api/v1/milk-rate-charts/${uuid}`, token)
   },
 
   async getMilkRateCharts(token: string) {

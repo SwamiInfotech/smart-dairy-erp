@@ -6,6 +6,7 @@ import com.smartdairy.milkrate.mapper.MilkRateChartMapper;
 import com.smartdairy.milkrate.repository.MilkRateChartRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,7 @@ public class GetMilkRateChartByUuidService {
     private final MilkRateChartMapper mapper;
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = "milkRateCharts", key = "T(com.smartdairy.config.CacheKeys).tenantRecordKey(#uuid)")
     public MilkRateChartResponse getByUuid(UUID uuid) {
         log.info("Fetching milk rate chart by uuid={}", uuid);
         return repository.findByUuid(uuid)

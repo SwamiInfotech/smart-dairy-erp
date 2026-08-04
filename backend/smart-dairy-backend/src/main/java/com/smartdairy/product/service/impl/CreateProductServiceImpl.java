@@ -9,6 +9,7 @@ import com.smartdairy.product.repository.ProductRepository;
 import com.smartdairy.product.service.CreateProductService;
 import com.smartdairy.tenant.context.TenantContextHolder;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +24,7 @@ public class CreateProductServiceImpl implements CreateProductService {
     private final ProductMapper mapper;
 
     @Override
+    @CacheEvict(cacheNames = "products", key = "T(com.smartdairy.config.CacheKeys).tenantKey()")
     public ProductResponse create(CreateProductRequest request) {
         UUID tenantUuid = TenantContextHolder.getTenantUuidOrFallback();
 

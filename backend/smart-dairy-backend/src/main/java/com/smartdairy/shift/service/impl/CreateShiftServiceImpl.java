@@ -9,6 +9,7 @@ import com.smartdairy.shift.repository.ShiftRepository;
 import com.smartdairy.shift.service.CreateShiftService;
 import com.smartdairy.tenant.context.TenantContextHolder;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +24,7 @@ public class CreateShiftServiceImpl implements CreateShiftService {
     private final ShiftMapper mapper;
 
     @Override
+    @CacheEvict(cacheNames = "shifts", key = "T(com.smartdairy.config.CacheKeys).tenantKey()")
     public ShiftResponse create(CreateShiftRequest request) {
         UUID tenantUuid = TenantContextHolder.getTenantUuidOrFallback();
 

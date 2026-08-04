@@ -6,6 +6,7 @@ import com.smartdairy.product.mapper.ProductMapper;
 import com.smartdairy.product.repository.ProductRepository;
 import com.smartdairy.product.service.GetProductService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,7 @@ public class GetProductServiceImpl implements GetProductService {
     private final ProductMapper mapper;
 
     @Override
+    @Cacheable(cacheNames = "products", key = "T(com.smartdairy.config.CacheKeys).tenantRecordKey(#uuid)")
     public ProductResponse getByUuid(UUID uuid) {
 
         return repository.findByUuid(uuid)

@@ -5,6 +5,8 @@ import com.smartdairy.rateprofile.entity.RateCategory;
 import com.smartdairy.rateprofile.repository.RateCategoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +20,10 @@ public class DeleteRateCategoryService {
 
     private final RateCategoryRepository repository;
 
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "rateCategories", key = "T(com.smartdairy.config.CacheKeys).tenantKey()"),
+            @CacheEvict(cacheNames = "rateCategories", key = "T(com.smartdairy.config.CacheKeys).tenantRecordKey(#uuid)")
+    })
     public void delete(UUID uuid) {
         log.info("Deleting rate category with uuid={}", uuid);
 

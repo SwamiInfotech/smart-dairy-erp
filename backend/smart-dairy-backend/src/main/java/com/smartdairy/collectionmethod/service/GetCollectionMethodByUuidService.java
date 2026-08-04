@@ -6,6 +6,7 @@ import com.smartdairy.collectionmethod.repository.CollectionMethodRepository;
 import com.smartdairy.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,7 @@ public class GetCollectionMethodByUuidService {
     private final CollectionMethodRepository repository;
     private final CollectionMethodMapper mapper;
 
+    @Cacheable(cacheNames = "collectionMethods", key = "T(com.smartdairy.config.CacheKeys).tenantRecordKey(#uuid)")
     public CollectionMethodResponse getByUuid(UUID uuid) {
         log.info("Fetching collection method by uuid={}", uuid);
         return repository.findByUuid(uuid)

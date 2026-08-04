@@ -6,6 +6,8 @@ import com.smartdairy.product.repository.ProductRepository;
 import com.smartdairy.product.service.DeleteProductService;
 import com.smartdairy.product.service.ProductUsageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +22,10 @@ public class DeleteProductServiceImpl implements DeleteProductService {
     private final ProductUsageService productUsageService;
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "products", key = "T(com.smartdairy.config.CacheKeys).tenantKey()"),
+            @CacheEvict(cacheNames = "products", key = "T(com.smartdairy.config.CacheKeys).tenantRecordKey(#uuid)")
+    })
     public void delete(UUID uuid) {
 
         Product product = repository.findByUuid(uuid)

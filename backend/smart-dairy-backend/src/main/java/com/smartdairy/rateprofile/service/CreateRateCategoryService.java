@@ -9,6 +9,7 @@ import com.smartdairy.rateprofile.repository.RateCategoryRepository;
 import com.smartdairy.tenant.context.TenantContextHolder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,7 @@ public class CreateRateCategoryService {
     private final RateCategoryRepository repository;
     private final RateCategoryMapper mapper;
 
+    @CacheEvict(cacheNames = "rateCategories", key = "T(com.smartdairy.config.CacheKeys).tenantKey()")
     public RateCategoryResponse create(CreateRateCategoryRequest request) {
         log.info("Creating rate category with code={}", request.getCode());
 

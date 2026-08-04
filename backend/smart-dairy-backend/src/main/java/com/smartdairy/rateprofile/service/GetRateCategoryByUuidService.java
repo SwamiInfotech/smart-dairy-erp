@@ -6,6 +6,7 @@ import com.smartdairy.rateprofile.mapper.RateCategoryMapper;
 import com.smartdairy.rateprofile.repository.RateCategoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,7 @@ public class GetRateCategoryByUuidService {
     private final RateCategoryRepository repository;
     private final RateCategoryMapper mapper;
 
+    @Cacheable(cacheNames = "rateCategories", key = "T(com.smartdairy.config.CacheKeys).tenantRecordKey(#uuid)")
     public RateCategoryResponse getByUuid(UUID uuid) {
         log.info("Fetching rate category by uuid={}", uuid);
         return repository.findByUuid(uuid)

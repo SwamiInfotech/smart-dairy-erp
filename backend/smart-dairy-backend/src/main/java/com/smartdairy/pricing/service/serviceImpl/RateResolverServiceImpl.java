@@ -7,10 +7,9 @@ import com.smartdairy.farmer.repository.FarmerRepository;
 import com.smartdairy.farmerconfiguration.entity.FarmerConfiguration;
 import com.smartdairy.farmerconfiguration.repository.FarmerConfigurationRepository;
 import com.smartdairy.milkrate.entity.MilkRateChart;
-import com.smartdairy.milkrate.entity.MilkRateChartDetail;
-import com.smartdairy.milkrate.repository.MilkRateChartDetailRepository;
 import com.smartdairy.milkrate.repository.MilkRateChartRepository;
 import com.smartdairy.pricing.dto.RateCalculationResult;
+import com.smartdairy.pricing.service.PricingRateDetailCacheService;
 import com.smartdairy.pricing.service.RateResolverService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,7 +28,7 @@ public class RateResolverServiceImpl implements RateResolverService {
     private final FarmerRepository farmerRepository;
     private final FarmerConfigurationRepository farmerConfigurationRepository;
     private final MilkRateChartRepository milkRateChartRepository;
-    private final MilkRateChartDetailRepository milkRateChartDetailRepository;
+    private final PricingRateDetailCacheService pricingRateDetailCacheService;
 
 
     @Override
@@ -54,12 +53,7 @@ public class RateResolverServiceImpl implements RateResolverService {
         MilkRateChart chart =
                 findMilkRateChart(configuration, collectionDate);
 
-        MilkRateChartDetail detail =
-                milkRateChartDetailRepository
-                        .findFatRate(chart.getId(), fat, snf)
-                        .orElseThrow(() ->
-                                new BusinessException(
-                                        "No FAT rate found for the given FAT/SNF."));
+        var detail = pricingRateDetailCacheService.findFatRate(chart.getId(), fat, snf);
 
         BigDecimal amount = calculateAmount(quantity, detail.getRate());
 
@@ -86,12 +80,7 @@ public class RateResolverServiceImpl implements RateResolverService {
         MilkRateChart chart =
                 findMilkRateChart(configuration, collectionDate);
 
-        MilkRateChartDetail detail =
-                milkRateChartDetailRepository
-                        .findMavaRate(chart.getId(), mava)
-                        .orElseThrow(() ->
-                                new BusinessException(
-                                        "No MAVA rate found."));
+        var detail = pricingRateDetailCacheService.findMavaRate(chart.getId(), mava);
 
         BigDecimal amount = calculateAmount(quantity, detail.getRate());
 

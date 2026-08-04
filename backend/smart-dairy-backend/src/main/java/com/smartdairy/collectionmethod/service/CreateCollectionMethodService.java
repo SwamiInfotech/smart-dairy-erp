@@ -9,6 +9,7 @@ import com.smartdairy.exception.BusinessException;
 import com.smartdairy.tenant.context.TenantContextHolder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,7 @@ public class CreateCollectionMethodService {
     private final CollectionMethodRepository repository;
     private final CollectionMethodMapper mapper;
 
+    @CacheEvict(cacheNames = "collectionMethods", key = "T(com.smartdairy.config.CacheKeys).tenantKey()")
     public CollectionMethodResponse create(CreateCollectionMethodRequest request) {
         log.info("Creating collection method with code={}", request.getCode());
 

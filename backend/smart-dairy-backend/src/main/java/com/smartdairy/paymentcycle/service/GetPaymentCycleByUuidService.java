@@ -6,6 +6,7 @@ import com.smartdairy.paymentcycle.mapper.PaymentCycleMapper;
 import com.smartdairy.paymentcycle.repository.PaymentCycleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,7 @@ public class GetPaymentCycleByUuidService {
     private final PaymentCycleRepository repository;
     private final PaymentCycleMapper mapper;
 
+    @Cacheable(cacheNames = "paymentCycles", key = "T(com.smartdairy.config.CacheKeys).tenantRecordKey(#uuid)")
     public PaymentCycleResponse getByUuid(UUID uuid) {
         log.info("Fetching payment cycle by uuid={}", uuid);
         return repository.findByUuid(uuid)

@@ -9,6 +9,7 @@ import com.smartdairy.paymentcycle.repository.PaymentCycleRepository;
 import com.smartdairy.tenant.context.TenantContextHolder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,7 @@ public class CreatePaymentCycleService {
     private final PaymentCycleRepository repository;
     private final PaymentCycleMapper mapper;
 
+    @CacheEvict(cacheNames = "paymentCycles", key = "T(com.smartdairy.config.CacheKeys).tenantKey()")
     public PaymentCycleResponse create(CreatePaymentCycleRequest request) {
         log.info("Creating payment cycle with code={}", request.getCode());
 

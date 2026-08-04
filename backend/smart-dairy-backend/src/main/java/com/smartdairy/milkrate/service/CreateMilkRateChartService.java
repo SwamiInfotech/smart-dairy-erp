@@ -17,6 +17,8 @@ import com.smartdairy.rateprofile.entity.RateCategory;
 import com.smartdairy.rateprofile.repository.RateCategoryRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -32,6 +34,10 @@ public class CreateMilkRateChartService {
 
     private final MilkRateChartMapper mapper;
 
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "milkRateCharts", key = "T(com.smartdairy.config.CacheKeys).tenantKey()"),
+            @CacheEvict(cacheNames = "milkRateCharts", key = "T(com.smartdairy.config.CacheKeys).tenantRecordKey(#result.uuid)", beforeInvocation = false)
+    })
     public MilkRateChartResponse create(CreateMilkRateChartRequest request) {
 
         if (request.effectiveTo() != null && request.effectiveTo().isBefore(request.effectiveFrom())) {

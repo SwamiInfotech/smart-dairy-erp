@@ -9,6 +9,8 @@ import com.smartdairy.exception.BusinessException;
 import com.smartdairy.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,10 @@ public class UpdateCollectionMethodService {
     private final CollectionMethodRepository repository;
     private final CollectionMethodMapper mapper;
 
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "collectionMethods", key = "T(com.smartdairy.config.CacheKeys).tenantKey()"),
+            @CacheEvict(cacheNames = "collectionMethods", key = "T(com.smartdairy.config.CacheKeys).tenantRecordKey(#uuid)")
+    })
     public CollectionMethodResponse update(UUID uuid, UpdateCollectionMethodRequest request) {
         log.info("Updating collection method with uuid={}", uuid);
 

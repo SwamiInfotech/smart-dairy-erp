@@ -603,6 +603,7 @@ function App() {
   })
   const [editingPaymentCycleUuid, setEditingPaymentCycleUuid] = useState('')
   const [farmerRateCharts, setFarmerRateCharts] = useState<MilkRateChartResponse[]>([])
+  const [editingMilkRateChartUuid, setEditingMilkRateChartUuid] = useState('')
   const [selectedFarmerRateChartUuid, setSelectedFarmerRateChartUuid] = useState('')
   const [farmerMappedFieldError, setFarmerMappedFieldError] = useState('')
   const [milkRateCharts, setMilkRateCharts] = useState<MilkRateChartResponse[]>([])
@@ -1400,6 +1401,15 @@ function App() {
     }
   }
 
+  async function loadMilkRateChartsView() {
+    if (!token) return
+    const chartList = await runAction(() => api.getMilkRateCharts(token))
+    if (chartList) {
+      setMilkRateCharts(chartList)
+      setFarmerRateCharts(chartList)
+    }
+  }
+
   async function loadFarmerConfigLookups() {
     if (!token) return
     const [types, paymentCycleList, chartList] = await Promise.all([
@@ -1452,6 +1462,9 @@ function App() {
   useEffect(() => {
     if (!token || (activeSidebarMenu !== 'milkRateCharts' && activeSidebarMenu !== 'rateProfiles')) return
     void loadMilkRateLookups()
+    if (activeSidebarMenu === 'milkRateCharts') {
+      void loadMilkRateChartsView()
+    }
   }, [activeSidebarMenu, token])
 
   useEffect(() => {
@@ -2417,7 +2430,7 @@ function App() {
     event.preventDefault()
     if (!token) return
 
-    const created = await runAction(async () => {
+    const saved = await runAction(async () => {
       const selectedBranchContext = branchName || currentShop?.name || milkRateForm.branchUuid.trim()
       if (!selectedBranchContext) {
         throw new Error('Branch context is required for milk rate chart.')
@@ -2522,7 +2535,7 @@ function App() {
         }
       }
 
-      return api.createMilkRateChart(token, {
+      const payload: CreateMilkRateChartRequest = {
         ...milkRateForm,
         chartName: milkRateForm.chartName.trim(),
         remarks: milkRateForm.remarks.trim(),
@@ -2537,15 +2550,40 @@ function App() {
             rate,
           },
         ],
-      })
-    }, 'Milk rate chart saved successfully.')
+      }
 
-    if (!created) return
+      if (editingMilkRateChartUuid) {
+        return api.updateMilkRateChart(token, editingMilkRateChartUuid, payload)
+      }
 
-    setMilkRateCharts((prev) => [created, ...prev])
-    setMilkRateForm((prev) => ({
-      ...prev,
+      return api.createMilkRateChart(token, payload)
+    }, editingMilkRateChartUuid ? 'Milk rate chart updated successfully.' : 'Milk rate chart saved successfully.')
+
+    if (!saved) return
+
+    if (editingMilkRateChartUuid) {
+      setMilkRateCharts((prev) =>
+        prev.map((item) => (item.uuid === editingMilkRateChartUuid ? saved : item)),
+      )
+      setFarmerRateCharts((prev) =>
+        prev.map((item) => (item.uuid === editingMilkRateChartUuid ? saved : item)),
+      )
+    } else {
+      setMilkRateCharts((prev) => [saved, ...prev])
+      setFarmerRateCharts((prev) => [saved, ...prev])
+    }
+
+    resetMilkRateChartForm()
+  }
+
+  function resetMilkRateChartForm() {
+    setEditingMilkRateChartUuid('')
+    setMilkRateForm({
+      branchUuid: branchUuid || initialAuth.branchUuid,
+      rateCategoryUuid: '',
+      collectionMethodUuid: '',
       chartName: '',
+      effectiveFrom: toInputDate(new Date()),
       effectiveTo: '',
       remarks: '',
       details: [
@@ -2559,7 +2597,56 @@ function App() {
           rate: 0,
         },
       ],
-    }))
+    })
+  }
+
+  function onEditMilkRateChart(chart: MilkRateChartResponse) {
+    const firstDetail = chart.details[0]
+    setEditingMilkRateChartUuid(chart.uuid)
+    setMilkRateForm({
+      branchUuid: chart.branchUuid || branchUuid || initialAuth.branchUuid,
+      rateCategoryUuid: chart.rateCategoryUuid || '',
+      collectionMethodUuid: chart.collectionMethodUuid || '',
+      chartName: chart.chartName || '',
+      effectiveFrom: chart.effectiveFrom || toInputDate(new Date()),
+      effectiveTo: chart.effectiveTo || '',
+      remarks: chart.remarks || '',
+      details: [
+        {
+          fatFrom: firstDetail?.fatFrom ?? null,
+          fatTo: firstDetail?.fatTo ?? null,
+          snfFrom: firstDetail?.snfFrom ?? null,
+          snfTo: firstDetail?.snfTo ?? null,
+          mavaFrom: firstDetail?.mavaFrom ?? null,
+          mavaTo: firstDetail?.mavaTo ?? null,
+          rate: Number(firstDetail?.rate ?? 0),
+        },
+      ],
+    })
+  }
+
+  function onCancelMilkRateChartEdit() {
+    resetMilkRateChartForm()
+    setError('')
+  }
+
+  async function onDeleteMilkRateChart(chart: MilkRateChartResponse) {
+    if (!token) return
+    const confirmed = window.confirm(`Delete milk rate chart "${chart.chartName}"?`)
+    if (!confirmed) return
+
+    const result = await runAction(
+      () => api.deleteMilkRateChart(token, chart.uuid),
+      'Milk rate chart deleted successfully.',
+    )
+    if (result === null) return
+
+    setMilkRateCharts((prev) => prev.filter((item) => item.uuid !== chart.uuid))
+    setFarmerRateCharts((prev) => prev.filter((item) => item.uuid !== chart.uuid))
+
+    if (editingMilkRateChartUuid === chart.uuid) {
+      resetMilkRateChartForm()
+    }
   }
 
   async function onCreateSales(event: FormEvent) {
@@ -3911,13 +3998,23 @@ function App() {
               <section className="panel panel-milk-rate">
                 <div className="panel-head">
                   <h2>Milk Rate Charts</h2>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void loadMilkRateLookups()
+                      void loadMilkRateChartsView()
+                    }}
+                    disabled={busy}
+                  >
+                    Reload
+                  </button>
                 </div>
 
                 <div className="milk-rate-layout">
                   <form className="milk-rate-form" onSubmit={onCreateMilkRateChart}>
                     <div className="milk-rate-form-head">
                       <p className="eyebrow">Rate Configuration</p>
-                      <h3>Create Milk Rate Chart</h3>
+                      <h3>{editingMilkRateChartUuid ? 'Edit Milk Rate Chart' : 'Create Milk Rate Chart'}</h3>
                       <p className="subtle">Select names from masters, define quality slab, and save effective chart.</p>
                     </div>
 
@@ -4231,9 +4328,22 @@ function App() {
                       />
                     </label>
 
-                    <button type="submit" disabled={busy} className="milk-rate-submit">
-                      {busy ? 'Saving...' : 'Save Milk Rate Chart'}
-                    </button>
+                    <div className="form-actions">
+                      <button type="submit" disabled={busy} className="milk-rate-submit">
+                        {busy
+                          ? editingMilkRateChartUuid
+                            ? 'Updating...'
+                            : 'Saving...'
+                          : editingMilkRateChartUuid
+                            ? 'Update Milk Rate Chart'
+                            : 'Save Milk Rate Chart'}
+                      </button>
+                      {editingMilkRateChartUuid && (
+                        <button type="button" onClick={onCancelMilkRateChartEdit} disabled={busy}>
+                          Cancel edit
+                        </button>
+                      )}
+                    </div>
                   </form>
 
                   <aside className="milk-rate-summary" aria-label="Milk rate quick summary">
@@ -4273,11 +4383,18 @@ function App() {
                         <th>Effective To</th>
                         <th>Rate Category</th>
                         <th>Collection Method</th>
+                        <th>Remarks</th>
                         <th>Details</th>
                         <th>Status</th>
+                        <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
+                      {milkRateCharts.length === 0 && (
+                        <tr>
+                          <td colSpan={9}>No milk rate charts available.</td>
+                        </tr>
+                      )}
                       {milkRateCharts.map((item) => (
                         <tr key={item.uuid}>
                           <td>{item.chartName}</td>
@@ -4285,8 +4402,33 @@ function App() {
                           <td>{item.effectiveTo || '-'}</td>
                           <td>{rateCategories.find((rateCategory) => rateCategory.uuid === item.rateCategoryUuid)?.name || '-'}</td>
                           <td>{collectionMethods.find((collectionMethod) => collectionMethod.uuid === item.collectionMethodUuid)?.name || '-'}</td>
+                          <td>{item.remarks || '-'}</td>
                           <td>{item.details.length}</td>
                           <td>{item.active ? 'ACTIVE' : 'INACTIVE'}</td>
+                          <td>
+                            <div className="farmer-row-actions">
+                              <button
+                                type="button"
+                                className="farmer-action-icon icon-edit"
+                                onClick={() => onEditMilkRateChart(item)}
+                                disabled={busy}
+                                title="Edit milk rate chart"
+                                aria-label="Edit milk rate chart"
+                              >
+                                <span aria-hidden="true">✎</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="farmer-action-icon icon-delete"
+                                onClick={() => onDeleteMilkRateChart(item)}
+                                disabled={busy}
+                                title="Delete milk rate chart"
+                                aria-label="Delete milk rate chart"
+                              >
+                                <span aria-hidden="true">✕</span>
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>

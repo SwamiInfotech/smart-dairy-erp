@@ -9,6 +9,8 @@ import com.smartdairy.rateprofile.mapper.RateCategoryMapper;
 import com.smartdairy.rateprofile.repository.RateCategoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,10 @@ public class UpdateRateCategoryService {
     private final RateCategoryRepository repository;
     private final RateCategoryMapper mapper;
 
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "rateCategories", key = "T(com.smartdairy.config.CacheKeys).tenantKey()"),
+            @CacheEvict(cacheNames = "rateCategories", key = "T(com.smartdairy.config.CacheKeys).tenantRecordKey(#uuid)")
+    })
     public RateCategoryResponse update(UUID uuid, UpdateRateCategoryRequest request) {
         log.info("Updating rate category with uuid={}", uuid);
 

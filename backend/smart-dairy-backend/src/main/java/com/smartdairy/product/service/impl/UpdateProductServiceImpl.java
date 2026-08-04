@@ -9,6 +9,8 @@ import com.smartdairy.product.mapper.ProductMapper;
 import com.smartdairy.product.repository.ProductRepository;
 import com.smartdairy.product.service.UpdateProductService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,10 @@ public class UpdateProductServiceImpl implements UpdateProductService {
     private final ProductMapper mapper;
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "products", key = "T(com.smartdairy.config.CacheKeys).tenantKey()"),
+            @CacheEvict(cacheNames = "products", key = "T(com.smartdairy.config.CacheKeys).tenantRecordKey(#uuid)")
+    })
     public ProductResponse update(UUID uuid,
                                   UpdateProductRequest request) {
 
