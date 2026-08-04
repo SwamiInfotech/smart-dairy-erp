@@ -1,0 +1,134 @@
+import type { FormEvent } from 'react'
+import { useCallback } from 'react'
+import { api } from '../lib/api'
+import { toInputTime } from '../lib/appCoreUtils'
+import { resolveQualityFieldVisibility } from '../lib/uiHelpers'
+import type {
+  FarmerResponse,
+  MasterLookupResponse,
+  MilkTypeResponse,
+  ShiftResponse,
+} from '../types/api'
+
+type CollectionFormState = {
+  collectionNo: string
+  farmerUuid: string
+  shiftUuid: string
+  milkTypeUuid: string
+  collectionDate: string
+  collectionTime: string
+  quantity: number
+  rate: number
+  fat: number
+  snf: number | null
+  mava: number
+  remarks: string
+}
+
+type CollectionListItem = {
+  uuid: string
+  collectionNo: string
+  farmerName: string
+  collectionDate: string
+  quantity: number
+  grossAmount: number
+}
+
+type UseCollectionCrudParams = {
+  token: string
+  collectionForm: CollectionFormState
+  farmers: FarmerResponse[]
+  shifts: ShiftResponse[]
+  milkTypes: MilkTypeResponse[]
+  selectedCollectionMethod: MasterLookupResponse | null
+  runAction: <T>(action: () => Promise<T>, successMessage?: string) => Promise<T | null>
+  setCollections: React.Dispatch<React.SetStateAction<CollectionListItem[]>>
+  setCollectionForm: React.Dispatch<React.SetStateAction<CollectionFormState>>
+}
+
+export function useCollectionCrud({
+  token,
+  collectionForm,
+  farmers,
+  shifts,
+  milkTypes,
+  selectedCollectionMethod,
+  runAction,
+  setCollections,
+  setCollectionForm,
+}: UseCollectionCrudParams) {
+  const onCreateCollection = useCallback(
+    async (event: FormEvent) => {
+      event.preventDefault()
+      if (!token) return
+
+      const created = await runAction(async () => {
+        if (!Array.isArray(farmers) || farmers.length === 0) {
+          throw new Error('No farmers available. Load master data before saving collection.')
+        }
+
+        if (!Array.isArray(shifts) || shifts.length === 0) {
+          throw new Error('No shifts are configured. Please configure shifts in master data first.')
+        }
+
+        if (!Array.isArray(milkTypes) || milkTypes.length === 0) {
+          throw new Error('No milk types are configured. Please configure milk types in master data first.')
+        }
+
+        const selectedFarmer = farmers.find((item) => item.uuid === collectionForm.farmerUuid)
+        if (!selectedFarmer) {
+          throw new Error('Select a valid farmer from the list before saving the collection.')
+        }
+
+        const selectedShift = shifts.find((item) => item.uuid === collectionForm.shiftUuid)
+        if (!selectedShift) {
+          throw new Error('Select a valid shift from the list before saving the collection.')
+        }
+
+        const selectedMilkType = milkTypes.find((item) => item.uuid === collectionForm.milkTypeUuid)
+        if (!selectedMilkType) {
+          throw new Error('Select a valid milk type before saving the collection.')
+        }
+
+        const quantity = Number(collectionForm.quantity)
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+          throw new Error('Quantity must be greater than 0 liters.')
+        }
+
+        if (!collectionForm.collectionDate.trim()) {
+          throw new Error('Collection date is required.')
+        }
+
+        if (collectionForm.fat < 0 || (collectionForm.snf ?? 0) < 0 || collectionForm.mava < 0) {
+          throw new Error('FAT, SNF, and Mava cannot be negative values.')
+        }
+
+        const qualityVisibility = resolveQualityFieldVisibility(selectedCollectionMethod)
+        const systemCollectionTime = toInputTime(new Date())
+        const { collectionNo: _collectionNo, ...collectionPayload } = collectionForm
+
+        return api.createMilkCollection(token, {
+          ...collectionPayload,
+          farmerUuid: selectedFarmer.uuid,
+          shiftUuid: selectedShift.uuid,
+          milkTypeUuid: selectedMilkType.uuid,
+          collectionTime: systemCollectionTime,
+          quantity,
+          fat: qualityVisibility.showFat ? collectionForm.fat || null : null,
+          snf: qualityVisibility.showSnf ? collectionForm.snf || null : null,
+          mava: qualityVisibility.showMava ? collectionForm.mava || null : null,
+          remarks: collectionForm.remarks.trim(),
+        })
+      }, 'Milk collection saved successfully.')
+
+      if (!created) return
+      setCollections((prev) => [created, ...prev])
+      setCollectionForm((prev) => ({ ...prev, collectionNo: created.collectionNo }))
+    },
+    [collectionForm, farmers, milkTypes, runAction, selectedCollectionMethod, setCollectionForm, setCollections, shifts, token],
+  )
+
+  return {
+    onCreateCollection,
+  }
+}

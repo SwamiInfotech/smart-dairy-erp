@@ -1,0 +1,1 @@
+export { normalizeFarmerPageResponse } from './apiFarmerEntityPageNormalizers'
