@@ -54,4 +54,6 @@ public interface MilkCollectionRepository extends JpaRepository<MilkCollection, 
             LocalDate fromDate,
             LocalDate toDate);
 
+    boolean existsByMilkRateChartId(Long milkRateChartId);
+
 }

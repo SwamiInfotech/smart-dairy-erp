@@ -466,6 +466,20 @@ function roundToTwo(value: number) {
   return Math.round(value * 100) / 100
 }
 
+type MilkRateDetailInput = CreateMilkRateChartRequest['details'][number]
+
+function createEmptyMilkRateDetail(): MilkRateDetailInput {
+  return {
+    fatFrom: null,
+    fatTo: null,
+    snfFrom: null,
+    snfTo: null,
+    mavaFrom: null,
+    mavaTo: null,
+    rate: 0,
+  }
+}
+
 function App() {
   const initialAuth = useMemo(getSavedAuth, [])
 
@@ -481,6 +495,7 @@ function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard')
   const [activeSidebarMenu, setActiveSidebarMenu] = useState('dashboard')
   const bodyScrollRef = useRef<HTMLDivElement | null>(null)
+  const milkRateMavaFromRefs = useRef<Array<HTMLInputElement | null>>([])
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [loginDebug, setLoginDebug] = useState('')
   const [tenantLookupNote, setTenantLookupNote] = useState('')
@@ -808,6 +823,18 @@ function App() {
     [collectionForm.rate],
   )
 
+  const isCollectionDateWithinRateChart = useMemo(() => {
+    const collectionDate = collectionForm.collectionDate.trim()
+    const effectiveFrom = (selectedCollectionMilkRateChart?.effectiveFrom || '').trim()
+    const effectiveTo = (selectedCollectionMilkRateChart?.effectiveTo || '').trim()
+
+    if (!collectionDate || !effectiveFrom) return false
+    if (collectionDate < effectiveFrom) return false
+    if (effectiveTo && collectionDate > effectiveTo) return false
+
+    return true
+  }, [collectionForm.collectionDate, selectedCollectionMilkRateChart])
+
   const calculatedCollectionAmount = useMemo(() => {
     const quantity = Number(collectionForm.quantity) || 0
     const qualityValue = activeCollectionQuality.value
@@ -837,17 +864,7 @@ function App() {
     effectiveFrom: toInputDate(new Date()),
     effectiveTo: '',
     remarks: '',
-    details: [
-      {
-        fatFrom: null,
-        fatTo: null,
-        snfFrom: null,
-        snfTo: null,
-        mavaFrom: null,
-        mavaTo: null,
-        rate: 0,
-      },
-    ],
+    details: [createEmptyMilkRateDetail()],
   })
 
   const selectedMilkRateMethod = useMemo(() => {
@@ -860,6 +877,162 @@ function App() {
     () => resolveQualityFieldVisibility(selectedMilkRateMethod),
     [selectedMilkRateMethod],
   )
+
+  const milkRateRowConflictState = useMemo(() => {
+    const conflictingRows = new Set<number>()
+    const messages = new Set<string>()
+
+    const rows = Array.isArray(milkRateForm.details) ? milkRateForm.details : []
+    if (rows.length === 0) {
+      return {
+        conflictingRows: [] as number[],
+        messages: [] as string[],
+      }
+    }
+
+    const activeMetricKeys = [
+      milkRateQualityVisibility.showFat ? (['fatFrom', 'fatTo'] as const) : null,
+      milkRateQualityVisibility.showSnf ? (['snfFrom', 'snfTo'] as const) : null,
+      milkRateQualityVisibility.showMava ? (['mavaFrom', 'mavaTo'] as const) : null,
+    ].filter(Boolean) as Array<readonly ['fatFrom' | 'snfFrom' | 'mavaFrom', 'fatTo' | 'snfTo' | 'mavaTo']>
+
+    const rangesOverlap = (fromA: number, toA: number, fromB: number, toB: number) => {
+      return Math.max(fromA, fromB) <= Math.min(toA, toB)
+    }
+
+    const rowHasCompleteRanges = (row: MilkRateDetailInput) => {
+      for (const [fromKey, toKey] of activeMetricKeys) {
+        if (row[fromKey] === null || row[toKey] === null) {
+          return false
+        }
+      }
+      return true
+    }
+
+    rows.forEach((row, rowIndex) => {
+      const rowNumber = rowIndex + 1
+
+      if (milkRateQualityVisibility.showFat && row.fatFrom !== null && row.fatTo !== null && row.fatFrom > row.fatTo) {
+        conflictingRows.add(rowIndex)
+        messages.add(`Row ${rowNumber}: FAT From cannot be greater than FAT To.`)
+      }
+
+      if (milkRateQualityVisibility.showSnf && row.snfFrom !== null && row.snfTo !== null && row.snfFrom > row.snfTo) {
+        conflictingRows.add(rowIndex)
+        messages.add(`Row ${rowNumber}: SNF From cannot be greater than SNF To.`)
+      }
+
+      if (
+        milkRateQualityVisibility.showMava &&
+        row.mavaFrom !== null &&
+        row.mavaTo !== null &&
+        row.mavaFrom > row.mavaTo
+      ) {
+        conflictingRows.add(rowIndex)
+        messages.add(`Row ${rowNumber}: Mava From cannot be greater than Mava To.`)
+      }
+    })
+
+    if (milkRateQualityVisibility.showMava) {
+      rows.forEach((sourceRow, sourceIndex) => {
+        if (sourceRow.mavaFrom === null || !Number.isFinite(Number(sourceRow.mavaFrom))) {
+          return
+        }
+
+        const sourceMavaFrom = Number(sourceRow.mavaFrom)
+
+        rows.forEach((targetRow, targetIndex) => {
+          if (sourceIndex === targetIndex) return
+          if (targetRow.mavaFrom === null || targetRow.mavaTo === null) return
+
+          const targetMavaFrom = Number(targetRow.mavaFrom)
+          const targetMavaTo = Number(targetRow.mavaTo)
+
+          if (sourceMavaFrom >= targetMavaFrom && sourceMavaFrom <= targetMavaTo) {
+            conflictingRows.add(sourceIndex)
+            conflictingRows.add(targetIndex)
+            messages.add(
+              `Row ${sourceIndex + 1}: Mava From value already exists in row ${targetIndex + 1} range.`,
+            )
+          }
+        })
+      })
+    }
+
+    for (let leftIndex = 0; leftIndex < rows.length; leftIndex += 1) {
+      const leftRow = rows[leftIndex]
+      if (!rowHasCompleteRanges(leftRow)) continue
+
+      for (let rightIndex = leftIndex + 1; rightIndex < rows.length; rightIndex += 1) {
+        const rightRow = rows[rightIndex]
+        if (!rowHasCompleteRanges(rightRow)) continue
+
+        const overlapsAcrossVisibleMetrics = activeMetricKeys.every(([fromKey, toKey]) =>
+          rangesOverlap(
+            Number(leftRow[fromKey]),
+            Number(leftRow[toKey]),
+            Number(rightRow[fromKey]),
+            Number(rightRow[toKey]),
+          ),
+        )
+
+        if (overlapsAcrossVisibleMetrics) {
+          conflictingRows.add(leftIndex)
+          conflictingRows.add(rightIndex)
+          messages.add(
+            `Rows ${leftIndex + 1} and ${rightIndex + 1} overlap. Use unique, non-overlapping ranges.`,
+          )
+        }
+      }
+    }
+
+    return {
+      conflictingRows: Array.from(conflictingRows).sort((a, b) => a - b),
+      messages: Array.from(messages),
+    }
+  }, [milkRateForm.details, milkRateQualityVisibility])
+
+  const updateMilkRateDetail = useCallback(
+    (index: number, field: keyof MilkRateDetailInput, value: number | null) => {
+      setMilkRateForm((prev) => {
+        const details = prev.details.length > 0 ? [...prev.details] : [createEmptyMilkRateDetail()]
+        const existing = details[index] || createEmptyMilkRateDetail()
+        details[index] = {
+          ...existing,
+          [field]: field === 'rate' ? Number(value ?? 0) : value,
+        }
+
+        return {
+          ...prev,
+          details,
+        }
+      })
+    },
+    [],
+  )
+
+  const addMilkRateDetailRow = useCallback(() => {
+    setMilkRateForm((prev) => ({
+      ...prev,
+      details: [...prev.details, createEmptyMilkRateDetail()],
+    }))
+  }, [])
+
+  const removeMilkRateDetailRow = useCallback((index: number) => {
+    setMilkRateForm((prev) => {
+      if (prev.details.length <= 1) {
+        return {
+          ...prev,
+          details: [createEmptyMilkRateDetail()],
+        }
+      }
+
+      return {
+        ...prev,
+        details: prev.details.filter((_, rowIndex) => rowIndex !== index),
+      }
+    })
+  }, [])
 
   async function runAction<T>(action: () => Promise<T>, successMessage?: string) {
     setBusy(true)
@@ -1212,7 +1385,6 @@ function App() {
     const selectedMethodFromChart = selectedMilkRateChart?.collectionMethodUuid
       ? methodSource.find((item) => item.uuid === selectedMilkRateChart.collectionMethodUuid) || null
       : null
-    const selectedRateFromDetails = roundToTwo(selectedMilkRateChart?.details[0]?.rate ?? 0)
     explainQualityFieldVisibility(selectedMethodFromChart)
 
     setSelectedCollectionMethod(selectedMethodFromChart)
@@ -1220,7 +1392,7 @@ function App() {
     setCollectionForm((prev) => ({
       ...prev,
       farmerUuid,
-      rate: selectedRateFromDetails,
+      rate: 0,
     }))
   }
 
@@ -1275,48 +1447,96 @@ function App() {
     })
   }, [collectionQualityVisibility])
 
-  useEffect(() => {
+  const collectionRateMatchDebug = useMemo(() => {
     const fatVisible = collectionQualityVisibility.showFat
     const snfVisible = collectionQualityVisibility.showSnf
     const mavaVisible = collectionQualityVisibility.showMava
+    const details = isCollectionDateWithinRateChart ? selectedCollectionMilkRateChart?.details || [] : []
+    const activeMetric = activeCollectionQuality.metric
+    const activeMetricValue = Number(activeCollectionQuality.value) || 0
 
     if (!fatVisible && !snfVisible && !mavaVisible) {
-      return
+      return {
+        matchedDetail: null as (typeof details)[number] | null,
+        matchedRowIndex: -1,
+        totalRows: details.length,
+        activeMetric,
+        activeMetricValue,
+      }
     }
 
     const fatValue = Number(collectionForm.fat) || 0
     const snfValue = Number(collectionForm.snf ?? 0)
     const mavaValue = Number(collectionForm.mava) || 0
-    const details = selectedCollectionMilkRateChart?.details || []
 
     const isInRange = (value: number, from: number | null, to: number | null) => {
       if (from === null || to === null) return false
       return value >= from && value <= to
     }
 
-    const matchedDetail = details.find((detail) => {
-      if (fatVisible) {
-        if (!isInRange(fatValue, detail.fatFrom, detail.fatTo)) return false
-      }
+    const metricInputValues = {
+      fat: fatValue,
+      snf: snfValue,
+      mava: mavaValue,
+    } as const
 
-      if (snfVisible) {
-        if (!isInRange(snfValue, detail.snfFrom, detail.snfTo)) return false
-      }
+    const metricVisibility = {
+      fat: fatVisible,
+      snf: snfVisible,
+      mava: mavaVisible,
+    } as const
 
-      if (mavaVisible) {
-        if (!isInRange(mavaValue, detail.mavaFrom, detail.mavaTo)) return false
-      }
+    const metricBounds = {
+      fat: (detail: (typeof details)[number]) => ({ from: detail.fatFrom, to: detail.fatTo }),
+      snf: (detail: (typeof details)[number]) => ({ from: detail.snfFrom, to: detail.snfTo }),
+      mava: (detail: (typeof details)[number]) => ({ from: detail.mavaFrom, to: detail.mavaTo }),
+    } as const
 
-      return true
-    })
+    const supportsMetric = (detail: (typeof details)[number], metric: keyof typeof metricBounds) => {
+      const bounds = metricBounds[metric](detail)
+      return bounds.from !== null && bounds.to !== null
+    }
 
-    const nextRate = roundToTwo(Number(matchedDetail?.rate) || 0)
+    const matchesMetric = (
+      detail: (typeof details)[number],
+      metric: keyof typeof metricBounds,
+      value: number,
+    ) => {
+      const bounds = metricBounds[metric](detail)
+      return isInRange(value, bounds.from, bounds.to)
+    }
 
-    setCollectionForm((prev) => {
-      const currentRate = roundToTwo(Number(prev.rate) || 0)
-      if (currentRate === nextRate) return prev
-      return { ...prev, rate: nextRate }
-    })
+    let matchedRowIndex = -1
+    const matchedDetail =
+      details.find((detail, index) => {
+        if (activeMetricValue > 0) {
+          if (!supportsMetric(detail, activeMetric)) return false
+          if (!matchesMetric(detail, activeMetric, activeMetricValue)) return false
+        }
+
+        const metrics: Array<keyof typeof metricBounds> = ['fat', 'snf', 'mava']
+        for (const metric of metrics) {
+          if (!metricVisibility[metric]) continue
+          if (metric === activeMetric && activeMetricValue > 0) continue
+          if (!supportsMetric(detail, metric)) continue
+
+          const inputValue = metricInputValues[metric]
+          if (inputValue <= 0) continue
+
+          if (!matchesMetric(detail, metric, inputValue)) return false
+        }
+
+        matchedRowIndex = index
+        return true
+      }) || null
+
+    return {
+      matchedDetail,
+      matchedRowIndex,
+      totalRows: details.length,
+      activeMetric,
+      activeMetricValue,
+    }
   }, [
     collectionForm.fat,
     collectionForm.snf,
@@ -1324,55 +1544,72 @@ function App() {
     collectionQualityVisibility.showFat,
     collectionQualityVisibility.showSnf,
     collectionQualityVisibility.showMava,
+    isCollectionDateWithinRateChart,
     selectedCollectionMilkRateChart,
+    activeCollectionQuality.metric,
+    activeCollectionQuality.value,
+  ])
+
+  useEffect(() => {
+    const nextRate = roundToTwo(Number(collectionRateMatchDebug.matchedDetail?.rate) || 0)
+
+    setCollectionForm((prev) => {
+      const currentRate = roundToTwo(Number(prev.rate) || 0)
+      if (currentRate === nextRate) return prev
+      return { ...prev, rate: nextRate }
+    })
+  }, [
+    collectionRateMatchDebug.matchedDetail,
   ])
 
   useEffect(() => {
     setMilkRateForm((prev) => {
-      const firstDetail = prev.details[0]
-      if (!firstDetail) return prev
+      if (!Array.isArray(prev.details) || prev.details.length === 0) {
+        return {
+          ...prev,
+          details: [createEmptyMilkRateDetail()],
+        }
+      }
 
       let changed = false
-      let nextFatFrom = firstDetail.fatFrom
-      let nextFatTo = firstDetail.fatTo
-      let nextSnfFrom = firstDetail.snfFrom
-      let nextSnfTo = firstDetail.snfTo
-      let nextMavaFrom = firstDetail.mavaFrom
-      let nextMavaTo = firstDetail.mavaTo
+      const nextDetails = prev.details.map((detail) => {
+        let nextDetail = detail
 
-      if (!milkRateQualityVisibility.showFat && (firstDetail.fatFrom !== null || firstDetail.fatTo !== null)) {
-        nextFatFrom = null
-        nextFatTo = null
-        changed = true
-      }
+        if (!milkRateQualityVisibility.showFat && (detail.fatFrom !== null || detail.fatTo !== null)) {
+          nextDetail = {
+            ...nextDetail,
+            fatFrom: null,
+            fatTo: null,
+          }
+          changed = true
+        }
 
-      if (!milkRateQualityVisibility.showSnf && (firstDetail.snfFrom !== null || firstDetail.snfTo !== null)) {
-        nextSnfFrom = null
-        nextSnfTo = null
-        changed = true
-      }
+        if (!milkRateQualityVisibility.showSnf && (detail.snfFrom !== null || detail.snfTo !== null)) {
+          nextDetail = {
+            ...nextDetail,
+            snfFrom: null,
+            snfTo: null,
+          }
+          changed = true
+        }
 
-      if (!milkRateQualityVisibility.showMava && (firstDetail.mavaFrom !== null || firstDetail.mavaTo !== null)) {
-        nextMavaFrom = null
-        nextMavaTo = null
-        changed = true
-      }
+        if (!milkRateQualityVisibility.showMava && (detail.mavaFrom !== null || detail.mavaTo !== null)) {
+          nextDetail = {
+            ...nextDetail,
+            mavaFrom: null,
+            mavaTo: null,
+          }
+          changed = true
+        }
+
+        return nextDetail
+      })
 
       if (!changed) return prev
 
       return {
         ...prev,
-        details: [
-          {
-            ...firstDetail,
-            fatFrom: nextFatFrom,
-            fatTo: nextFatTo,
-            snfFrom: nextSnfFrom,
-            snfTo: nextSnfTo,
-            mavaFrom: nextMavaFrom,
-            mavaTo: nextMavaTo,
-          },
-        ],
+        details: nextDetails,
       }
     })
   }, [milkRateQualityVisibility])
@@ -2492,46 +2729,131 @@ function App() {
         throw new Error('Effective to date cannot be before effective from date.')
       }
 
-      const firstDetail = milkRateForm.details[0]
-      if (!firstDetail) {
+      if (!Array.isArray(milkRateForm.details) || milkRateForm.details.length === 0) {
         throw new Error('At least one rate detail is required.')
       }
 
-      const rate = Number(firstDetail.rate)
-      if (!Number.isFinite(rate) || rate <= 0) {
-        throw new Error('Rate must be greater than 0.')
-      }
-
-      if (qualityVisibility.showFat) {
-        if (firstDetail.fatFrom === null || firstDetail.fatTo === null) {
-          throw new Error('FAT From and FAT To are required.')
+      const sanitizedDetails = milkRateForm.details.map((detail, index) => {
+        const rowNumber = index + 1
+        const rate = Number(detail.rate)
+        if (!Number.isFinite(rate) || rate <= 0) {
+          throw new Error(`Rate in row ${rowNumber} must be greater than 0.`)
         }
-      }
 
-      if (qualityVisibility.showSnf) {
-        if (firstDetail.snfFrom === null || firstDetail.snfTo === null) {
-          throw new Error('SNF From and SNF To are required.')
+        if (qualityVisibility.showFat && (detail.fatFrom === null || detail.fatTo === null)) {
+          throw new Error(`FAT From and FAT To are required in row ${rowNumber}.`)
+        }
+
+        if (qualityVisibility.showSnf && (detail.snfFrom === null || detail.snfTo === null)) {
+          throw new Error(`SNF From and SNF To are required in row ${rowNumber}.`)
+        }
+
+        if (qualityVisibility.showMava && (detail.mavaFrom === null || detail.mavaTo === null)) {
+          throw new Error(`Mava From and Mava To are required in row ${rowNumber}.`)
+        }
+
+        const detailFields = [
+          ['FAT From', qualityVisibility.showFat ? detail.fatFrom : null],
+          ['FAT To', qualityVisibility.showFat ? detail.fatTo : null],
+          ['SNF From', qualityVisibility.showSnf ? detail.snfFrom : null],
+          ['SNF To', qualityVisibility.showSnf ? detail.snfTo : null],
+          ['Mava From', qualityVisibility.showMava ? detail.mavaFrom : null],
+          ['Mava To', qualityVisibility.showMava ? detail.mavaTo : null],
+        ] as const
+
+        for (const [label, value] of detailFields) {
+          if (value !== null && (!Number.isFinite(Number(value)) || Number(value) < 0)) {
+            throw new Error(`${label} in row ${rowNumber} must be a non-negative number when provided.`)
+          }
+        }
+
+        return {
+          fatFrom: qualityVisibility.showFat ? detail.fatFrom : null,
+          fatTo: qualityVisibility.showFat ? detail.fatTo : null,
+          snfFrom: qualityVisibility.showSnf ? detail.snfFrom : null,
+          snfTo: qualityVisibility.showSnf ? detail.snfTo : null,
+          mavaFrom: qualityVisibility.showMava ? detail.mavaFrom : null,
+          mavaTo: qualityVisibility.showMava ? detail.mavaTo : null,
+          rate,
+        }
+      })
+
+      for (let index = 0; index < sanitizedDetails.length; index += 1) {
+        const rowNumber = index + 1
+        const detail = sanitizedDetails[index]
+
+        if (qualityVisibility.showFat && Number(detail.fatFrom) > Number(detail.fatTo)) {
+          throw new Error(`FAT From cannot be greater than FAT To in row ${rowNumber}.`)
+        }
+
+        if (qualityVisibility.showSnf && Number(detail.snfFrom) > Number(detail.snfTo)) {
+          throw new Error(`SNF From cannot be greater than SNF To in row ${rowNumber}.`)
+        }
+
+        if (qualityVisibility.showMava && Number(detail.mavaFrom) > Number(detail.mavaTo)) {
+          throw new Error(`Mava From cannot be greater than Mava To in row ${rowNumber}.`)
         }
       }
 
       if (qualityVisibility.showMava) {
-        if (firstDetail.mavaFrom === null || firstDetail.mavaTo === null) {
-          throw new Error('Mava From and Mava To are required.')
+        for (let sourceIndex = 0; sourceIndex < sanitizedDetails.length; sourceIndex += 1) {
+          const sourceMavaFrom = Number(sanitizedDetails[sourceIndex].mavaFrom)
+
+          for (let targetIndex = 0; targetIndex < sanitizedDetails.length; targetIndex += 1) {
+            if (sourceIndex === targetIndex) continue
+
+            const targetMavaFrom = Number(sanitizedDetails[targetIndex].mavaFrom)
+            const targetMavaTo = Number(sanitizedDetails[targetIndex].mavaTo)
+
+            if (sourceMavaFrom >= targetMavaFrom && sourceMavaFrom <= targetMavaTo) {
+              milkRateMavaFromRefs.current[sourceIndex]?.focus()
+              throw new Error(
+                `Mava From value in row ${sourceIndex + 1} already exists in row ${targetIndex + 1} range.`,
+              )
+            }
+          }
         }
       }
 
-      const detailFields = [
-        ['FAT From', qualityVisibility.showFat ? firstDetail.fatFrom : null],
-        ['FAT To', qualityVisibility.showFat ? firstDetail.fatTo : null],
-        ['SNF From', qualityVisibility.showSnf ? firstDetail.snfFrom : null],
-        ['SNF To', qualityVisibility.showSnf ? firstDetail.snfTo : null],
-        ['Mava From', qualityVisibility.showMava ? firstDetail.mavaFrom : null],
-        ['Mava To', qualityVisibility.showMava ? firstDetail.mavaTo : null],
-      ] as const
+      const rangesOverlap = (fromA: number, toA: number, fromB: number, toB: number) => {
+        return Math.max(fromA, fromB) <= Math.min(toA, toB)
+      }
 
-      for (const [label, value] of detailFields) {
-        if (value !== null && (!Number.isFinite(Number(value)) || Number(value) < 0)) {
-          throw new Error(`${label} must be a non-negative number when provided.`)
+      const rowsOverlap = (
+        left: (typeof sanitizedDetails)[number],
+        right: (typeof sanitizedDetails)[number],
+      ) => {
+        if (
+          qualityVisibility.showFat &&
+          !rangesOverlap(Number(left.fatFrom), Number(left.fatTo), Number(right.fatFrom), Number(right.fatTo))
+        ) {
+          return false
+        }
+
+        if (
+          qualityVisibility.showSnf &&
+          !rangesOverlap(Number(left.snfFrom), Number(left.snfTo), Number(right.snfFrom), Number(right.snfTo))
+        ) {
+          return false
+        }
+
+        if (
+          qualityVisibility.showMava &&
+          !rangesOverlap(Number(left.mavaFrom), Number(left.mavaTo), Number(right.mavaFrom), Number(right.mavaTo))
+        ) {
+          return false
+        }
+
+        return true
+      }
+
+      for (let leftIndex = 0; leftIndex < sanitizedDetails.length; leftIndex += 1) {
+        for (let rightIndex = leftIndex + 1; rightIndex < sanitizedDetails.length; rightIndex += 1) {
+          if (rowsOverlap(sanitizedDetails[leftIndex], sanitizedDetails[rightIndex])) {
+            throw new Error(
+              `Quality slab row ${leftIndex + 1} overlaps with row ${rightIndex + 1}. Use unique, non-overlapping ranges.`,
+            )
+          }
         }
       }
 
@@ -2539,17 +2861,7 @@ function App() {
         ...milkRateForm,
         chartName: milkRateForm.chartName.trim(),
         remarks: milkRateForm.remarks.trim(),
-        details: [
-          {
-            fatFrom: qualityVisibility.showFat ? firstDetail.fatFrom : null,
-            fatTo: qualityVisibility.showFat ? firstDetail.fatTo : null,
-            snfFrom: qualityVisibility.showSnf ? firstDetail.snfFrom : null,
-            snfTo: qualityVisibility.showSnf ? firstDetail.snfTo : null,
-            mavaFrom: qualityVisibility.showMava ? firstDetail.mavaFrom : null,
-            mavaTo: qualityVisibility.showMava ? firstDetail.mavaTo : null,
-            rate,
-          },
-        ],
+        details: sanitizedDetails,
       }
 
       if (editingMilkRateChartUuid) {
@@ -2586,22 +2898,23 @@ function App() {
       effectiveFrom: toInputDate(new Date()),
       effectiveTo: '',
       remarks: '',
-      details: [
-        {
-          fatFrom: null,
-          fatTo: null,
-          snfFrom: null,
-          snfTo: null,
-          mavaFrom: null,
-          mavaTo: null,
-          rate: 0,
-        },
-      ],
+      details: [createEmptyMilkRateDetail()],
     })
   }
 
   function onEditMilkRateChart(chart: MilkRateChartResponse) {
-    const firstDetail = chart.details[0]
+    const mappedDetails = Array.isArray(chart.details)
+      ? chart.details.map((detail) => ({
+          fatFrom: detail.fatFrom ?? null,
+          fatTo: detail.fatTo ?? null,
+          snfFrom: detail.snfFrom ?? null,
+          snfTo: detail.snfTo ?? null,
+          mavaFrom: detail.mavaFrom ?? null,
+          mavaTo: detail.mavaTo ?? null,
+          rate: Number(detail.rate ?? 0),
+        }))
+      : []
+
     setEditingMilkRateChartUuid(chart.uuid)
     setMilkRateForm({
       branchUuid: chart.branchUuid || branchUuid || initialAuth.branchUuid,
@@ -2611,17 +2924,7 @@ function App() {
       effectiveFrom: chart.effectiveFrom || toInputDate(new Date()),
       effectiveTo: chart.effectiveTo || '',
       remarks: chart.remarks || '',
-      details: [
-        {
-          fatFrom: firstDetail?.fatFrom ?? null,
-          fatTo: firstDetail?.fatTo ?? null,
-          snfFrom: firstDetail?.snfFrom ?? null,
-          snfTo: firstDetail?.snfTo ?? null,
-          mavaFrom: firstDetail?.mavaFrom ?? null,
-          mavaTo: firstDetail?.mavaTo ?? null,
-          rate: Number(firstDetail?.rate ?? 0),
-        },
-      ],
+      details: mappedDetails.length > 0 ? mappedDetails : [createEmptyMilkRateDetail()],
     })
   }
 
@@ -3666,7 +3969,12 @@ function App() {
 
                         <label className="collection-field collection-field-compact">
                           <span>Rate</span>
-                          <input type="number" step="0.01" value={calculatedCollectionRate} disabled />
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={isCollectionDateWithinRateChart ? calculatedCollectionRate : 0}
+                            disabled
+                          />
                         </label>
 
                         <label className="collection-field collection-field-compact">
@@ -4051,268 +4359,257 @@ function App() {
                         </select>
                       </label>
 
-                      <label className="milk-rate-field">
-                        <span>Chart Name</span>
-                        <input
-                          required
-                          value={milkRateForm.chartName}
-                          onChange={(event) =>
-                            setMilkRateForm((prev) => ({ ...prev, chartName: event.target.value }))
-                          }
-                          placeholder="Example: Morning Fat-SNF Standard"
-                        />
-                      </label>
+                      <div className="milk-rate-form-row milk-rate-form-row-three">
+                        <label className="milk-rate-field">
+                          <span>Chart Name</span>
+                          <input
+                            required
+                            value={milkRateForm.chartName}
+                            onChange={(event) =>
+                              setMilkRateForm((prev) => ({ ...prev, chartName: event.target.value }))
+                            }
+                            placeholder="Example: Morning Fat-SNF Standard"
+                          />
+                        </label>
 
-                      <label className="milk-rate-field">
-                        <span>Effective From</span>
-                        <input
-                          required
-                          type="date"
-                          value={milkRateForm.effectiveFrom}
-                          onChange={(event) =>
-                            setMilkRateForm((prev) => ({ ...prev, effectiveFrom: event.target.value }))
-                          }
-                        />
-                      </label>
+                        <label className="milk-rate-field">
+                          <span>Effective From</span>
+                          <input
+                            required
+                            type="date"
+                            value={milkRateForm.effectiveFrom}
+                            onChange={(event) =>
+                              setMilkRateForm((prev) => ({ ...prev, effectiveFrom: event.target.value }))
+                            }
+                          />
+                        </label>
 
-                      <label className="milk-rate-field">
-                        <span>Effective To</span>
-                        <input
-                          required
-                          type="date"
-                          value={milkRateForm.effectiveTo}
-                          onChange={(event) =>
-                            setMilkRateForm((prev) => ({ ...prev, effectiveTo: event.target.value }))
-                          }
-                        />
-                      </label>
+                        <label className="milk-rate-field">
+                          <span>Effective To</span>
+                          <input
+                            required
+                            type="date"
+                            value={milkRateForm.effectiveTo}
+                            onChange={(event) =>
+                              setMilkRateForm((prev) => ({ ...prev, effectiveTo: event.target.value }))
+                            }
+                          />
+                        </label>
+                      </div>
 
-                      <label className="milk-rate-field">
-                        <span>Rate</span>
-                        <input
-                          required
-                          type="number"
-                          step="0.01"
-                          min="0.01"
-                          value={milkRateForm.details[0]?.rate ?? ''}
-                          onChange={(event) =>
-                            setMilkRateForm((prev) => ({
-                              ...prev,
-                              details: [
-                                {
-                                  ...(prev.details[0] || {
-                                    fatFrom: null,
-                                    fatTo: null,
-                                    snfFrom: null,
-                                    snfTo: null,
-                                    mavaFrom: null,
-                                    mavaTo: null,
-                                    rate: 0,
-                                  }),
-                                  rate: Number(event.target.value),
-                                },
-                              ],
-                            }))
-                          }
-                        />
-                      </label>
                     </div>
 
                     <div className="milk-rate-slab">
                       <div className="milk-rate-slab-head">
                         <h4>Quality Slab</h4>
-                        <p>Enter a from/to range for each quality parameter.</p>
+                        <p>Add multiple quality slab rows and rates, then save in one go.</p>
                       </div>
 
-                      {milkRateQualityVisibility.showFat && (
-                        <div className="milk-rate-detail-row">
-                          <label>FAT</label>
-                          <div className="milk-rate-range">
-                            <input
-                              id="milk-rate-fat-from"
-                              required
-                              type="number"
-                              step="0.1"
-                              min="0"
-                              placeholder="From"
-                              value={milkRateForm.details[0]?.fatFrom ?? ''}
-                              onChange={(event) =>
-                                setMilkRateForm((prev) => ({
-                                  ...prev,
-                                  details: [
-                                    {
-                                      ...(prev.details[0] || {
-                                        fatFrom: null,
-                                        fatTo: null,
-                                        snfFrom: null,
-                                        snfTo: null,
-                                        mavaFrom: null,
-                                        mavaTo: null,
-                                        rate: 0,
-                                      }),
-                                      fatFrom: event.target.value === '' ? null : Number(event.target.value),
-                                    },
-                                  ],
-                                }))
-                              }
-                            />
-                            <input
-                              id="milk-rate-fat-to"
-                              required
-                              type="number"
-                              step="0.1"
-                              min="0"
-                              placeholder="To"
-                              value={milkRateForm.details[0]?.fatTo ?? ''}
-                              onChange={(event) =>
-                                setMilkRateForm((prev) => ({
-                                  ...prev,
-                                  details: [
-                                    {
-                                      ...(prev.details[0] || {
-                                        fatFrom: null,
-                                        fatTo: null,
-                                        snfFrom: null,
-                                        snfTo: null,
-                                        mavaFrom: null,
-                                        mavaTo: null,
-                                        rate: 0,
-                                      }),
-                                      fatTo: event.target.value === '' ? null : Number(event.target.value),
-                                    },
-                                  ],
-                                }))
-                              }
-                            />
-                          </div>
-                        </div>
-                      )}
+                      <div className="milk-rate-slab-table-wrap">
+                        <table className="milk-rate-slab-table">
+                          <thead>
+                            <tr>
+                              <th className="milk-rate-row-index-head">#</th>
+                              {milkRateQualityVisibility.showFat && (
+                                <>
+                                  <th>FAT From</th>
+                                  <th>FAT To</th>
+                                </>
+                              )}
+                              {milkRateQualityVisibility.showSnf && (
+                                <>
+                                  <th>SNF From</th>
+                                  <th>SNF To</th>
+                                </>
+                              )}
+                              {milkRateQualityVisibility.showMava && (
+                                <>
+                                  <th>Mava From</th>
+                                  <th>Mava To</th>
+                                </>
+                              )}
+                              <th>Rate</th>
+                              <th>Row Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {milkRateForm.details.map((detail, index) => (
+                              <tr
+                                key={`milk-rate-detail-row-${index + 1}`}
+                                className={
+                                  milkRateRowConflictState.conflictingRows.includes(index)
+                                    ? 'milk-rate-slab-row has-conflict'
+                                    : 'milk-rate-slab-row'
+                                }
+                              >
+                                <td data-label="#" className="milk-rate-row-index-cell">{index + 1}</td>
+                                {milkRateQualityVisibility.showFat && (
+                                  <>
+                                    <td data-label="FAT From">
+                                      <input
+                                        required
+                                        type="number"
+                                        step="0.1"
+                                        min="0"
+                                        value={detail.fatFrom ?? ''}
+                                        onChange={(event) =>
+                                          updateMilkRateDetail(
+                                            index,
+                                            'fatFrom',
+                                            event.target.value === '' ? null : Number(event.target.value),
+                                          )
+                                        }
+                                      />
+                                    </td>
+                                    <td data-label="FAT To">
+                                      <input
+                                        required
+                                        type="number"
+                                        step="0.1"
+                                        min="0"
+                                        value={detail.fatTo ?? ''}
+                                        onChange={(event) =>
+                                          updateMilkRateDetail(
+                                            index,
+                                            'fatTo',
+                                            event.target.value === '' ? null : Number(event.target.value),
+                                          )
+                                        }
+                                      />
+                                    </td>
+                                  </>
+                                )}
 
-                      {milkRateQualityVisibility.showSnf && (
-                        <div className="milk-rate-detail-row">
-                          <label>SNF</label>
-                          <div className="milk-rate-range">
-                            <input
-                              id="milk-rate-snf-from"
-                              required
-                              type="number"
-                              step="0.1"
-                              min="0"
-                              placeholder="From"
-                              value={milkRateForm.details[0]?.snfFrom ?? ''}
-                              onChange={(event) =>
-                                setMilkRateForm((prev) => ({
-                                  ...prev,
-                                  details: [
-                                    {
-                                      ...(prev.details[0] || {
-                                        fatFrom: null,
-                                        fatTo: null,
-                                        snfFrom: null,
-                                        snfTo: null,
-                                        mavaFrom: null,
-                                        mavaTo: null,
-                                        rate: 0,
-                                      }),
-                                      snfFrom: event.target.value === '' ? null : Number(event.target.value),
-                                    },
-                                  ],
-                                }))
-                              }
-                            />
-                            <input
-                              id="milk-rate-snf-to"
-                              required
-                              type="number"
-                              step="0.1"
-                              min="0"
-                              placeholder="To"
-                              value={milkRateForm.details[0]?.snfTo ?? ''}
-                              onChange={(event) =>
-                                setMilkRateForm((prev) => ({
-                                  ...prev,
-                                  details: [
-                                    {
-                                      ...(prev.details[0] || {
-                                        fatFrom: null,
-                                        fatTo: null,
-                                        snfFrom: null,
-                                        snfTo: null,
-                                        mavaFrom: null,
-                                        mavaTo: null,
-                                        rate: 0,
-                                      }),
-                                      snfTo: event.target.value === '' ? null : Number(event.target.value),
-                                    },
-                                  ],
-                                }))
-                              }
-                            />
-                          </div>
-                        </div>
-                      )}
+                                {milkRateQualityVisibility.showSnf && (
+                                  <>
+                                    <td data-label="SNF From">
+                                      <input
+                                        required
+                                        type="number"
+                                        step="0.1"
+                                        min="0"
+                                        value={detail.snfFrom ?? ''}
+                                        onChange={(event) =>
+                                          updateMilkRateDetail(
+                                            index,
+                                            'snfFrom',
+                                            event.target.value === '' ? null : Number(event.target.value),
+                                          )
+                                        }
+                                      />
+                                    </td>
+                                    <td data-label="SNF To">
+                                      <input
+                                        required
+                                        type="number"
+                                        step="0.1"
+                                        min="0"
+                                        value={detail.snfTo ?? ''}
+                                        onChange={(event) =>
+                                          updateMilkRateDetail(
+                                            index,
+                                            'snfTo',
+                                            event.target.value === '' ? null : Number(event.target.value),
+                                          )
+                                        }
+                                      />
+                                    </td>
+                                  </>
+                                )}
 
-                      {milkRateQualityVisibility.showMava && (
-                        <div className="milk-rate-detail-row">
-                          <label>Mava</label>
-                          <div className="milk-rate-range">
-                            <input
-                              id="milk-rate-mava-from"
-                              required
-                              type="number"
-                              step="0.1"
-                              min="0"
-                              placeholder="From"
-                              value={milkRateForm.details[0]?.mavaFrom ?? ''}
-                              onChange={(event) =>
-                                setMilkRateForm((prev) => ({
-                                  ...prev,
-                                  details: [
-                                    {
-                                      ...(prev.details[0] || {
-                                        fatFrom: null,
-                                        fatTo: null,
-                                        snfFrom: null,
-                                        snfTo: null,
-                                        mavaFrom: null,
-                                        mavaTo: null,
-                                        rate: 0,
-                                      }),
-                                      mavaFrom: event.target.value === '' ? null : Number(event.target.value),
-                                    },
-                                  ],
-                                }))
-                              }
-                            />
-                            <input
-                              id="milk-rate-mava-to"
-                              required
-                              type="number"
-                              step="0.1"
-                              min="0"
-                              placeholder="To"
-                              value={milkRateForm.details[0]?.mavaTo ?? ''}
-                              onChange={(event) =>
-                                setMilkRateForm((prev) => ({
-                                  ...prev,
-                                  details: [
-                                    {
-                                      ...(prev.details[0] || {
-                                        fatFrom: null,
-                                        fatTo: null,
-                                        snfFrom: null,
-                                        snfTo: null,
-                                        mavaFrom: null,
-                                        mavaTo: null,
-                                        rate: 0,
-                                      }),
-                                      mavaTo: event.target.value === '' ? null : Number(event.target.value),
-                                    },
-                                  ],
-                                }))
-                              }
-                            />
-                          </div>
+                                {milkRateQualityVisibility.showMava && (
+                                  <>
+                                    <td data-label="Mava From">
+                                      <input
+                                        ref={(element) => {
+                                          milkRateMavaFromRefs.current[index] = element
+                                        }}
+                                        required
+                                        type="number"
+                                        step="0.1"
+                                        min="0"
+                                        value={detail.mavaFrom ?? ''}
+                                        onChange={(event) =>
+                                          updateMilkRateDetail(
+                                            index,
+                                            'mavaFrom',
+                                            event.target.value === '' ? null : Number(event.target.value),
+                                          )
+                                        }
+                                      />
+                                    </td>
+                                    <td data-label="Mava To">
+                                      <input
+                                        required
+                                        type="number"
+                                        step="0.1"
+                                        min="0"
+                                        value={detail.mavaTo ?? ''}
+                                        onChange={(event) =>
+                                          updateMilkRateDetail(
+                                            index,
+                                            'mavaTo',
+                                            event.target.value === '' ? null : Number(event.target.value),
+                                          )
+                                        }
+                                      />
+                                    </td>
+                                  </>
+                                )}
+
+                                <td data-label="Rate">
+                                  <input
+                                    required
+                                    type="number"
+                                    step="0.01"
+                                    min="0.01"
+                                    value={detail.rate > 0 ? detail.rate : ''}
+                                    onChange={(event) =>
+                                      updateMilkRateDetail(
+                                        index,
+                                        'rate',
+                                        event.target.value === '' ? 0 : Number(event.target.value),
+                                      )
+                                    }
+                                  />
+                                </td>
+                                <td data-label="Row Action">
+                                  <div className="milk-rate-row-actions-cell">
+                                    <button
+                                      type="button"
+                                      className="milk-rate-row-remove-btn"
+                                      onClick={() => removeMilkRateDetailRow(index)}
+                                      disabled={busy}
+                                      aria-label="Remove slab row"
+                                      title="Remove slab row"
+                                    >
+                                      −
+                                    </button>
+                                    {index === milkRateForm.details.length - 1 && (
+                                      <button
+                                        type="button"
+                                        className="milk-rate-row-add-btn"
+                                        onClick={addMilkRateDetailRow}
+                                        disabled={busy}
+                                        aria-label="Add slab row"
+                                        title="Add slab row"
+                                      >
+                                        +
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {milkRateRowConflictState.messages.length > 0 && (
+                        <div className="milk-rate-slab-alert" role="alert" aria-live="polite">
+                          {milkRateRowConflictState.messages.map((message) => (
+                            <p key={message}>{message}</p>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -4346,32 +4643,6 @@ function App() {
                     </div>
                   </form>
 
-                  <aside className="milk-rate-summary" aria-label="Milk rate quick summary">
-                    <h3>Selection Snapshot</h3>
-                    <div className="milk-rate-summary-grid">
-                      <article>
-                        <p>Branch</p>
-                        <strong>{branchName || currentShop?.name || '-'}</strong>
-                      </article>
-                      <article>
-                        <p>Rate Category</p>
-                        <strong>
-                          {rateCategories.find((item) => item.uuid === milkRateForm.rateCategoryUuid)?.name || '-'}
-                        </strong>
-                      </article>
-                      <article>
-                        <p>Collection Method</p>
-                        <strong>
-                          {collectionMethods.find((item) => item.uuid === milkRateForm.collectionMethodUuid)?.name ||
-                            '-'}
-                        </strong>
-                      </article>
-                      <article>
-                        <p>Effective Date</p>
-                        <strong>{milkRateForm.effectiveFrom || '-'}</strong>
-                      </article>
-                    </div>
-                  </aside>
                 </div>
 
                 <div className="table-wrap">

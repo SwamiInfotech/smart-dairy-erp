@@ -31,4 +31,6 @@ public interface FarmerConfigurationRepository extends JpaRepository<FarmerConfi
             """)
     Optional<FarmerConfiguration> findApplicableConfiguration(Long farmerId, LocalDate collectionDate);
 
+    boolean existsByMilkRateChartId(Long milkRateChartId);
+
 }

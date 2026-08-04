@@ -3,17 +3,22 @@ package com.smartdairy.milkrate.controller;
 import com.smartdairy.common.response.ApiResponse;
 import com.smartdairy.milkrate.dto.CreateMilkRateChartRequest;
 import com.smartdairy.milkrate.dto.MilkRateChartResponse;
+import com.smartdairy.milkrate.dto.UpdateMilkRateChartRequest;
 import com.smartdairy.milkrate.service.CreateMilkRateChartService;
+import com.smartdairy.milkrate.service.DeleteMilkRateChartService;
 import com.smartdairy.milkrate.service.GetMilkRateChartByUuidService;
 import com.smartdairy.milkrate.service.GetMilkRateChartService;
+import com.smartdairy.milkrate.service.UpdateMilkRateChartService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,6 +36,8 @@ public class MilkRateChartController {
     private final CreateMilkRateChartService service;
     private final GetMilkRateChartService getMilkRateChartService;
     private final GetMilkRateChartByUuidService getMilkRateChartByUuidService;
+    private final UpdateMilkRateChartService updateMilkRateChartService;
+    private final DeleteMilkRateChartService deleteMilkRateChartService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<MilkRateChartResponse>> create(
@@ -72,6 +79,36 @@ public class MilkRateChartController {
                         true,
                         "Milk Rate Chart retrieved successfully.",
                         response,
+                        LocalDateTime.now()));
+    }
+
+    @PutMapping("/{uuid}")
+    public ResponseEntity<ApiResponse<MilkRateChartResponse>> update(
+            @PathVariable UUID uuid,
+            @Valid @RequestBody UpdateMilkRateChartRequest request) {
+        log.info("Received request to update milk rate chart with uuid={}.", uuid);
+
+        MilkRateChartResponse response = updateMilkRateChartService.update(uuid, request);
+
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(new ApiResponse<>(
+                        true,
+                        "Milk Rate Chart updated successfully.",
+                        response,
+                        LocalDateTime.now()));
+    }
+
+    @DeleteMapping("/{uuid}")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID uuid) {
+        log.info("Received request to delete milk rate chart with uuid={}.", uuid);
+
+        deleteMilkRateChartService.delete(uuid);
+
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(new ApiResponse<>(
+                        true,
+                        "Milk Rate Chart deleted successfully.",
+                        null,
                         LocalDateTime.now()));
     }
 }
