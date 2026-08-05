@@ -61,8 +61,13 @@ export function InventoryTransactionsPage({
     return Math.round(quantity * rate * 100) / 100
   }, [form.quantity, form.unitRate])
 
+  const activeProductUuidSet = useMemo(() => {
+    return new Set(products.filter((product) => product.active).map((product) => product.uuid))
+  }, [products])
+
   const derivedStockRows = useMemo(() => {
     const stockByProduct = new Map<string, { productName: string; productCode: string; stock: number }>()
+    const shouldFilterByActive = activeProductUuidSet.size > 0
 
     for (const product of products) {
       stockByProduct.set(product.uuid, {
@@ -73,6 +78,10 @@ export function InventoryTransactionsPage({
     }
 
     for (const item of transactions) {
+      if (shouldFilterByActive && !activeProductUuidSet.has(item.productUuid)) {
+        continue
+      }
+
       const existing = stockByProduct.get(item.productUuid) || {
         productName: item.productName || item.productCode || item.productUuid,
         productCode: item.productCode,
@@ -98,14 +107,17 @@ export function InventoryTransactionsPage({
         stock: Math.round(value.stock * 100) / 100,
       }))
       .sort((a, b) => a.productName.localeCompare(b.productName))
-  }, [products, transactions])
+  }, [activeProductUuidSet, products, transactions])
 
   const productStockRows = useMemo(() => {
+    const shouldFilterByActive = activeProductUuidSet.size > 0
+
     if (currentStockRows.length === 0) {
       return derivedStockRows
     }
 
     return currentStockRows
+      .filter((row) => !shouldFilterByActive || activeProductUuidSet.has(row.productUuid))
       .map((row) => {
         const matchedProduct = products.find((item) => item.uuid === row.productUuid)
         return {
@@ -116,7 +128,7 @@ export function InventoryTransactionsPage({
         }
       })
       .sort((a, b) => a.productName.localeCompare(b.productName))
-  }, [currentStockRows, derivedStockRows, products])
+  }, [activeProductUuidSet, currentStockRows, derivedStockRows, products])
 
   const totalStock = useMemo(
     () => productStockRows.reduce((sum, row) => sum + row.stock, 0),
@@ -331,7 +343,7 @@ export function InventoryTransactionsPage({
         </aside>
       </div>
 
-      <div className="table-wrap">
+      <div className="table-wrap inventory-transactions-table-wrap">
         <table>
           <thead>
             <tr>

@@ -1,6 +1,13 @@
 import { useCallback, useEffect } from 'react'
 import { api } from '../lib/api'
+import {
+  fromApiCollectionEntryMode,
+  extractCollectionEntryModeFromRemarks,
+  stripCollectionEntryModeTag,
+  type CollectionEntryMode,
+} from '../lib/collectionEntryMode'
 import type {
+  ApiCollectionEntryMode,
   CollectionMethodResponse,
   CustomerResponse,
   FarmerResponse,
@@ -22,9 +29,31 @@ type CollectionListItem = {
   uuid: string
   collectionNo: string
   farmerName: string
+  farmerUuid?: string
+  shiftUuid?: string
+  milkTypeUuid?: string
   collectionDate: string
+  collectionTime?: string
   quantity: number
+  fat?: number | null
+  snf?: number | null
+  mava?: number | null
+  remarks?: string | null
+  entryMode?: CollectionEntryMode
   grossAmount: number
+}
+
+type ApiCollectionListItem = Omit<CollectionListItem, 'entryMode'> & {
+  entryMode?: ApiCollectionEntryMode | null
+}
+
+function normalizeCollectionListItem(item: ApiCollectionListItem): CollectionListItem {
+  const resolvedMode = fromApiCollectionEntryMode((item as { entryMode?: unknown }).entryMode)
+  return {
+    ...item,
+    entryMode: resolvedMode !== 'unknown' ? resolvedMode : extractCollectionEntryModeFromRemarks(item.remarks),
+    remarks: stripCollectionEntryModeTag(item.remarks),
+  }
 }
 
 type AppDataRange = {
@@ -81,6 +110,8 @@ export function useAppDataLoading({
   setFarmerRateCharts,
   setMyShops,
 }: UseAppDataLoadingParams) {
+  const isProductActive = (product: ProductResponse) => product.active === true
+
   const loadDashboard = useCallback(async () => {
     if (!token) return
     const result = await runAction(
@@ -96,7 +127,7 @@ export function useAppDataLoading({
     if (!token) return
     const result = await runAction(() => api.searchProducts(token))
     if (result) {
-      setProducts(result.content)
+      setProducts(result.content.filter(isProductActive))
     }
   }, [runAction, setProducts, token])
 
@@ -141,7 +172,7 @@ export function useAppDataLoading({
     ])
 
     if (collectionPage) {
-      setCollections(collectionPage.content)
+      setCollections(collectionPage.content.map(normalizeCollectionListItem))
     }
     if (farmerPage) {
       setFarmers(Array.isArray(farmerPage.content) ? farmerPage.content : [])

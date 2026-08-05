@@ -2,8 +2,16 @@ import type { FormEvent } from 'react'
 import { useCallback, useState } from 'react'
 import { api } from '../lib/api'
 import { toInputTime } from '../lib/appCoreUtils'
+import {
+  fromApiCollectionEntryMode,
+  extractCollectionEntryModeFromRemarks,
+  stripCollectionEntryModeTag,
+  toApiCollectionEntryMode,
+  type CollectionEntryMode,
+} from '../lib/collectionEntryMode'
 import { resolveQualityFieldVisibility } from '../lib/uiHelpers'
 import type {
+  ApiCollectionEntryMode,
   FarmerResponse,
   MasterLookupResponse,
   MilkTypeResponse,
@@ -39,7 +47,12 @@ type CollectionListItem = {
   snf?: number | null
   mava?: number | null
   remarks?: string | null
+  entryMode?: CollectionEntryMode
   grossAmount: number
+}
+
+type ApiCollectionListItem = Omit<CollectionListItem, 'entryMode'> & {
+  entryMode?: ApiCollectionEntryMode | null
 }
 
 type MultiCollectionEntryInput = {
@@ -77,6 +90,20 @@ export function useCollectionCrud({
   setCollectionForm,
 }: UseCollectionCrudParams) {
   const [editingCollectionUuid, setEditingCollectionUuid] = useState('')
+  const [editingCollectionEntryMode, setEditingCollectionEntryMode] = useState<CollectionEntryMode>('single')
+
+  const normalizeCollectionListItem = useCallback((item: ApiCollectionListItem): CollectionListItem => {
+    const resolvedMode = fromApiCollectionEntryMode((item as { entryMode?: unknown }).entryMode)
+    const entryMode = resolvedMode !== 'unknown'
+      ? resolvedMode
+      : extractCollectionEntryModeFromRemarks(item.remarks)
+
+    return {
+      ...item,
+      entryMode,
+      remarks: stripCollectionEntryModeTag(item.remarks),
+    }
+  }, [])
 
   const onCreateCollection = useCallback(
     async (event: FormEvent) => {
@@ -138,6 +165,11 @@ export function useCollectionCrud({
           fat: qualityVisibility.showFat ? collectionForm.fat || null : null,
           snf: qualityVisibility.showSnf ? collectionForm.snf || null : null,
           mava: qualityVisibility.showMava ? collectionForm.mava || null : null,
+          entryMode: toApiCollectionEntryMode(
+            editingCollectionUuid && editingCollectionEntryMode !== 'unknown'
+              ? editingCollectionEntryMode
+              : 'single',
+          ),
           remarks: collectionForm.remarks.trim(),
         }
 
@@ -148,22 +180,27 @@ export function useCollectionCrud({
 
       if (!created) return
 
+      const normalizedCreated = normalizeCollectionListItem(created)
+
       setCollections((prev) => {
         if (!editingCollectionUuid) {
-          return [created, ...prev]
+          return [normalizedCreated, ...prev]
         }
 
-        return prev.map((item) => (item.uuid === editingCollectionUuid ? created : item))
+        return prev.map((item) => (item.uuid === editingCollectionUuid ? normalizedCreated : item))
       })
 
       setEditingCollectionUuid('')
-      setCollectionForm((prev) => ({ ...prev, collectionNo: created.collectionNo }))
+      setEditingCollectionEntryMode('single')
+      setCollectionForm((prev) => ({ ...prev, collectionNo: normalizedCreated.collectionNo }))
     },
     [
       collectionForm,
+      editingCollectionEntryMode,
       editingCollectionUuid,
       farmers,
       milkTypes,
+      normalizeCollectionListItem,
       runAction,
       selectedCollectionMethod,
       setCollectionForm,
@@ -237,10 +274,11 @@ export function useCollectionCrud({
             fat: qualityVisibility.showFat ? entry.fat || null : null,
             snf: qualityVisibility.showSnf ? entry.snf || null : null,
             mava: qualityVisibility.showMava ? entry.mava || null : null,
+            entryMode: 'MULTI',
             remarks: entry.remarks.trim(),
           })
 
-          created.push(saved)
+          created.push(normalizeCollectionListItem(saved))
         }
 
         return created
@@ -276,6 +314,10 @@ export function useCollectionCrud({
       }
 
       setEditingCollectionUuid(item.uuid)
+      const resolvedMode = fromApiCollectionEntryMode(item.entryMode)
+      setEditingCollectionEntryMode(
+        resolvedMode !== 'unknown' ? resolvedMode : extractCollectionEntryModeFromRemarks(item.remarks),
+      )
       setError('')
       setCollectionForm((prev) => ({
         ...prev,
@@ -289,7 +331,7 @@ export function useCollectionCrud({
         fat: Number(item.fat || 0),
         snf: item.snf == null ? null : Number(item.snf),
         mava: Number(item.mava || 0),
-        remarks: item.remarks || '',
+        remarks: stripCollectionEntryModeTag(item.remarks),
       }))
     },
     [setCollectionForm, setError],
@@ -297,6 +339,7 @@ export function useCollectionCrud({
 
   const onCancelCollectionEdit = useCallback(() => {
     setEditingCollectionUuid('')
+    setEditingCollectionEntryMode('single')
     setError('')
   }, [setError])
 
@@ -312,6 +355,7 @@ export function useCollectionCrud({
       setCollections((prev) => prev.filter((row) => row.uuid !== item.uuid))
       if (editingCollectionUuid === item.uuid) {
         setEditingCollectionUuid('')
+        setEditingCollectionEntryMode('single')
       }
     },
     [editingCollectionUuid, runAction, setCollections, token],

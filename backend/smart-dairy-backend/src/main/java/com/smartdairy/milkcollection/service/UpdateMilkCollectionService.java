@@ -67,6 +67,10 @@ public class UpdateMilkCollectionService {
 
         entity.setMava(request.mava());
 
+                if (request.entryMode() != null) {
+                        entity.setEntryMode(request.entryMode());
+                }
+
         entity.setCalculatedRate(result.calculatedRate());
 
         entity.setGrossAmount(result.grossAmount());

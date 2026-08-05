@@ -9,7 +9,9 @@ type SidebarGroup = {
 }
 
 type WorkspaceFrameProps = {
+  mobileViewport: boolean
   isSidebarCollapsed: boolean
+  isMobileSidebarOpen: boolean
   activeSidebarMenu: string
   sidebarGroups: readonly SidebarGroup[]
   tabLabels: Record<string, string>
@@ -25,7 +27,9 @@ type WorkspaceFrameProps = {
 }
 
 export function WorkspaceFrame({
+  mobileViewport,
   isSidebarCollapsed,
+  isMobileSidebarOpen,
   activeSidebarMenu,
   sidebarGroups,
   tabLabels,
@@ -60,6 +64,15 @@ export function WorkspaceFrame({
   return (
     <div className="workspace-frame">
       <header className="topbar">
+        <button
+          type="button"
+          className="mobile-drawer-toggle"
+          onClick={toggleSidebarCollapse}
+          aria-label={isMobileSidebarOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={isMobileSidebarOpen}
+        >
+          <span aria-hidden="true">☰</span>
+        </button>
         <div>
           <p className="eyebrow">Smart Dairy ERP</p>
           <p className="topbar-breadcrumb">Dashboard / Operations / Agent Workspace</p>
@@ -96,9 +109,20 @@ export function WorkspaceFrame({
       </header>
 
       <div className="app-body-scroll" ref={bodyScrollRef}>
-        <div className={isSidebarCollapsed ? 'workspace-shell sidebar-collapsed' : 'workspace-shell'}>
+        <div className={mobileViewport ? 'workspace-shell mobile-sidebar-mode' : (isSidebarCollapsed ? 'workspace-shell sidebar-collapsed' : 'workspace-shell')}>
+          {mobileViewport && isMobileSidebarOpen ? (
+            <button
+              type="button"
+              className="mobile-sidebar-backdrop"
+              onClick={toggleSidebarCollapse}
+              aria-label="Close menu drawer"
+            />
+          ) : null}
+
           <WorkspaceSidebar
             isSidebarCollapsed={isSidebarCollapsed}
+            isMobileViewport={mobileViewport}
+            isMobileSidebarOpen={isMobileSidebarOpen}
             activeSidebarMenu={activeSidebarMenu}
             sidebarGroups={sidebarGroups}
             tabLabels={tabLabels}

@@ -3,6 +3,7 @@ package com.smartdairy.milkcollection.entity;
 import com.smartdairy.branch.entity.Branch;
 import com.smartdairy.collectionmethod.entity.CollectionMethod;
 import com.smartdairy.common.entity.BaseEntity;
+import com.smartdairy.common.enums.CollectionEntryMode;
 import com.smartdairy.common.enums.EntrySource;
 import com.smartdairy.common.enums.EntryType;
 import com.smartdairy.farmer.entity.Farmer;
@@ -87,6 +88,10 @@ public class MilkCollection extends BaseEntity {
 
     @Column(name = "gross_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal grossAmount;
+
+        @Enumerated(EnumType.STRING)
+        @Column(name = "entry_mode", nullable = false, length = 20)
+        private CollectionEntryMode entryMode;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "entry_type", nullable = false, length = 20)

@@ -1,4 +1,4 @@
-import type { Dispatch, FormEvent, SetStateAction } from 'react'
+import { useEffect, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react'
 import type { ProductResponse } from '../types/api'
 
 type ProductFormState = {
@@ -20,7 +20,17 @@ type ProductsPageProps = {
   averageProductSellingPrice: number
   nextProductCode: string
   loadProducts: () => void | Promise<void>
+  editingProductUuid: string
   onCreateProduct: (event: FormEvent<HTMLFormElement>) => void | Promise<void>
+  onEditProduct: (item: ProductResponse) => void
+  onCancelProductEdit: () => void
+  onDeleteProduct: (item: ProductResponse) => void | Promise<void>
+}
+
+const NON_DELETABLE_PRODUCT_CODES = new Set(['PRD001', 'PRD002'])
+
+function isNonDeletableCoreProduct(productCode: string) {
+  return NON_DELETABLE_PRODUCT_CODES.has((productCode || '').trim().toUpperCase())
 }
 
 export function ProductsPage({
@@ -31,8 +41,57 @@ export function ProductsPage({
   averageProductSellingPrice,
   nextProductCode,
   loadProducts,
+  editingProductUuid,
   onCreateProduct,
+  onEditProduct,
+  onCancelProductEdit,
+  onDeleteProduct,
 }: ProductsPageProps) {
+  const [confirmDeleteProduct, setConfirmDeleteProduct] = useState<ProductResponse | null>(null)
+  const [confirmBusy, setConfirmBusy] = useState(false)
+
+  useEffect(() => {
+    if (!confirmDeleteProduct) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [confirmDeleteProduct])
+
+  useEffect(() => {
+    if (!confirmDeleteProduct) return
+
+    const onEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape' && !confirmBusy) {
+        setConfirmDeleteProduct(null)
+      }
+    }
+
+    window.addEventListener('keydown', onEscape)
+    return () => window.removeEventListener('keydown', onEscape)
+  }, [confirmBusy, confirmDeleteProduct])
+
+  const closeDeleteConfirm = () => {
+    if (confirmBusy) return
+    setConfirmDeleteProduct(null)
+  }
+
+  const handleDeleteProduct = async () => {
+    if (!confirmDeleteProduct || confirmBusy) return
+
+    setConfirmBusy(true)
+    try {
+      await onDeleteProduct(confirmDeleteProduct)
+      await loadProducts()
+    } finally {
+      setConfirmBusy(false)
+      setConfirmDeleteProduct(null)
+    }
+  }
+
   return (
     <section className="panel panel-product">
       <div className="panel-head">
@@ -46,7 +105,7 @@ export function ProductsPage({
         <form className="form two-col product-form" onSubmit={onCreateProduct}>
           <div className="product-form-head">
             <p className="eyebrow">Product Master</p>
-            <h3>Create Product</h3>
+            <h3>{editingProductUuid ? 'Edit Product' : 'Create Product'}</h3>
             <p className="subtle">Product code is generated automatically and increments by 1.</p>
           </div>
 
@@ -128,9 +187,21 @@ export function ProductsPage({
               onChange={(event) => setProductForm((prev) => ({ ...prev, description: event.target.value }))}
             />
           </label>
-          <button type="submit" disabled={busy} className="product-submit">
-            {busy ? 'Creating...' : 'Create product'}
-          </button>
+          <div className="collection-form-actions">
+            <button type="submit" disabled={busy} className="product-submit">
+              {busy ? 'Saving...' : editingProductUuid ? 'Update Product' : 'Create Product'}
+            </button>
+            {editingProductUuid && (
+              <button
+                type="button"
+                className="collection-cancel-edit-btn"
+                onClick={onCancelProductEdit}
+                disabled={busy}
+              >
+                Cancel Edit
+              </button>
+            )}
+          </div>
         </form>
 
         <aside className="product-summary" aria-label="Product quick summary">
@@ -161,6 +232,7 @@ export function ProductsPage({
               <th>Type</th>
               <th>Selling</th>
               <th>Stock min</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -171,11 +243,80 @@ export function ProductsPage({
                 <td>{item.productType}</td>
                 <td>{item.sellingPrice}</td>
                 <td>{item.minimumStock}</td>
+                <td>
+                  <div className="collection-list-actions">
+                    {(() => {
+                      const isCoreProduct = isNonDeletableCoreProduct(item.productCode)
+                      return (
+                        <>
+                    <button
+                      type="button"
+                      onClick={() => onEditProduct(item)}
+                      disabled={busy}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="collection-list-delete-btn"
+                      title={isCoreProduct ? 'PRD001 and PRD002 are core products and cannot be deleted.' : 'Delete product'}
+                      onClick={() => {
+                        if (isCoreProduct) return
+                        setConfirmDeleteProduct(item)
+                      }}
+                      disabled={busy || isCoreProduct}
+                    >
+                      Delete
+                    </button>
+                        </>
+                      )
+                    })()}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {confirmDeleteProduct && (
+        <div className="collection-confirm-overlay" role="presentation" onClick={closeDeleteConfirm}>
+          <div
+            className="collection-confirm-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="product-delete-confirm-title"
+            aria-describedby="product-delete-confirm-message"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id="product-delete-confirm-title">Delete Product</h3>
+            <p id="product-delete-confirm-message">
+              Do you really want to delete product <strong>{confirmDeleteProduct.productName}</strong>?
+              This action cannot be undone.
+            </p>
+            <div className="collection-confirm-actions">
+              <button
+                type="button"
+                className="collection-confirm-cancel"
+                onClick={closeDeleteConfirm}
+                disabled={busy || confirmBusy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="collection-confirm-primary"
+                onClick={() => {
+                  void handleDeleteProduct()
+                }}
+                disabled={busy || confirmBusy}
+              >
+                {confirmBusy ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   )
 }

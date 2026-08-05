@@ -2,6 +2,8 @@ package com.smartdairy.inventory.enums;
 
 public enum InventoryTransactionType {
 
+    OPENING_STOCK,
+
     MILK_COLLECTION,
 
     PURCHASE,

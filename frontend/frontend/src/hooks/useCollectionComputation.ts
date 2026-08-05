@@ -46,9 +46,30 @@ export function useCollectionComputation<TCollectionForm extends CollectionFormS
     return milkRateCharts.find((item) => item.uuid === chartUuid) || null
   }, [milkRateCharts, selectedCollectionFarmer])
 
+  const isCollectionMethodSyncedWithFarmerChart = useMemo(() => {
+    const chartMethodUuid = selectedCollectionMilkRateChart?.collectionMethodUuid || ''
+    if (!chartMethodUuid) {
+      return true
+    }
+
+    return chartMethodUuid === (selectedCollectionMethod?.uuid || '')
+  }, [selectedCollectionMethod?.uuid, selectedCollectionMilkRateChart?.collectionMethodUuid])
+
   const collectionQualityVisibility = useMemo(
-    () => resolveQualityFieldVisibility(selectedCollectionMethod),
-    [selectedCollectionMethod],
+    () => {
+      // During edit, farmer can change before selected method is synchronized.
+      // Keep all metrics visible temporarily so stale visibility does not wipe values.
+      if (!isCollectionMethodSyncedWithFarmerChart) {
+        return {
+          showFat: true,
+          showSnf: true,
+          showMava: true,
+        }
+      }
+
+      return resolveQualityFieldVisibility(selectedCollectionMethod)
+    },
+    [isCollectionMethodSyncedWithFarmerChart, selectedCollectionMethod],
   )
 
   useEffect(() => {

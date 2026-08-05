@@ -1,5 +1,7 @@
 package com.smartdairy.milkcollection.dto;
 
+import com.smartdairy.common.enums.CollectionEntryMode;
+
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 
@@ -28,6 +30,8 @@ public record UpdateMilkCollectionRequest(
         BigDecimal snf,
 
         BigDecimal mava,
+
+        CollectionEntryMode entryMode,
 
         String remarks
 ) {

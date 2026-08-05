@@ -1,5 +1,7 @@
 package com.smartdairy.milkcollection.dto;
 
+import com.smartdairy.common.enums.CollectionEntryMode;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -38,6 +40,8 @@ public record MilkCollectionResponse(
         BigDecimal mava,
 
         BigDecimal calculatedRate,
+
+        CollectionEntryMode entryMode,
 
         BigDecimal grossAmount
 

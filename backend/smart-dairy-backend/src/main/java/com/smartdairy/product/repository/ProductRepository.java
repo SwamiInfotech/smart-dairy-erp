@@ -15,6 +15,10 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     Optional<Product> findByProductNameIgnoreCase(String productName);
 
+    Optional<Product> findByProductCodeAndTenantUuid(String productCode, UUID tenantUuid);
+
+    Optional<Product> findByProductNameIgnoreCaseAndTenantUuid(String productName, UUID tenantUuid);
+
     boolean existsByProductCodeAndTenantUuid(String productCode, UUID tenantUuid);
 
     boolean existsByProductNameIgnoreCaseAndTenantUuid(String productName, UUID tenantUuid);

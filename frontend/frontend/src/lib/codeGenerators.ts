@@ -1,5 +1,10 @@
-function nextSequentialCode(existingCodes: string[], fallbackPrefix: string, fallbackWidth: number) {
-  let highestNumber = 0
+function nextSequentialCode(
+  existingCodes: string[],
+  fallbackPrefix: string,
+  fallbackWidth: number,
+  minimumHighestNumber = 0,
+) {
+  let highestNumber = minimumHighestNumber
   let selectedPrefix = fallbackPrefix
   let selectedWidth = fallbackWidth
 
@@ -40,7 +45,7 @@ export function buildNextCollectionNo(existingCollectionNos: string[]) {
 }
 
 export function buildNextProductCode(existingCodes: string[]) {
-  return nextSequentialCode(existingCodes, 'PRD', 3)
+  return nextSequentialCode(existingCodes, 'PRD', 3, 2)
 }
 
 export function buildNextFarmerCode(existingCodes: string[]) {

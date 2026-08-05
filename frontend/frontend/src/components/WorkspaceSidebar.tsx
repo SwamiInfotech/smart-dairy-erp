@@ -7,6 +7,8 @@ type SidebarGroup = {
 
 type WorkspaceSidebarProps = {
   isSidebarCollapsed: boolean
+  isMobileViewport: boolean
+  isMobileSidebarOpen: boolean
   activeSidebarMenu: string
   sidebarGroups: readonly SidebarGroup[]
   tabLabels: Record<string, string>
@@ -17,6 +19,8 @@ type WorkspaceSidebarProps = {
 
 export function WorkspaceSidebar({
   isSidebarCollapsed,
+  isMobileViewport,
+  isMobileSidebarOpen,
   activeSidebarMenu,
   sidebarGroups,
   tabLabels,
@@ -24,6 +28,8 @@ export function WorkspaceSidebar({
   toggleSidebarCollapse,
   onSelectSidebarMenu,
 }: WorkspaceSidebarProps) {
+  const showCollapsedSidebar = !isMobileViewport && isSidebarCollapsed
+
   const defaultExpandedTitle = useMemo(() => {
     const activeGroupTitle = sidebarGroups.find((group) => group.items.includes(activeSidebarMenu))?.title
     return activeGroupTitle || sidebarGroups[0]?.title || null
@@ -45,21 +51,26 @@ export function WorkspaceSidebar({
   }
 
   return (
-    <aside className={isSidebarCollapsed ? 'left-sidebar collapsed' : 'left-sidebar'}>
+    <aside className={[
+      'left-sidebar',
+      showCollapsedSidebar ? 'collapsed' : '',
+      isMobileViewport ? 'mobile-drawer' : '',
+      isMobileViewport && isMobileSidebarOpen ? 'mobile-open' : '',
+    ].filter(Boolean).join(' ')}>
       <div className="sidebar-head">
         <button
           type="button"
           className="sidebar-toggle-btn"
           onClick={toggleSidebarCollapse}
-          aria-expanded={!isSidebarCollapsed}
-          aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={isMobileViewport ? isMobileSidebarOpen : !isSidebarCollapsed}
+          aria-label={isMobileViewport ? (isMobileSidebarOpen ? 'Close menu' : 'Open menu') : (isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}
         >
-          <span aria-hidden="true">{isSidebarCollapsed ? '>' : '<'}</span>
+          <span aria-hidden="true">{isMobileViewport ? (isMobileSidebarOpen ? 'x' : '☰') : (isSidebarCollapsed ? '>' : '<')}</span>
         </button>
       </div>
 
-      <div className={isSidebarCollapsed ? 'sidebar-content collapsed' : 'sidebar-content'}>
-        {!isSidebarCollapsed ? (
+      <div className={showCollapsedSidebar ? 'sidebar-content collapsed' : 'sidebar-content'}>
+        {!showCollapsedSidebar ? (
           sidebarGroups.map((group) => (
             <section className="sidebar-group" key={group.title}>
               <button

@@ -19,10 +19,18 @@ public final class CacheKeys {
     }
 
     public static String milkRateChartFatRateKey(Long chartId, BigDecimal fat, BigDecimal snf) {
-        return tenantKey() + ":" + chartId + ":" + fat.stripTrailingZeros().toPlainString() + ":" + snf.stripTrailingZeros().toPlainString();
+        return tenantKey() + ":" + chartId + ":" + normalizeDecimal(fat) + ":" + normalizeDecimal(snf);
     }
 
     public static String milkRateChartMavaRateKey(Long chartId, BigDecimal mava) {
         return tenantKey() + ":" + chartId + ":" + mava.stripTrailingZeros().toPlainString();
+    }
+
+    private static String normalizeDecimal(BigDecimal value) {
+        if (value == null) {
+            return "null";
+        }
+
+        return value.stripTrailingZeros().toPlainString();
     }
 }

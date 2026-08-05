@@ -37,6 +37,7 @@ import type {
   ShiftResponse,
   TenantResponse,
 } from '../types/api'
+import type { CollectionEntryMode } from '../lib/collectionEntryMode'
 
 type TabKey =
   | 'dashboard'
@@ -61,6 +62,7 @@ type CollectionListItem = {
   snf?: number | null
   mava?: number | null
   remarks?: string | null
+  entryMode?: CollectionEntryMode
   grossAmount: number
 }
 
@@ -158,7 +160,11 @@ type WorkspacePanelGridProps = {
   averageProductSellingPrice: number
   nextProductCode: string
   loadProducts: () => void | Promise<void>
+  editingProductUuid: string
   onCreateProduct: (event: FormEvent<HTMLFormElement>) => void | Promise<void>
+  onEditProduct: (item: ProductResponse) => void
+  onCancelProductEdit: () => void
+  onDeleteProduct: (item: ProductResponse) => void | Promise<void>
   branchName: string
   branchUuid: string
   customerForm: CustomerFormState
@@ -297,7 +303,11 @@ export function WorkspacePanelGrid({
   averageProductSellingPrice,
   nextProductCode,
   loadProducts,
+  editingProductUuid,
   onCreateProduct,
+  onEditProduct,
+  onCancelProductEdit,
+  onDeleteProduct,
   branchName,
   branchUuid,
   customerForm,
@@ -428,7 +438,11 @@ export function WorkspacePanelGrid({
           averageProductSellingPrice={averageProductSellingPrice}
           nextProductCode={nextProductCode}
           loadProducts={loadProducts}
+          editingProductUuid={editingProductUuid}
           onCreateProduct={onCreateProduct}
+          onEditProduct={onEditProduct}
+          onCancelProductEdit={onCancelProductEdit}
+          onDeleteProduct={onDeleteProduct}
         />
       )}
 

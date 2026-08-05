@@ -9,7 +9,9 @@ export function useWorkspaceFrameProps({ state, ops }: AppShellContractsArgs) {
   const { session } = state
 
   return {
+    mobileViewport: ops.shell.mobileViewport,
     isSidebarCollapsed: ops.shell.isSidebarCollapsed,
+    isMobileSidebarOpen: ops.shell.isMobileSidebarOpen,
     activeSidebarMenu: ops.shell.activeSidebarMenu,
     sidebarGroups: SIDEBAR_GROUPS,
     tabLabels: TAB_LABELS,

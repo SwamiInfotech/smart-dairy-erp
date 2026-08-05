@@ -1,6 +1,7 @@
 package com.smartdairy.inventory.repository;
 
 import com.smartdairy.inventory.entity.InventoryTransaction;
+import com.smartdairy.inventory.enums.InventoryTransactionType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -34,4 +35,8 @@ public interface InventoryTransactionRepository extends
             Pageable pageable);
 
     boolean existsByProductUuid(UUID productUuid);
+
+    boolean existsByProductUuidAndTransactionTypeNot(
+            UUID productUuid,
+            InventoryTransactionType transactionType);
 }

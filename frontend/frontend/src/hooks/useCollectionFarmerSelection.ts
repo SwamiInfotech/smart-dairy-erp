@@ -103,6 +103,30 @@ export function useCollectionFarmerSelection<TCollectionForm extends CollectionF
     void applyCollectionFarmerSelection(farmers[0].uuid)
   }, [applyCollectionFarmerSelection, collectionFarmerUuid, farmers, setCollectionForm])
 
+  useEffect(() => {
+    if (!collectionFarmerUuid) {
+      setSelectedCollectionMethod((prev) => (prev === null ? prev : null))
+      return
+    }
+
+    const selectedFarmer = farmers.find((item) => item.uuid === collectionFarmerUuid) || null
+    const selectedMilkRateChart = selectedFarmer?.milkRateChartUuid
+      ? milkRateCharts.find((item) => item.uuid === selectedFarmer.milkRateChartUuid) || null
+      : null
+    const selectedMethod = selectedMilkRateChart?.collectionMethodUuid
+      ? collectionMethods.find((item) => item.uuid === selectedMilkRateChart.collectionMethodUuid) || null
+      : null
+
+    setSelectedCollectionMethod((prev) => {
+      const previousUuid = prev?.uuid || ''
+      const nextUuid = selectedMethod?.uuid || ''
+      if (previousUuid === nextUuid) {
+        return prev
+      }
+      return selectedMethod
+    })
+  }, [collectionFarmerUuid, collectionMethods, farmers, milkRateCharts, setSelectedCollectionMethod])
+
   const onCollectionFarmerChange = useCallback(
     async (event: ChangeEvent<HTMLSelectElement>) => {
       await applyCollectionFarmerSelection(event.target.value)

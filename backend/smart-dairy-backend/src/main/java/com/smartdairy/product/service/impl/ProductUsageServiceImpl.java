@@ -1,6 +1,7 @@
 package com.smartdairy.product.service.impl;
 
 import com.smartdairy.exception.BusinessException;
+import com.smartdairy.inventory.enums.InventoryTransactionType;
 import com.smartdairy.inventory.repository.InventoryTransactionRepository;
 import com.smartdairy.product.service.ProductUsageService;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +18,9 @@ public class ProductUsageServiceImpl extends ProductUsageService {
     @Override
     public void validateProductCanBeModified(UUID productUuid) {
 
-        if (inventoryRepository.existsByProductUuid(productUuid)) {
+        if (inventoryRepository.existsByProductUuidAndTransactionTypeNot(
+                productUuid,
+                InventoryTransactionType.OPENING_STOCK)) {
 
             throw new BusinessException(
                     "Product is already used in inventory and cannot be modified.");

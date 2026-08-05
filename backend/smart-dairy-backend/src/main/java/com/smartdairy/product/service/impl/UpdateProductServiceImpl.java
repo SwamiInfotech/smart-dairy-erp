@@ -21,6 +21,9 @@ import java.util.UUID;
 @Transactional
 public class UpdateProductServiceImpl implements UpdateProductService {
 
+    private static final String CORE_PRODUCT_CODE_1 = "PRD001";
+    private static final String CORE_PRODUCT_CODE_2 = "PRD002";
+
     private final ProductRepository repository;
     private final ProductMapper mapper;
 
@@ -36,6 +39,11 @@ public class UpdateProductServiceImpl implements UpdateProductService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Product not found."));
 
+        if (isCoreProduct(product.getProductCode())
+            && !product.getProductCode().equalsIgnoreCase(request.getProductCode())) {
+            throw new BusinessException("Core products PRD001 and PRD002 code cannot be changed.");
+        }
+
         if (!product.getProductCode().equalsIgnoreCase(request.getProductCode())
                 && repository.existsByProductCode(request.getProductCode())) {
             throw new BusinessException("Product code already exists.");
@@ -44,5 +52,16 @@ public class UpdateProductServiceImpl implements UpdateProductService {
         mapper.updateEntity(request, product);
 
         return mapper.toResponse(repository.save(product));
+    }
+
+    private boolean isCoreProduct(String productCode) {
+
+        if (productCode == null) {
+            return false;
+        }
+
+        String normalizedCode = productCode.trim().toUpperCase();
+        return CORE_PRODUCT_CODE_1.equals(normalizedCode)
+                || CORE_PRODUCT_CODE_2.equals(normalizedCode);
     }
 }

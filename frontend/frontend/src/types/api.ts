@@ -84,6 +84,7 @@ export type UpdateTenantRequest = {
 }
 
 export type PaymentMode = 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'CREDIT'
+export type ApiCollectionEntryMode = 'SINGLE' | 'MULTI'
 
 export type SalesDashboardResponse = {
   totalInvoices: number
@@ -329,6 +330,7 @@ export type CreateMilkCollectionRequest = {
   fat: number | null
   snf: number | null
   mava: number | null
+  entryMode?: ApiCollectionEntryMode
   remarks: string
 }
 

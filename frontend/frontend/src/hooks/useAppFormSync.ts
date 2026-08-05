@@ -129,6 +129,7 @@ export function useAppFormSync<
 
   useEffect(() => {
     setProductForm((prev) => {
+      if (prev.productCode && prev.productCode !== nextProductCode) return prev
       if (prev.productCode === nextProductCode) return prev
       return {
         ...prev,

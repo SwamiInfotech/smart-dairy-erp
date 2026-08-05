@@ -32,7 +32,7 @@ public class InventoryController {
                 getCurrentStockService.getCurrentStock(productUuid)));
     }
 
-    @GetMapping("/current-stock")
+    @GetMapping({"", "/", "/current-stock"})
     public ResponseEntity<ApiResponse<List<CurrentStockResponse>>> getCurrentStockForAllProducts() {
         log.info("Received request to fetch current stock for all products.");
 

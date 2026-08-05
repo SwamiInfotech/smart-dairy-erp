@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { toInputDate } from '../lib/appCoreUtils'
+import type { CollectionEntryMode } from '../lib/collectionEntryMode'
 import type {
   CollectionMethodResponse,
   CustomerResponse,
@@ -21,8 +22,17 @@ export type CollectionListItem = {
   uuid: string
   collectionNo: string
   farmerName: string
+  farmerUuid?: string
+  shiftUuid?: string
+  milkTypeUuid?: string
   collectionDate: string
+  collectionTime?: string
   quantity: number
+  fat?: number | null
+  snf?: number | null
+  mava?: number | null
+  remarks?: string | null
+  entryMode?: CollectionEntryMode
   grossAmount: number
 }
 

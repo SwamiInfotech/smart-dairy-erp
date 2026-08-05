@@ -1,5 +1,6 @@
 package com.smartdairy.product.service.impl;
 
+import com.smartdairy.exception.BusinessException;
 import com.smartdairy.exception.ResourceNotFoundException;
 import com.smartdairy.product.entity.Product;
 import com.smartdairy.product.repository.ProductRepository;
@@ -18,6 +19,9 @@ import java.util.UUID;
 @Transactional
 public class DeleteProductServiceImpl implements DeleteProductService {
 
+        private static final String CORE_PRODUCT_CODE_1 = "PRD001";
+        private static final String CORE_PRODUCT_CODE_2 = "PRD002";
+
     private final ProductRepository repository;
     private final ProductUsageService productUsageService;
 
@@ -32,6 +36,10 @@ public class DeleteProductServiceImpl implements DeleteProductService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Product not found."));
 
+        if (isCoreProduct(product.getProductCode())) {
+            throw new BusinessException("Core products PRD001 and PRD002 cannot be deleted.");
+        }
+
         productUsageService.validateProductCanBeModified(
                 product.getUuid());
 
@@ -39,4 +47,15 @@ public class DeleteProductServiceImpl implements DeleteProductService {
 
         repository.save(product);
     }
+
+        private boolean isCoreProduct(String productCode) {
+
+                if (productCode == null) {
+                        return false;
+                }
+
+                String normalizedCode = productCode.trim().toUpperCase();
+                return CORE_PRODUCT_CODE_1.equals(normalizedCode)
+                                || CORE_PRODUCT_CODE_2.equals(normalizedCode);
+        }
 }

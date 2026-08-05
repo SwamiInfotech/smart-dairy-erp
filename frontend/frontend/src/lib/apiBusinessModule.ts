@@ -1,5 +1,6 @@
 import type {
   CreateInventoryTransactionRequest,
+  ApiCollectionEntryMode,
   CreateCustomerRequest,
   CreateFarmerRequest,
   CreateMilkCollectionRequest,
@@ -47,6 +48,14 @@ export function createApiBusinessModule({ request }: ApiBusinessModuleDependenci
       return request<ProductResponse>('POST', '/api/v1/products', token, payload)
     },
 
+    updateProduct(token: string, productUuid: string, payload: CreateProductRequest) {
+      return request<ProductResponse>('PUT', `/api/v1/products/${productUuid}`, token, payload)
+    },
+
+    deleteProduct(token: string, productUuid: string) {
+      return request<void>('DELETE', `/api/v1/products/${productUuid}`, token)
+    },
+
     searchCustomers(token: string, page = 0, size = 10) {
       return request<PageResult<CustomerResponse>>('GET', '/api/v1/customers', token, undefined, {
         query: {
@@ -85,6 +94,7 @@ export function createApiBusinessModule({ request }: ApiBusinessModuleDependenci
           fat?: number | null
           snf?: number | null
           mava?: number | null
+          entryMode?: ApiCollectionEntryMode | null
           remarks?: string | null
           grossAmount: number
         }>
@@ -110,6 +120,7 @@ export function createApiBusinessModule({ request }: ApiBusinessModuleDependenci
         fat?: number | null
         snf?: number | null
         mava?: number | null
+        entryMode?: ApiCollectionEntryMode | null
         remarks?: string | null
         grossAmount: number
       }>('POST', '/api/v1/milk-collections', token, payload)
@@ -129,6 +140,7 @@ export function createApiBusinessModule({ request }: ApiBusinessModuleDependenci
         fat?: number | null
         snf?: number | null
         mava?: number | null
+        entryMode?: ApiCollectionEntryMode | null
         remarks?: string | null
         grossAmount: number
       }>('PUT', `/api/v1/milk-collections/${collectionUuid}`, token, payload)

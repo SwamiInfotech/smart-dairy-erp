@@ -1,10 +1,12 @@
-import { useMemo, useRef, useState, type ChangeEvent, type Dispatch, type FormEvent, type KeyboardEvent, type SetStateAction } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type FormEvent, type KeyboardEvent, type SetStateAction } from 'react'
 import type {
   FarmerResponse,
   MilkRateChartResponse,
   MilkTypeResponse,
   ShiftResponse,
 } from '../types/api'
+import { toInputDate } from '../lib/appCoreUtils'
+import type { CollectionEntryMode } from '../lib/collectionEntryMode'
 import {
   findCollectionRateMatch,
   isCollectionDateWithinRateChartRange,
@@ -47,6 +49,7 @@ type CollectionListItem = {
   snf?: number | null
   mava?: number | null
   remarks?: string | null
+  entryMode?: CollectionEntryMode
   grossAmount: number
 }
 
@@ -60,6 +63,18 @@ type MultiCollectionEntryInput = {
 }
 
 type CollectionMode = 'single' | 'multi'
+type CollectionMethodFilter = 'ALL' | 'FAT' | 'MAVA'
+type CollectionEntryModeFilter = 'ALL' | 'SINGLE' | 'MULTI'
+
+type CollectionConfirmAction = 'save-single' | 'update-single' | 'save-multi' | 'delete'
+
+type CollectionConfirmDialogState = {
+  open: boolean
+  title: string
+  message: string
+  action: CollectionConfirmAction
+  item: CollectionListItem | null
+}
 
 type MultiShiftVariant = 'morning' | 'evening'
 
@@ -132,9 +147,21 @@ export function MilkCollectionsPage({
   onDeleteCollection,
   loadCollections,
 }: MilkCollectionsPageProps) {
+  const todayDate = toInputDate(new Date())
   const [collectionMode, setCollectionMode] = useState<CollectionMode>('single')
   const [showCollectionList, setShowCollectionList] = useState(false)
+  const [collectionListDateFilter, setCollectionListDateFilter] = useState(todayDate)
+  const [collectionListMethodFilter, setCollectionListMethodFilter] = useState<CollectionMethodFilter>('ALL')
+  const [collectionListEntryModeFilter, setCollectionListEntryModeFilter] = useState<CollectionEntryModeFilter>('ALL')
   const [collectionListPage, setCollectionListPage] = useState(1)
+  const [confirmBusy, setConfirmBusy] = useState(false)
+  const [confirmDialog, setConfirmDialog] = useState<CollectionConfirmDialogState>({
+    open: false,
+    title: '',
+    message: '',
+    action: 'save-single',
+    item: null,
+  })
   const [multiRowsByShift, setMultiRowsByShift] = useState<Record<MultiShiftVariant, Record<string, MultiCollectionDraftRow>>>(
     {
       morning: {},
@@ -142,6 +169,40 @@ export function MilkCollectionsPage({
     },
   )
   const multiCellRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const collectionListAnchorRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!showCollectionList) return
+
+    // Ensure the list is rendered first, then move viewport to it.
+    requestAnimationFrame(() => {
+      collectionListAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [showCollectionList])
+
+  useEffect(() => {
+    if (!confirmDialog.open) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [confirmDialog.open])
+
+  useEffect(() => {
+    if (!confirmDialog.open) return
+
+    const onEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape' && !confirmBusy) {
+        setConfirmDialog((prev) => ({ ...prev, open: false }))
+      }
+    }
+
+    window.addEventListener('keydown', onEscape)
+    return () => window.removeEventListener('keydown', onEscape)
+  }, [confirmBusy, confirmDialog.open])
 
   const getMultiRowsForShift = (variant: MultiShiftVariant) => {
     return multiRowsByShift[variant] || {}
@@ -264,14 +325,6 @@ export function MilkCollectionsPage({
 
   const formatDecimal = (value: number) => roundToTwo(value).toFixed(2)
 
-  const totalCollectionPages = Math.max(1, Math.ceil(collections.length / COLLECTION_LIST_PAGE_SIZE))
-  const safeCollectionListPage = Math.min(collectionListPage, totalCollectionPages)
-
-  const paginatedCollections = useMemo(() => {
-    const startIndex = (safeCollectionListPage - 1) * COLLECTION_LIST_PAGE_SIZE
-    return collections.slice(startIndex, startIndex + COLLECTION_LIST_PAGE_SIZE)
-  }, [collections, safeCollectionListPage])
-
   const classifyCollectionShift = (item: CollectionListItem) => {
     const shiftMatch = shifts.find((shift) => shift.uuid === item.shiftUuid)
     const shiftDescriptor = `${shiftMatch?.name || ''} ${shiftMatch?.code || ''}`.toLowerCase()
@@ -291,6 +344,60 @@ export function MilkCollectionsPage({
 
     return 'morning'
   }
+
+  const resolveCollectionMethodTag = (item: CollectionListItem) => {
+    const hasFat = item.fat != null
+    const hasSnf = item.snf != null
+    const hasMava = item.mava != null
+
+    if (hasFat && !hasSnf && !hasMava) return 'FAT'
+    if (!hasFat && !hasSnf && hasMava) return 'MAVA'
+    if (!hasFat && hasSnf && !hasMava) return 'SNF'
+    if (hasFat || hasSnf || hasMava) return 'MIXED'
+    return 'UNKNOWN'
+  }
+
+  const resolveCollectionEntryModeTag = (item: CollectionListItem) => {
+    if (item.entryMode === 'single') return 'SINGLE'
+    if (item.entryMode === 'multi') return 'MULTI'
+    return 'UNKNOWN'
+  }
+
+  const resolveCollectionShiftLabel = (item: CollectionListItem) => {
+    const shiftName = shifts.find((shift) => shift.uuid === item.shiftUuid)?.name?.trim()
+    if (shiftName) return shiftName
+    return classifyCollectionShift(item) === 'morning' ? 'Morning' : 'Evening'
+  }
+
+  const filteredCollections = useMemo(() => {
+    return collections.filter((item) => {
+      if (collectionListDateFilter && item.collectionDate !== collectionListDateFilter) {
+        return false
+      }
+
+      if (collectionListMethodFilter !== 'ALL' && resolveCollectionMethodTag(item) !== collectionListMethodFilter) {
+        return false
+      }
+
+      if (collectionListEntryModeFilter !== 'ALL' && resolveCollectionEntryModeTag(item) !== collectionListEntryModeFilter) {
+        return false
+      }
+
+      return true
+    })
+  }, [collectionListDateFilter, collectionListEntryModeFilter, collectionListMethodFilter, collections])
+
+  const totalCollectionPages = Math.max(1, Math.ceil(filteredCollections.length / COLLECTION_LIST_PAGE_SIZE))
+  const safeCollectionListPage = Math.min(collectionListPage, totalCollectionPages)
+
+  const paginatedCollections = useMemo(() => {
+    const startIndex = (safeCollectionListPage - 1) * COLLECTION_LIST_PAGE_SIZE
+    return filteredCollections.slice(startIndex, startIndex + COLLECTION_LIST_PAGE_SIZE)
+  }, [filteredCollections, safeCollectionListPage])
+
+  useEffect(() => {
+    setCollectionListPage(1)
+  }, [collectionListDateFilter, collectionListEntryModeFilter, collectionListMethodFilter])
 
   const renderCollectionEntryFields = () => (
     <>
@@ -379,16 +486,6 @@ export function MilkCollectionsPage({
         />
       </label>
     </>
-  )
-
-  const morningCollections = useMemo(
-    () => paginatedCollections.filter((item) => classifyCollectionShift(item) === 'morning'),
-    [paginatedCollections, shifts],
-  )
-
-  const eveningCollections = useMemo(
-    () => paginatedCollections.filter((item) => classifyCollectionShift(item) === 'evening'),
-    [paginatedCollections, shifts],
   )
 
   const multiEditableColumns = useMemo(() => {
@@ -819,14 +916,74 @@ export function MilkCollectionsPage({
     )
   }
 
-  const handleSaveMultiCollections = async () => {
-    await handleCreateMultiCollections('morning')
-    await handleCreateMultiCollections('evening')
+  const openConfirmDialog = (action: CollectionConfirmAction, item?: CollectionListItem) => {
+    const title = action === 'delete'
+      ? 'Delete Collection Record'
+      : action === 'save-multi'
+        ? 'Save Multi Farmer Collection'
+        : action === 'update-single'
+          ? 'Update Collection Entry'
+          : 'Save Collection Entry'
+
+    const message = action === 'delete'
+      ? 'Do you really want to delete this collection record? This action cannot be undone.'
+      : action === 'save-multi'
+        ? 'Do you really want to save selected multi-farmer collection entries?'
+        : action === 'update-single'
+          ? 'Do you really want to update this milk collection entry?'
+          : 'Do you really want to save this milk collection entry?'
+
+    setConfirmDialog({
+      open: true,
+      title,
+      message,
+      action,
+      item: item || null,
+    })
+  }
+
+  const closeConfirmDialog = () => {
+    if (confirmBusy) return
+    setConfirmDialog((prev) => ({ ...prev, open: false }))
+  }
+
+  const handleConfirmAction = async () => {
+    if (confirmBusy) return
+
+    setConfirmBusy(true)
+
+    try {
+      if (confirmDialog.action === 'save-multi') {
+        await handleCreateMultiCollections('morning')
+        await handleCreateMultiCollections('evening')
+        await loadCollections()
+      } else if (confirmDialog.action === 'delete') {
+        if (confirmDialog.item) {
+          await onDeleteCollection(confirmDialog.item)
+          await loadCollections()
+        }
+      } else {
+        await onCreateCollection({ preventDefault: () => {} } as FormEvent<HTMLFormElement>)
+        await loadCollections()
+      }
+    } finally {
+      setConfirmBusy(false)
+      setConfirmDialog((prev) => ({ ...prev, open: false }))
+    }
+  }
+
+  const handleSaveMultiCollections = () => {
+    openConfirmDialog('save-multi')
+  }
+
+  const handleDeleteCollection = (item: CollectionListItem) => {
+    openConfirmDialog('delete', item)
   }
 
   const handleCollectionSubmit = async (event: FormEvent<HTMLFormElement>) => {
     if (collectionMode === 'single') {
-      await onCreateCollection(event)
+      event.preventDefault()
+      openConfirmDialog(editingCollectionUuid ? 'update-single' : 'save-single')
       return
     }
 
@@ -867,6 +1024,16 @@ export function MilkCollectionsPage({
                     Multi Farmer
                   </button>
                 </div>
+                {!showCollectionList && (
+                  <button
+                    type="button"
+                    className="collection-history-toggle-btn collection-history-toggle-btn-inline"
+                    onClick={toggleCollectionListVisibility}
+                  >
+                    View Collection List
+                  </button>
+                )}
+                <span className="subtle collection-record-count-inline">Total records: {collections.length}</span>
               </div>
             </div>
           </div>
@@ -995,7 +1162,7 @@ export function MilkCollectionsPage({
                   type="button"
                   className="collection-submit collection-panel-save"
                   onClick={() => {
-                    void handleSaveMultiCollections()
+                    handleSaveMultiCollections()
                   }}
                   disabled={busy}
                 >
@@ -1025,141 +1192,131 @@ export function MilkCollectionsPage({
           )}
         </form>
 
-        <div className="collection-history-toggle-row">
-          <button type="button" className="collection-history-toggle-btn" onClick={toggleCollectionListVisibility}>
-            {showCollectionList ? 'Hide Collection List' : 'View Collection List'}
-          </button>
-          <p className="subtle">Total records: {collections.length}</p>
-        </div>
       </div>
 
       {showCollectionList && (
         <>
-          <div className="collection-shift-list-layout">
-            <section className="collection-shift-list-panel">
-              <div className="collection-shift-list-head">
-                <h3>Morning Collection</h3>
-                <span>{morningCollections.length}</span>
-              </div>
-
-              <div className="table-wrap collection-shift-table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Collection No</th>
-                      <th>Farmer</th>
-                      <th>Date</th>
-                      <th>Qty</th>
-                      <th>Gross</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {morningCollections.length === 0 && (
-                      <tr>
-                        <td colSpan={6}>No morning collections found.</td>
-                      </tr>
-                    )}
-                    {morningCollections.map((item) => (
-                      <tr key={item.uuid}>
-                        <td>{item.collectionNo}</td>
-                        <td>{item.farmerName}</td>
-                        <td>{item.collectionDate}</td>
-                        <td>{item.quantity}</td>
-                        <td>{item.grossAmount}</td>
-                        <td>
-                          <div className="collection-list-actions">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCollectionMode('single')
-                                onEditCollection(item)
-                              }}
-                              disabled={busy}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              className="collection-list-delete-btn"
-                              onClick={() => {
-                                void onDeleteCollection(item)
-                              }}
-                              disabled={busy}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <section className="collection-shift-list-panel">
-              <div className="collection-shift-list-head">
-                <h3>Evening Collection</h3>
-                <span>{eveningCollections.length}</span>
-              </div>
-
-              <div className="table-wrap collection-shift-table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Collection No</th>
-                      <th>Farmer</th>
-                      <th>Date</th>
-                      <th>Qty</th>
-                      <th>Gross</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {eveningCollections.length === 0 && (
-                      <tr>
-                        <td colSpan={6}>No evening collections found.</td>
-                      </tr>
-                    )}
-                    {eveningCollections.map((item) => (
-                      <tr key={item.uuid}>
-                        <td>{item.collectionNo}</td>
-                        <td>{item.farmerName}</td>
-                        <td>{item.collectionDate}</td>
-                        <td>{item.quantity}</td>
-                        <td>{item.grossAmount}</td>
-                        <td>
-                          <div className="collection-list-actions">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCollectionMode('single')
-                                onEditCollection(item)
-                              }}
-                              disabled={busy}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              className="collection-list-delete-btn"
-                              onClick={() => {
-                                void onDeleteCollection(item)
-                              }}
-                              disabled={busy}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+          <div ref={collectionListAnchorRef} className="collection-history-toggle-row">
+            <button
+              type="button"
+              className="collection-history-toggle-btn collection-history-toggle-btn-inline"
+              onClick={toggleCollectionListVisibility}
+            >
+              Hide Collection List
+            </button>
+            <div className="collection-history-filters">
+              <label className="collection-history-filter-item">
+                <span>Date</span>
+                <input
+                  type="date"
+                  value={collectionListDateFilter}
+                  onChange={(event) => setCollectionListDateFilter(event.target.value)}
+                />
+              </label>
+              <label className="collection-history-filter-item">
+                <span>Method</span>
+                <select
+                  value={collectionListMethodFilter}
+                  onChange={(event) => setCollectionListMethodFilter(event.target.value as CollectionMethodFilter)}
+                >
+                  <option value="ALL">All</option>
+                  <option value="FAT">FAT</option>
+                  <option value="MAVA">MAVA</option>
+                </select>
+              </label>
+              <label className="collection-history-filter-item">
+                <span>Entry Type</span>
+                <select
+                  value={collectionListEntryModeFilter}
+                  onChange={(event) => setCollectionListEntryModeFilter(event.target.value as CollectionEntryModeFilter)}
+                >
+                  <option value="ALL">All</option>
+                  <option value="SINGLE">Single Farmer</option>
+                  <option value="MULTI">Multi Farmer</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setCollectionListDateFilter(todayDate)
+                  setCollectionListMethodFilter('ALL')
+                  setCollectionListEntryModeFilter('ALL')
+                }}
+                disabled={collectionListDateFilter === todayDate && collectionListMethodFilter === 'ALL' && collectionListEntryModeFilter === 'ALL'}
+              >
+                Reset
+              </button>
+            </div>
+            <p className="subtle">Showing {filteredCollections.length} of {collections.length}</p>
           </div>
+
+          <section className="collection-shift-list-panel">
+            <div className="collection-shift-list-head">
+              <h3>Collection List</h3>
+              <span>{filteredCollections.length}</span>
+            </div>
+
+            <div className="table-wrap collection-shift-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Collection No</th>
+                    <th>Farmer</th>
+                    <th>Date</th>
+                    <th>Shift</th>
+                    <th>Method</th>
+                    <th>Entry Type</th>
+                    <th>Qty</th>
+                    <th>Gross</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedCollections.length === 0 && (
+                    <tr>
+                      <td colSpan={9}>No collections found for selected filters.</td>
+                    </tr>
+                  )}
+                  {paginatedCollections.map((item) => (
+                    <tr key={item.uuid}>
+                      <td>{item.collectionNo}</td>
+                      <td>{item.farmerName}</td>
+                      <td>{item.collectionDate}</td>
+                      <td>{resolveCollectionShiftLabel(item)}</td>
+                      <td>{resolveCollectionMethodTag(item)}</td>
+                      <td>{resolveCollectionEntryModeTag(item)}</td>
+                      <td>{item.quantity}</td>
+                      <td>{item.grossAmount}</td>
+                      <td>
+                        <div className="collection-list-actions">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCollectionMode('single')
+                              onEditCollection(item)
+                            }}
+                            disabled={busy}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="collection-list-delete-btn"
+                            onClick={() => {
+                              handleDeleteCollection(item)
+                            }}
+                            disabled={busy}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
 
           <div className="collection-pagination-row">
             <button
@@ -1181,6 +1338,42 @@ export function MilkCollectionsPage({
             </button>
           </div>
         </>
+      )}
+
+      {confirmDialog.open && (
+        <div className="collection-confirm-overlay" role="presentation" onClick={closeConfirmDialog}>
+          <div
+            className="collection-confirm-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="collection-confirm-title"
+            aria-describedby="collection-confirm-message"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id="collection-confirm-title">{confirmDialog.title}</h3>
+            <p id="collection-confirm-message">{confirmDialog.message}</p>
+            <div className="collection-confirm-actions">
+              <button
+                type="button"
+                className="collection-confirm-cancel"
+                onClick={closeConfirmDialog}
+                disabled={confirmBusy || busy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="collection-confirm-primary"
+                onClick={() => {
+                  void handleConfirmAction()
+                }}
+                disabled={confirmBusy || busy}
+              >
+                {confirmBusy ? 'Processing...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   )

@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react'
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { api } from '../lib/api'
 import { resolveCustomerSelection } from '../lib/uiHelpers'
 import type {
@@ -72,6 +72,12 @@ type UseCommercialCrudParams = {
   setSalesForm: React.Dispatch<React.SetStateAction<SalesForm>>
 }
 
+const NON_DELETABLE_PRODUCT_CODES = new Set(['PRD001', 'PRD002'])
+
+function isNonDeletableCoreProduct(productCode: string) {
+  return NON_DELETABLE_PRODUCT_CODES.has((productCode || '').trim().toUpperCase())
+}
+
 export function useCommercialCrud({
   token,
   branchUuid,
@@ -94,28 +100,111 @@ export function useCommercialCrud({
   setInventoryTransactions,
   setSalesForm,
 }: UseCommercialCrudParams) {
+  const [editingProductUuid, setEditingProductUuid] = useState('')
+  const [editingProductCode, setEditingProductCode] = useState('')
+
+  const isProductActive = useCallback((product: ProductResponse) => product.active === true, [])
+
+  const resetProductForm = useCallback(() => {
+    setProductForm({
+      productCode: '',
+      productName: '',
+      productType: 'FINISHED_PRODUCT',
+      unitType: 'LITER',
+      description: '',
+      purchasePrice: 0,
+      sellingPrice: 0,
+      minimumStock: 0,
+    })
+  }, [setProductForm])
+
   const onCreateProduct = useCallback(
     async (event: FormEvent) => {
       event.preventDefault()
       if (!token) return
-      const created = await runAction(
-        () => api.createProduct(token, productForm),
-        'Product created successfully.',
+
+      const payload = {
+        ...productForm,
+        productCode: (editingProductCode || productForm.productCode).trim(),
+        productName: productForm.productName.trim(),
+        description: productForm.description.trim(),
+      }
+
+      const saved = await runAction(
+        () => editingProductUuid
+          ? api.updateProduct(token, editingProductUuid, payload)
+          : api.createProduct(token, payload),
+        editingProductUuid
+          ? 'Product updated successfully.'
+          : 'Product created successfully.',
       )
-      if (!created) return
-      setProducts((prev) => [created, ...prev])
-      setProductForm({
-        productCode: '',
-        productName: '',
-        productType: 'FINISHED_PRODUCT',
-        unitType: 'LITER',
-        description: '',
-        purchasePrice: 0,
-        sellingPrice: 0,
-        minimumStock: 0,
-      })
+
+      if (!saved) return
+
+      setProducts((prev) => editingProductUuid
+        ? (isProductActive(saved)
+          ? prev.map((item) => (item.uuid === editingProductUuid ? saved : item))
+          : prev.filter((item) => item.uuid !== editingProductUuid))
+        : (isProductActive(saved) ? [saved, ...prev] : prev))
+
+      setEditingProductUuid('')
+      setEditingProductCode('')
+      resetProductForm()
     },
-    [productForm, runAction, setProductForm, setProducts, token],
+    [editingProductCode, editingProductUuid, isProductActive, productForm, resetProductForm, runAction, setProducts, token],
+  )
+
+  const onEditProduct = useCallback(
+    (product: ProductResponse) => {
+      setEditingProductUuid(product.uuid)
+      setEditingProductCode(product.productCode)
+      setProductForm({
+        productCode: product.productCode,
+        productName: product.productName,
+        productType: product.productType,
+        unitType: product.unitType,
+        description: product.description || '',
+        purchasePrice: Number(product.purchasePrice || 0),
+        sellingPrice: Number(product.sellingPrice || 0),
+        minimumStock: Number(product.minimumStock || 0),
+      })
+      setError('')
+    },
+    [setError, setProductForm],
+  )
+
+  const onCancelProductEdit = useCallback(() => {
+    setEditingProductUuid('')
+    setEditingProductCode('')
+    resetProductForm()
+    setError('')
+  }, [resetProductForm, setError])
+
+  const onDeleteProduct = useCallback(
+    async (product: ProductResponse) => {
+      if (!token) return
+
+      if (isNonDeletableCoreProduct(product.productCode)) {
+        setError(`Product ${product.productCode} is a core component and cannot be deleted.`)
+        return
+      }
+
+      const deleted = await runAction(
+        () => api.deleteProduct(token, product.uuid),
+        'Product deleted successfully.',
+      )
+
+      if (deleted === null) return
+
+      setProducts((prev) => prev.filter((item) => item.uuid !== product.uuid))
+
+      if (editingProductUuid === product.uuid) {
+        setEditingProductUuid('')
+        setEditingProductCode('')
+        resetProductForm()
+      }
+    },
+    [editingProductUuid, resetProductForm, runAction, setError, setProducts, token],
   )
 
   const onCreateCustomer = useCallback(
@@ -264,7 +353,11 @@ export function useCommercialCrud({
   }, [setSalesForm])
 
   return {
+    editingProductUuid,
     onCreateProduct,
+    onEditProduct,
+    onCancelProductEdit,
+    onDeleteProduct,
     onCreateCustomer,
     onSubmitTenant,
     onEditTenant,
