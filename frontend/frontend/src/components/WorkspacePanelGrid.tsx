@@ -182,7 +182,7 @@ type WorkspacePanelGridProps = {
     snf: number | null
     mava: number
     remarks: string
-  }[]) => void | Promise<void>
+  }[], shiftUuid: string) => void | Promise<void>
   editingCollectionUuid: string
   onEditCollection: (item: CollectionListItem) => void
   onCancelCollectionEdit: () => void

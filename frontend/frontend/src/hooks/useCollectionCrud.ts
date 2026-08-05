@@ -174,7 +174,7 @@ export function useCollectionCrud({
   )
 
   const onCreateMultipleCollections = useCallback(
-    async (entries: MultiCollectionEntryInput[]) => {
+    async (entries: MultiCollectionEntryInput[], shiftUuid: string) => {
       if (!token) return
 
       const createdItems = await runAction(async () => {
@@ -194,7 +194,7 @@ export function useCollectionCrud({
           throw new Error('No milk types are configured. Please configure milk types in master data first.')
         }
 
-        const selectedShift = shifts.find((item) => item.uuid === collectionForm.shiftUuid)
+        const selectedShift = shifts.find((item) => item.uuid === shiftUuid)
         if (!selectedShift) {
           throw new Error('Select a valid shift from the list before saving the collection.')
         }
@@ -257,7 +257,6 @@ export function useCollectionCrud({
     [
       collectionForm.collectionDate,
       collectionForm.milkTypeUuid,
-      collectionForm.shiftUuid,
       farmers,
       milkTypes,
       runAction,
