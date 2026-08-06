@@ -35,13 +35,17 @@ export function createApiBusinessModule({ request }: ApiBusinessModuleDependenci
       })
     },
 
-    searchProducts(token: string, page = 0, size = 10) {
+    searchProducts(token: string, page = 0, size = 1000) {
       return request<PageResult<ProductResponse>>('GET', '/api/v1/products', token, undefined, {
         query: {
           page,
           size,
         },
       })
+    },
+
+    getNextProductCode(token: string) {
+      return request<string>('GET', '/api/v1/products/next-code', token)
     },
 
     createProduct(token: string, payload: CreateProductRequest) {
@@ -79,7 +83,7 @@ export function createApiBusinessModule({ request }: ApiBusinessModuleDependenci
       return normalizeFarmerPageResponse(response)
     },
 
-    searchMilkCollections(token: string, page = 0, size = 10) {
+    searchMilkCollections(token: string, page = 0, size = 1000) {
       return request<
         PageResult<{
           uuid: string

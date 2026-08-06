@@ -44,6 +44,7 @@ export function useAppEntityState() {
   const [dashboard, setDashboard] = useState<SalesDashboardResponse | null>(null)
 
   const [products, setProducts] = useState<ProductResponse[]>([])
+  const [backendNextProductCode, setBackendNextProductCode] = useState('')
   const [customers, setCustomers] = useState<CustomerResponse[]>([])
   const [tenants, setTenants] = useState<TenantResponse[]>([])
   const [farmers, setFarmers] = useState<FarmerResponse[]>([])
@@ -67,6 +68,8 @@ export function useAppEntityState() {
     setDashboard,
     products,
     setProducts,
+    backendNextProductCode,
+    setBackendNextProductCode,
     customers,
     setCustomers,
     tenants,

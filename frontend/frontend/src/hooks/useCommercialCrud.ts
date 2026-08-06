@@ -110,7 +110,7 @@ export function useCommercialCrud({
       productCode: '',
       productName: '',
       productType: 'FINISHED_PRODUCT',
-      unitType: 'LITER',
+      unitType: 'KILOGRAM',
       description: '',
       purchasePrice: 0,
       sellingPrice: 0,
@@ -142,10 +142,8 @@ export function useCommercialCrud({
       if (!saved) return
 
       setProducts((prev) => editingProductUuid
-        ? (isProductActive(saved)
-          ? prev.map((item) => (item.uuid === editingProductUuid ? saved : item))
-          : prev.filter((item) => item.uuid !== editingProductUuid))
-        : (isProductActive(saved) ? [saved, ...prev] : prev))
+        ? prev.map((item) => (item.uuid === editingProductUuid ? saved : item))
+        : [saved, ...prev])
 
       setEditingProductUuid('')
       setEditingProductCode('')
@@ -196,7 +194,11 @@ export function useCommercialCrud({
 
       if (deleted === null) return
 
-      setProducts((prev) => prev.filter((item) => item.uuid !== product.uuid))
+      setProducts((prev) => prev.map((item) => (
+        item.uuid === product.uuid
+          ? { ...item, active: false }
+          : item
+      )))
 
       if (editingProductUuid === product.uuid) {
         setEditingProductUuid('')

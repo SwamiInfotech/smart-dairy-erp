@@ -97,7 +97,14 @@ export function PaymentCycles({
                   : 'Create cycle'}
             </button>
             {editingUuid && (
-              <button type="button" onClick={onCancelEdit} disabled={busy}>
+              <button
+                type="button"
+                onClick={() => {
+                  onCancelEdit()
+                  window.location.reload()
+                }}
+                disabled={busy}
+              >
                 Cancel edit
               </button>
             )}

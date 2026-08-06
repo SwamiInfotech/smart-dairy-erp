@@ -91,7 +91,14 @@ export function CollectionMethods({
 							{busy ? (editingUuid ? 'Saving...' : 'Creating...') : editingUuid ? 'Save method' : 'Create method'}
 						</button>
 						{editingUuid && (
-							<button type="button" onClick={onCancelEdit} disabled={busy}>
+							<button
+								type="button"
+								onClick={() => {
+									onCancelEdit()
+									window.location.reload()
+								}}
+								disabled={busy}
+							>
 								Cancel edit
 							</button>
 						)}

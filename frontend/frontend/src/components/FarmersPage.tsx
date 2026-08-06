@@ -315,7 +315,10 @@ export function FarmersPage({
             {editingFarmerUuid && (
               <button
                 type="button"
-                onClick={onCancelFarmerEdit}
+                onClick={() => {
+                  onCancelFarmerEdit()
+                  window.location.reload()
+                }}
                 disabled={busy}
                 className="farmer-cancel-btn"
               >

@@ -59,7 +59,14 @@ export function TenantsPage({
         </button>
 
         {editingTenantUuid && (
-          <button type="button" onClick={onCancelTenantEdit} disabled={busy}>
+          <button
+            type="button"
+            onClick={() => {
+              onCancelTenantEdit()
+              window.location.reload()
+            }}
+            disabled={busy}
+          >
             Cancel edit
           </button>
         )}

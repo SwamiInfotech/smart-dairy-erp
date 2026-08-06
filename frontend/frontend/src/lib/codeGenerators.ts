@@ -45,7 +45,7 @@ export function buildNextCollectionNo(existingCollectionNos: string[]) {
 }
 
 export function buildNextProductCode(existingCodes: string[]) {
-  return nextSequentialCode(existingCodes, 'PRD', 3, 2)
+  return nextSequentialCode(existingCodes, 'PRD', 3)
 }
 
 export function buildNextFarmerCode(existingCodes: string[]) {

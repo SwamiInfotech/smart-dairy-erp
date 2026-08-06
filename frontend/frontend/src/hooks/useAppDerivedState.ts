@@ -16,19 +16,36 @@ type CollectionListItem = {
 
 type UseAppDerivedStateParams = {
   products: ProductResponse[]
+  backendNextProductCode: string
   farmers: FarmerResponse[]
   collections: CollectionListItem[]
 }
 
+function extractTrailingNumber(code: string) {
+  const match = (code || '').trim().match(/(\d+)$/)
+  if (!match) return -1
+  return Number(match[1])
+}
+
 export function useAppDerivedState({
   products,
+  backendNextProductCode,
   farmers,
   collections,
 }: UseAppDerivedStateParams) {
-  const nextProductCode = useMemo(
-    () => buildNextProductCode(products.map((item) => item.productCode)),
+  const activeProducts = useMemo(
+    () => products.filter((item) => item.active),
     [products],
   )
+
+  const nextProductCode = useMemo(() => {
+    const localNextCode = buildNextProductCode(products.map((item) => item.productCode))
+    if (!backendNextProductCode) return localNextCode
+
+    return extractTrailingNumber(backendNextProductCode) >= extractTrailingNumber(localNextCode)
+      ? backendNextProductCode
+      : localNextCode
+  }, [backendNextProductCode, products])
 
   const nextFarmerCode = useMemo(
     () => buildNextFarmerCode((Array.isArray(farmers) ? farmers : []).map((item) => item.farmerCode)),
@@ -41,9 +58,9 @@ export function useAppDerivedState({
   )
 
   const averageProductSellingPrice = useMemo(() => {
-    if (!products.length) return 0
-    return products.reduce((sum, item) => sum + item.sellingPrice, 0) / products.length
-  }, [products])
+    if (!activeProducts.length) return 0
+    return activeProducts.reduce((sum, item) => sum + item.sellingPrice, 0) / activeProducts.length
+  }, [activeProducts])
 
   return {
     nextProductCode,

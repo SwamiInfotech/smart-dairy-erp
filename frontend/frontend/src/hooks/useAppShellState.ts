@@ -22,6 +22,7 @@ export function useAppShellState() {
     averageProductSellingPrice,
   } = useAppDerivedState({
     products: entities.products,
+    backendNextProductCode: entities.backendNextProductCode,
     farmers: entities.farmers,
     collections: entities.collections,
   })

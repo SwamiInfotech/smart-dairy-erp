@@ -69,6 +69,7 @@ type UseAppDataLoadingParams = {
   runAction: <T>(action: () => Promise<T>, successMessage?: string) => Promise<T | null>
   setDashboard: React.Dispatch<React.SetStateAction<SalesDashboardResponse | null>>
   setProducts: React.Dispatch<React.SetStateAction<ProductResponse[]>>
+  setBackendNextProductCode: React.Dispatch<React.SetStateAction<string>>
   setCustomers: React.Dispatch<React.SetStateAction<CustomerResponse[]>>
   setTenants: React.Dispatch<React.SetStateAction<TenantResponse[]>>
   setFarmers: React.Dispatch<React.SetStateAction<FarmerResponse[]>>
@@ -94,6 +95,7 @@ export function useAppDataLoading({
   runAction,
   setDashboard,
   setProducts,
+  setBackendNextProductCode,
   setCustomers,
   setTenants,
   setFarmers,
@@ -110,8 +112,6 @@ export function useAppDataLoading({
   setFarmerRateCharts,
   setMyShops,
 }: UseAppDataLoadingParams) {
-  const isProductActive = (product: ProductResponse) => product.active === true
-
   const loadDashboard = useCallback(async () => {
     if (!token) return
     const result = await runAction(
@@ -125,11 +125,18 @@ export function useAppDataLoading({
 
   const loadProducts = useCallback(async () => {
     if (!token) return
-    const result = await runAction(() => api.searchProducts(token))
-    if (result) {
-      setProducts(result.content.filter(isProductActive))
+    const [productPage, nextCode] = await Promise.all([
+      runAction(() => api.searchProducts(token)),
+      runAction(() => api.getNextProductCode(token)),
+    ])
+
+    if (productPage) {
+      setProducts(productPage.content)
     }
-  }, [runAction, setProducts, token])
+    if (nextCode) {
+      setBackendNextProductCode(nextCode)
+    }
+  }, [runAction, setBackendNextProductCode, setProducts, token])
 
   const loadCustomers = useCallback(async () => {
     if (!token) return

@@ -50,6 +50,7 @@ export function useAppShellCoreOperations(state: AppShellState) {
     runAction,
     setDashboard: entities.setDashboard,
     setProducts: entities.setProducts,
+    setBackendNextProductCode: entities.setBackendNextProductCode,
     setCustomers: entities.setCustomers,
     setTenants: entities.setTenants,
     setFarmers: entities.setFarmers,

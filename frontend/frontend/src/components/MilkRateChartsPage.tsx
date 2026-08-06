@@ -392,7 +392,14 @@ export function MilkRateChartsPage({
                   : 'Save Milk Rate Chart'}
             </button>
             {editingMilkRateChartUuid && (
-              <button type="button" onClick={onCancelMilkRateChartEdit} disabled={busy}>
+              <button
+                type="button"
+                onClick={() => {
+                  onCancelMilkRateChartEdit()
+                  window.location.reload()
+                }}
+                disabled={busy}
+              >
                 Cancel edit
               </button>
             )}

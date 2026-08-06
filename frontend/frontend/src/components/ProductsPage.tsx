@@ -1,4 +1,5 @@
 import { useEffect, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react'
+import { buildNextProductCode } from '../lib/codeGenerators'
 import type { ProductResponse } from '../types/api'
 
 type ProductFormState = {
@@ -49,6 +50,8 @@ export function ProductsPage({
 }: ProductsPageProps) {
   const [confirmDeleteProduct, setConfirmDeleteProduct] = useState<ProductResponse | null>(null)
   const [confirmBusy, setConfirmBusy] = useState(false)
+  const activeProducts = products.filter((item) => item.active)
+  const strictNextProductCode = buildNextProductCode(products.map((item) => item.productCode))
 
   useEffect(() => {
     if (!confirmDeleteProduct) return
@@ -73,6 +76,18 @@ export function ProductsPage({
     window.addEventListener('keydown', onEscape)
     return () => window.removeEventListener('keydown', onEscape)
   }, [confirmBusy, confirmDeleteProduct])
+
+  useEffect(() => {
+    if (editingProductUuid) return
+
+    setProductForm((prev) => {
+      if (prev.productCode === strictNextProductCode) return prev
+      return {
+        ...prev,
+        productCode: strictNextProductCode,
+      }
+    })
+  }, [editingProductUuid, setProductForm, strictNextProductCode])
 
   const closeDeleteConfirm = () => {
     if (confirmBusy) return
@@ -195,7 +210,10 @@ export function ProductsPage({
               <button
                 type="button"
                 className="collection-cancel-edit-btn"
-                onClick={onCancelProductEdit}
+                onClick={() => {
+                  onCancelProductEdit()
+                  window.location.reload()
+                }}
                 disabled={busy}
               >
                 Cancel Edit
@@ -209,7 +227,7 @@ export function ProductsPage({
           <div className="product-summary-grid">
             <article>
               <p>Total products</p>
-              <strong>{products.length}</strong>
+              <strong>{activeProducts.length}</strong>
             </article>
             <article>
               <p>Average selling</p>
@@ -217,7 +235,7 @@ export function ProductsPage({
             </article>
             <article>
               <p>Next code</p>
-              <strong>{nextProductCode}</strong>
+              <strong>{strictNextProductCode || nextProductCode}</strong>
             </article>
           </div>
         </aside>
@@ -236,7 +254,7 @@ export function ProductsPage({
             </tr>
           </thead>
           <tbody>
-            {products.map((item) => (
+            {activeProducts.map((item) => (
               <tr key={item.uuid}>
                 <td>{item.productCode}</td>
                 <td>{item.productName}</td>

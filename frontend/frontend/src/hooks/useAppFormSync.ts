@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { findLookupByLabel } from '../lib/appCoreUtils'
 import type { MilkTypeResponse, ShiftResponse } from '../types/api'
 
@@ -91,6 +91,8 @@ export function useAppFormSync<
   TSalesForm,
   TMilkRateForm
 >) {
+  const previousNextProductCodeRef = useRef(nextProductCode)
+
   useEffect(() => {
     if (collectionForm.milkTypeUuid) return
     if (!Array.isArray(milkTypes) || milkTypes.length === 0) return
@@ -129,13 +131,15 @@ export function useAppFormSync<
 
   useEffect(() => {
     setProductForm((prev) => {
-      if (prev.productCode && prev.productCode !== nextProductCode) return prev
+      const wasAutoManaged = !prev.productCode || prev.productCode === previousNextProductCodeRef.current
+      if (!wasAutoManaged) return prev
       if (prev.productCode === nextProductCode) return prev
       return {
         ...prev,
         productCode: nextProductCode,
       }
     })
+    previousNextProductCodeRef.current = nextProductCode
   }, [nextProductCode, setProductForm])
 
   useEffect(() => {

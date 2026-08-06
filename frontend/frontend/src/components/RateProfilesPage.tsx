@@ -109,7 +109,14 @@ export function RateProfilesPage({
                     : 'Create category'}
               </button>
               {editingRateCategoryUuid && (
-                <button type="button" onClick={onCancelRateCategoryEdit} disabled={busy}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onCancelRateCategoryEdit()
+                    window.location.reload()
+                  }}
+                  disabled={busy}
+                >
                   Cancel edit
                 </button>
               )}

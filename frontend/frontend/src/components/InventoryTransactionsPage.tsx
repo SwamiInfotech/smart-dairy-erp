@@ -49,6 +49,10 @@ export function InventoryTransactionsPage({
   onCreateInventoryTransaction,
 }: InventoryTransactionsPageProps) {
   const [form, setForm] = useState<InventoryTransactionFormState>(EMPTY_FORM)
+  const activeProducts = useMemo(
+    () => products.filter((product) => product.active),
+    [products],
+  )
 
   useEffect(() => {
     void loadInventoryTransactions()
@@ -145,6 +149,11 @@ export function InventoryTransactionsPage({
     [productStockRows],
   )
 
+  const stockRowsForDisplay = useMemo(
+    () => productStockRows.filter((row) => row.stock > 0),
+    [productStockRows],
+  )
+
   const onSubmitTransaction = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
@@ -238,7 +247,7 @@ export function InventoryTransactionsPage({
                 onChange={(event) => setForm((prev) => ({ ...prev, productUuid: event.target.value }))}
               >
                 <option value="">Select product</option>
-                {products.map((product) => (
+                {activeProducts.map((product) => (
                   <option key={product.uuid} value={product.uuid}>
                     {product.productName} ({product.productCode || product.unitType})
                   </option>
@@ -299,7 +308,7 @@ export function InventoryTransactionsPage({
           <div className="inventory-stock-kpi-grid">
             <article>
               <p>Products Tracked</p>
-              <strong>{productStockRows.length}</strong>
+              <strong>{stockRowsForDisplay.length}</strong>
             </article>
             <article>
               <p>Total Stock Qty</p>
@@ -325,12 +334,12 @@ export function InventoryTransactionsPage({
                 </tr>
               </thead>
               <tbody>
-                {productStockRows.length === 0 && (
+                {stockRowsForDisplay.length === 0 && (
                   <tr>
-                    <td colSpan={3}>No products available for stock tracking.</td>
+                    <td colSpan={3}>No products with available stock.</td>
                   </tr>
                 )}
-                {productStockRows.map((row) => (
+                {stockRowsForDisplay.map((row) => (
                   <tr key={row.productUuid}>
                     <td>{row.productName}</td>
                     <td>{row.productCode || '-'}</td>

@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react'
 import { useCallback, useState } from 'react'
 import { api } from '../lib/api'
-import { toInputTime } from '../lib/appCoreUtils'
+import { toInputDate, toInputTime } from '../lib/appCoreUtils'
 import {
   fromApiCollectionEntryMode,
   extractCollectionEntryModeFromRemarks,
@@ -341,7 +341,22 @@ export function useCollectionCrud({
     setEditingCollectionUuid('')
     setEditingCollectionEntryMode('single')
     setError('')
-  }, [setError])
+    setCollectionForm((prev) => ({
+      ...prev,
+      collectionNo: '',
+      farmerUuid: '',
+      shiftUuid: '',
+      milkTypeUuid: '',
+      collectionDate: toInputDate(new Date()),
+      collectionTime: toInputTime(new Date()),
+      quantity: 0,
+      rate: 0,
+      fat: 0,
+      snf: null,
+      mava: 0,
+      remarks: '',
+    }))
+  }, [setCollectionForm, setError])
 
   const onDeleteCollection = useCallback(
     async (item: CollectionListItem) => {

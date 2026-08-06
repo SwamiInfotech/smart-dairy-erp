@@ -76,6 +76,12 @@ type CollectionConfirmDialogState = {
   item: CollectionListItem | null
 }
 
+type CollectionNoticeDialogState = {
+  open: boolean
+  title: string
+  message: string
+}
+
 type MultiShiftVariant = 'morning' | 'evening'
 
 type MultiCollectionDraftRow = {
@@ -89,6 +95,19 @@ type MultiCollectionDraftRow = {
 }
 
 const COLLECTION_LIST_PAGE_SIZE = 10
+const FOCUS_COLLECTION_DATE_FLAG = 'smart_dairy_focus_collection_date'
+
+function normalizeDateOnly(value: string | null | undefined) {
+  const raw = (value || '').trim()
+  if (!raw) return ''
+
+  const directDateMatch = raw.match(/\d{4}-\d{2}-\d{2}/)
+  if (directDateMatch) {
+    return directDateMatch[0]
+  }
+
+  return raw.slice(0, 10)
+}
 
 type MilkCollectionsPageProps = {
   busy: boolean
@@ -162,14 +181,29 @@ export function MilkCollectionsPage({
     action: 'save-single',
     item: null,
   })
+  const [noticeDialog, setNoticeDialog] = useState<CollectionNoticeDialogState>({
+    open: false,
+    title: '',
+    message: '',
+  })
   const [multiRowsByShift, setMultiRowsByShift] = useState<Record<MultiShiftVariant, Record<string, MultiCollectionDraftRow>>>(
     {
       morning: {},
       evening: {},
     },
   )
+  const [pendingMultiDateSync, setPendingMultiDateSync] = useState(false)
+  const [pendingMultiDateValue, setPendingMultiDateValue] = useState('')
+  const [multiGridEditedSinceLastSync, setMultiGridEditedSinceLastSync] = useState(false)
   const multiCellRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const collectionListAnchorRef = useRef<HTMLDivElement | null>(null)
+  const collectionDateInputRef = useRef<HTMLInputElement | null>(null)
+
+  const focusCollectionDateField = () => {
+    requestAnimationFrame(() => {
+      collectionDateInputRef.current?.focus()
+    })
+  }
 
   useEffect(() => {
     if (!showCollectionList) return
@@ -181,7 +215,15 @@ export function MilkCollectionsPage({
   }, [showCollectionList])
 
   useEffect(() => {
-    if (!confirmDialog.open) return
+    if (typeof window === 'undefined') return
+    if (window.sessionStorage.getItem(FOCUS_COLLECTION_DATE_FLAG) !== '1') return
+
+    window.sessionStorage.removeItem(FOCUS_COLLECTION_DATE_FLAG)
+    focusCollectionDateField()
+  }, [])
+
+  useEffect(() => {
+    if (!confirmDialog.open && !noticeDialog.open) return
 
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -189,20 +231,27 @@ export function MilkCollectionsPage({
     return () => {
       document.body.style.overflow = previousOverflow
     }
-  }, [confirmDialog.open])
+  }, [confirmDialog.open, noticeDialog.open])
 
   useEffect(() => {
-    if (!confirmDialog.open) return
+    if (!confirmDialog.open && !noticeDialog.open) return
 
     const onEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape' && !confirmBusy) {
+      if (event.key !== 'Escape') return
+
+      if (noticeDialog.open) {
+        setNoticeDialog((prev) => ({ ...prev, open: false }))
+        return
+      }
+
+      if (!confirmBusy) {
         setConfirmDialog((prev) => ({ ...prev, open: false }))
       }
     }
 
     window.addEventListener('keydown', onEscape)
     return () => window.removeEventListener('keydown', onEscape)
-  }, [confirmBusy, confirmDialog.open])
+  }, [confirmBusy, confirmDialog.open, noticeDialog.open])
 
   const getMultiRowsForShift = (variant: MultiShiftVariant) => {
     return multiRowsByShift[variant] || {}
@@ -371,7 +420,10 @@ export function MilkCollectionsPage({
 
   const filteredCollections = useMemo(() => {
     return collections.filter((item) => {
-      if (collectionListDateFilter && item.collectionDate !== collectionListDateFilter) {
+      if (
+        collectionListDateFilter
+        && normalizeDateOnly(item.collectionDate) !== normalizeDateOnly(collectionListDateFilter)
+      ) {
         return false
       }
 
@@ -575,6 +627,7 @@ export function MilkCollectionsPage({
   }
 
   const updateDraftRow = (variant: MultiShiftVariant, farmerUuid: string, patch: Partial<MultiCollectionDraftRow>) => {
+    setMultiGridEditedSinceLastSync(true)
     setMultiRowsByShift((prev) => ({
       ...prev,
       [variant]: {
@@ -588,6 +641,7 @@ export function MilkCollectionsPage({
   }
 
   const toggleSelectAllRows = (variant: MultiShiftVariant) => {
+    setMultiGridEditedSinceLastSync(true)
     const nextSelected = !getAllFarmersSelected(variant)
     setMultiRowsByShift((prev) => {
       const next = { ...prev }
@@ -607,10 +661,95 @@ export function MilkCollectionsPage({
     setCollectionListPage(1)
   }
 
+  const shouldIncludeMultiRowForSave = (row: MultiCollectionDraftRow) => {
+    const quantity = Number(row.quantity || 0)
+    const fat = Number(row.fat || 0)
+    const snf = Number(row.snf || 0)
+    const mava = Number(row.mava || 0)
+    const hasRemarks = row.remarks.trim().length > 0
+
+    return quantity > 0 || fat > 0 || snf > 0 || mava > 0 || hasRemarks
+  }
+
+  const populateMultiRowsFromCollectionsForDate = (dateValue: string, sourceCollections: CollectionListItem[]) => {
+    const targetDate = normalizeDateOnly(dateValue)
+    if (!targetDate) return false
+
+    const existingMultiEntries = sourceCollections.filter(
+      (item) => item.entryMode === 'multi' && normalizeDateOnly(item.collectionDate) === targetDate,
+    )
+
+    if (existingMultiEntries.length === 0) return false
+
+    const nextRowsByShift: Record<MultiShiftVariant, Record<string, MultiCollectionDraftRow>> = {
+      morning: {},
+      evening: {},
+    }
+
+    existingMultiEntries.forEach((item) => {
+      if (!item.farmerUuid) return
+
+      const shiftVariant = classifyCollectionShift(item)
+      const quantity = Number(item.quantity || 0)
+      const fat = Number(item.fat || 0)
+      const snf = item.snf == null ? '' : String(Number(item.snf || 0))
+      const mava = Number(item.mava || 0)
+
+      nextRowsByShift[shiftVariant][item.farmerUuid] = {
+        selected: true,
+        quantity: quantity > 0 ? String(quantity) : '',
+        fat: fat > 0 ? String(fat) : '',
+        snf,
+        mava: mava > 0 ? String(mava) : '',
+        remarks: item.remarks || '',
+        activeMetric: mava > 0 ? 'mava' : fat > 0 ? 'fat' : Number(snf || 0) > 0 ? 'snf' : '',
+      }
+    })
+
+    setMultiRowsByShift(nextRowsByShift)
+    setMultiGridEditedSinceLastSync(false)
+    return true
+  }
+
+  const syncMultiRowsFromDbForDate = async (dateValue: string) => {
+    if (busy || confirmBusy) return
+
+    const normalizedDate = normalizeDateOnly(dateValue)
+    if (!normalizedDate) return
+
+    setPendingMultiDateValue(normalizedDate)
+    setPendingMultiDateSync(true)
+    setMultiGridEditedSinceLastSync(false)
+
+    try {
+      await loadCollections()
+    } catch {
+      setPendingMultiDateSync(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!pendingMultiDateSync || collectionMode !== 'multi') return
+
+    // If the user typed after sync started, do not overwrite manual entries.
+    if (multiGridEditedSinceLastSync) {
+      setPendingMultiDateSync(false)
+      return
+    }
+
+    const populated = populateMultiRowsFromCollectionsForDate(pendingMultiDateValue, collections)
+    if (!populated) {
+      setMultiRowsByShift({ morning: {}, evening: {} })
+      setMultiGridEditedSinceLastSync(false)
+    }
+
+    setPendingMultiDateSync(false)
+  }, [collectionMode, collections, multiGridEditedSinceLastSync, pendingMultiDateSync, pendingMultiDateValue])
+
   const handleCreateMultiCollections = async (variant: MultiShiftVariant) => {
     const entries: MultiCollectionEntryInput[] = farmers
       .map((farmer) => ({ farmer, row: getDraftRow(variant, farmer.uuid) }))
-      .filter(({ row }) => row.selected)
+      .filter(({ row }) => shouldIncludeMultiRowForSave(row))
       .map(({ farmer, row }) => ({
         farmerUuid: farmer.uuid,
         quantity: Number(row.quantity || 0),
@@ -631,6 +770,30 @@ export function MilkCollectionsPage({
       }
       return next
     })
+  }
+
+  const validateMultiCollectionsBeforeSave = (variant: MultiShiftVariant) => {
+    const shiftLabel = variant === 'morning' ? 'Morning' : 'Evening'
+
+    for (const farmer of farmers) {
+      const row = getDraftRow(variant, farmer.uuid)
+      if (!shouldIncludeMultiRowForSave(row)) continue
+
+      const quantity = Number(row.quantity || 0)
+      const fat = Number(row.fat || 0)
+      const mava = Number(row.mava || 0)
+      const rate = resolveRowRateAmount(farmer, row).rate
+
+      if ((fat > 0 || mava > 0) && quantity <= 0) {
+        return `${shiftLabel}: Quantity is mandatory when FAT or Mava is entered for ${farmer.farmerName}.`
+      }
+
+      if (quantity > 0 && rate <= 0) {
+        return `${shiftLabel}: Rate cannot be 0 when quantity is entered for ${farmer.farmerName}. Enter valid FAT/Mava so rate is calculated.`
+      }
+    }
+
+    return ''
   }
 
   const renderMultiCollectionGrid = () => {
@@ -947,6 +1110,18 @@ export function MilkCollectionsPage({
     setConfirmDialog((prev) => ({ ...prev, open: false }))
   }
 
+  const openNoticeDialog = (message: string) => {
+    setNoticeDialog({
+      open: true,
+      title: 'Validation Required',
+      message,
+    })
+  }
+
+  const closeNoticeDialog = () => {
+    setNoticeDialog((prev) => ({ ...prev, open: false }))
+  }
+
   const handleConfirmAction = async () => {
     if (confirmBusy) return
 
@@ -973,6 +1148,18 @@ export function MilkCollectionsPage({
   }
 
   const handleSaveMultiCollections = () => {
+    const morningValidationError = validateMultiCollectionsBeforeSave('morning')
+    if (morningValidationError) {
+      openNoticeDialog(morningValidationError)
+      return
+    }
+
+    const eveningValidationError = validateMultiCollectionsBeforeSave('evening')
+    if (eveningValidationError) {
+      openNoticeDialog(eveningValidationError)
+      return
+    }
+
     openConfirmDialog('save-multi')
   }
 
@@ -1036,6 +1223,14 @@ export function MilkCollectionsPage({
                 <span className="subtle collection-record-count-inline">Total records: {collections.length}</span>
               </div>
             </div>
+            {pendingMultiDateSync && collectionMode === 'multi' && (
+              <div className="collection-sync-loader" role="status" aria-live="polite" aria-label="Loading existing multi collection data">
+                <span className="collection-sync-loader-label">Loading existing multi entries from database...</span>
+                <span className="collection-sync-loader-track" aria-hidden="true">
+                  <span className="collection-sync-loader-bar" />
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="collection-grid">
@@ -1049,6 +1244,7 @@ export function MilkCollectionsPage({
                 <label className="collection-field">
                   <span>Collection Date</span>
                   <input
+                    ref={collectionDateInputRef}
                     required
                     type="date"
                     value={collectionForm.collectionDate}
@@ -1098,10 +1294,15 @@ export function MilkCollectionsPage({
                 <label className="collection-field">
                   <span>Collection Date</span>
                   <input
+                    ref={collectionDateInputRef}
                     required
                     type="date"
                     value={collectionForm.collectionDate}
-                    onChange={(event) => setCollectionForm((prev) => ({ ...prev, collectionDate: event.target.value }))}
+                    onChange={(event) => {
+                      const selectedDate = event.target.value
+                      setCollectionForm((prev) => ({ ...prev, collectionDate: selectedDate }))
+                      void syncMultiRowsFromDbForDate(selectedDate)
+                    }}
                   />
                 </label>
 
@@ -1155,19 +1356,19 @@ export function MilkCollectionsPage({
 
             {collectionMode === 'multi' && (
               <div className="collection-form-actions collection-panel-actions-bottom">
-                <span className="subtle">
-                  Morning: {getSelectedMultiCount('morning')} selected, Evening: {getSelectedMultiCount('evening')} selected
-                </span>
                 <button
                   type="button"
                   className="collection-submit collection-panel-save"
                   onClick={() => {
                     handleSaveMultiCollections()
                   }}
-                  disabled={busy}
+                  disabled={busy || pendingMultiDateSync}
                 >
-                  Save Multi Farmer Collections
+                  {pendingMultiDateSync ? 'Loading Existing Data...' : 'Save Multi Farmer Collections'}
                 </button>
+                <span className="subtle collection-multi-selected-summary">
+                  Morning: {getSelectedMultiCount('morning')} selected, Evening: {getSelectedMultiCount('evening')} selected
+                </span>
               </div>
             )}
 
@@ -1182,7 +1383,11 @@ export function MilkCollectionsPage({
                 <button
                   type="button"
                   className="collection-cancel-edit-btn"
-                  onClick={onCancelCollectionEdit}
+                  onClick={() => {
+                    onCancelCollectionEdit()
+                    setShowCollectionList(false)
+                    focusCollectionDateField()
+                  }}
                   disabled={busy}
                 >
                   Cancel Edit
@@ -1294,6 +1499,7 @@ export function MilkCollectionsPage({
                             onClick={() => {
                               setCollectionMode('single')
                               onEditCollection(item)
+                              focusCollectionDateField()
                             }}
                             disabled={busy}
                           >
@@ -1370,6 +1576,32 @@ export function MilkCollectionsPage({
                 disabled={confirmBusy || busy}
               >
                 {confirmBusy ? 'Processing...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {noticeDialog.open && (
+        <div className="collection-confirm-overlay" role="presentation" onClick={closeNoticeDialog}>
+          <div
+            className="collection-notice-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="collection-notice-title"
+            aria-describedby="collection-notice-message"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="collection-notice-badge" aria-hidden="true">!</div>
+            <h3 id="collection-notice-title">{noticeDialog.title}</h3>
+            <p id="collection-notice-message">{noticeDialog.message}</p>
+            <div className="collection-notice-actions">
+              <button
+                type="button"
+                className="collection-notice-primary"
+                onClick={closeNoticeDialog}
+              >
+                OK, I Will Fix It
               </button>
             </div>
           </div>

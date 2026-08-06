@@ -23,7 +23,7 @@ export function useAppFormState(initialBranchUuid: string, nextCollectionNo: str
     productCode: '',
     productName: '',
     productType: 'FINISHED_PRODUCT',
-    unitType: 'LITER',
+      unitType: 'KILOGRAM',
     description: '',
     purchasePrice: 0,
     sellingPrice: 0,

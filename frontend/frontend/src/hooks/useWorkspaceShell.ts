@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 const MOBILE_SIDEBAR_BREAKPOINT = 980
+const RELOAD_TO_COLLECTION_FLAG = 'smart_dairy_reload_to_collection'
 
 const isMobileViewport = () => {
   if (typeof window === 'undefined') return false
@@ -16,8 +17,17 @@ export function useWorkspaceShell<TTab extends string>({
   initialTab,
   milkCollectionsTab,
 }: UseWorkspaceShellParams<TTab>) {
-  const [activeTab, setActiveTab] = useState<TTab>(initialTab)
-  const [activeSidebarMenu, setActiveSidebarMenu] = useState<string>(initialTab)
+  const shouldOpenMilkCollectionsOnReload =
+    typeof window !== 'undefined'
+      ? window.sessionStorage.getItem(RELOAD_TO_COLLECTION_FLAG) === '1'
+      : false
+
+  const resolvedInitialTab = shouldOpenMilkCollectionsOnReload
+    ? milkCollectionsTab
+    : initialTab
+
+  const [activeTab, setActiveTab] = useState<TTab>(resolvedInitialTab)
+  const [activeSidebarMenu, setActiveSidebarMenu] = useState<string>(resolvedInitialTab)
   const [mobileViewport, setMobileViewport] = useState<boolean>(isMobileViewport)
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false)
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
@@ -25,6 +35,10 @@ export function useWorkspaceShell<TTab extends string>({
   const isSidebarCollapsed = mobileViewport ? false : desktopSidebarCollapsed
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && shouldOpenMilkCollectionsOnReload) {
+      window.sessionStorage.removeItem(RELOAD_TO_COLLECTION_FLAG)
+    }
+
     const syncViewport = () => {
       setMobileViewport(isMobileViewport())
     }
@@ -35,7 +49,7 @@ export function useWorkspaceShell<TTab extends string>({
     return () => {
       window.removeEventListener('resize', syncViewport)
     }
-  }, [])
+  }, [shouldOpenMilkCollectionsOnReload])
 
   useEffect(() => {
     if (!mobileViewport) {

@@ -2,6 +2,7 @@ package com.smartdairy.product.controller;
 
 import com.smartdairy.common.response.ApiResponse;
 import com.smartdairy.product.dto.CreateProductRequest;
+import com.smartdairy.product.dto.ProductCodeDebugResponse;
 import com.smartdairy.product.dto.ProductResponse;
 import com.smartdairy.product.dto.ProductSearchRequest;
 import com.smartdairy.product.dto.UpdateProductRequest;
@@ -72,6 +73,26 @@ public class ProductController {
                         searchProductService.search(request, pageable)));
     }
 
+    @GetMapping("/next-code")
+    public ResponseEntity<ApiResponse<String>> nextProductCode() {
+        log.info("Received request to fetch next product code.");
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "Next product code retrieved successfully.",
+                        searchProductService.getNextProductCode()));
+    }
+
+        @GetMapping("/next-code/debug")
+        public ResponseEntity<ApiResponse<ProductCodeDebugResponse>> nextProductCodeDebug() {
+                log.info("Received request to fetch next product code debug details.");
+
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                "Next product code debug details retrieved successfully.",
+                                                searchProductService.getNextProductCodeDebug()));
+        }
+
     @PutMapping("/{uuid}")
     public ResponseEntity<ApiResponse<ProductResponse>> update(
             @PathVariable UUID uuid,
@@ -111,16 +132,13 @@ public class ProductController {
     }
 
     @PatchMapping("/{uuid}/deactivate")
-    public ResponseEntity<ApiResponse<Void>> deactivate(
-            @PathVariable UUID uuid) {
+    public ResponseEntity<ApiResponse<Void>> deactivate(@PathVariable UUID uuid) {
         log.info("Received request to deactivate product with uuid={}.", uuid);
 
         deactivateProductService.deactivate(uuid);
 
         return ResponseEntity.ok(
-                ApiResponse.success(
-                        "Product deactivated successfully.",
-                        null));
+                ApiResponse.success("Product deactivated successfully.", null));
     }
 
 }

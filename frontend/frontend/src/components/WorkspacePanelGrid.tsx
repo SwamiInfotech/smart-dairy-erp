@@ -4,6 +4,7 @@ import { CustomersPage } from './CustomersPage'
 import { DashboardPage } from './DashboardPage'
 import { FarmersPage } from './FarmersPage'
 import { InventoryTransactionsPage } from './InventoryTransactionsPage'
+import { MilkCollectionBillingPaymentsPage } from './MilkCollectionBillingPaymentsPage'
 import { MilkCollectionsPage } from './MilkCollectionsPage'
 import { MilkRateChartsPage } from './MilkRateChartsPage'
 import { PaymentCyclesPanel } from './PaymentCyclesPanel'
@@ -581,6 +582,18 @@ export function WorkspacePanelGrid({
           onCreateSales={onCreateSales}
           addSalesItemRow={addSalesItemRow}
           updateSalesItem={updateSalesItem}
+        />
+      )}
+
+      {activeSidebarMenu === 'payments' && (
+        <MilkCollectionBillingPaymentsPage
+          busy={busy}
+          collections={collections}
+          farmers={farmers}
+          milkTypes={milkTypes}
+          shifts={shifts}
+          branchDisplay={branchName || branchUuid}
+          loadCollections={loadCollections}
         />
       )}
 

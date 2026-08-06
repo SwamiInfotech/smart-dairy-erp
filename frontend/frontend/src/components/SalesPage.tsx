@@ -51,6 +51,8 @@ export function SalesPage({
   addSalesItemRow,
   updateSalesItem,
 }: SalesPageProps) {
+  const activeProducts = products.filter((product) => product.active)
+
   return (
     <section className="panel">
       <div className="panel-head">
@@ -138,7 +140,7 @@ export function SalesPage({
                 onChange={(event) => updateSalesItem(index, 'productUuid', event.target.value)}
               >
                 <option value="">Select product</option>
-                {products.map((product) => (
+                {activeProducts.map((product) => (
                   <option key={product.uuid} value={product.uuid}>
                     {product.productName}
                   </option>
