@@ -1,6 +1,7 @@
 package com.smartdairy.milkcollection.service;
 
 import com.smartdairy.exception.ResourceNotFoundException;
+import com.smartdairy.exception.BusinessException;
 import com.smartdairy.common.enums.CollectionEntryMode;
 import com.smartdairy.common.enums.EntryType;
 import com.smartdairy.common.enums.EntrySource;
@@ -20,15 +21,24 @@ import com.smartdairy.pricing.service.RateResolverService;
 import com.smartdairy.shift.entity.Shift;
 import com.smartdairy.shift.repository.ShiftRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional
 public class CreateMilkCollectionService {
@@ -43,54 +53,118 @@ public class CreateMilkCollectionService {
     private final MilkInventoryService milkInventoryService;
 
     public MilkCollectionResponse create(CreateMilkCollectionRequest request) {
+        return createBulk(List.of(request)).get(0);
+    }
 
-        validator.validate(request);
+    public List<MilkCollectionResponse> createBulk(List<CreateMilkCollectionRequest> requests) {
+        if (requests == null || requests.isEmpty()) {
+            throw new BusinessException("At least one milk collection entry is required.");
+        }
 
-        Farmer farmer = findFarmer(request.farmerUuid());
+        registerRollbackLogger(requests.size());
+        log.info("Creating {} milk collection entries in bulk.", requests.size());
 
-        Shift shift = findShift(request.shiftUuid());
+        List<PreparedMilkCollection> preparedRows = prepareRows(requests);
+        List<MilkCollection> entities = buildEntities(preparedRows);
 
-        MilkType milkType = findMilkType(request.milkTypeUuid());
+        List<MilkCollection> saved = repository.saveAll(entities);
+        log.info("Saved {} milk collection entries. Starting inventory stock-in.", saved.size());
 
-        RateCalculationResult result =
-                resolveRate(request, farmer);
+        for (MilkCollection item : saved) {
+            log.info(
+                    "Creating inventory stock-in for collection uuid={}, collectionNo={}.",
+                    item.getUuid(),
+                    item.getCollectionNo());
+            milkInventoryService.stockIn(item);
+        }
 
-        MilkCollection entity = mapper.toEntity(request);
+        log.info("Bulk milk collection + inventory save completed for {} entries.", saved.size());
+        return saved.stream().map(mapper::toResponse).toList();
+    }
 
-        entity.setCollectionNo(generateCollectionNo());
+    private void registerRollbackLogger(int requestedEntries) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
 
-        entity.setBranch(farmer.getBranch());
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == TransactionSynchronization.STATUS_ROLLED_BACK) {
+                    log.warn(
+                            "Milk collection bulk transaction rolled back. requestedEntries={}.",
+                            requestedEntries);
+                }
+            }
+        });
+    }
 
-        entity.setFarmer(farmer);
+    private List<PreparedMilkCollection> prepareRows(List<CreateMilkCollectionRequest> requests) {
+        Map<UUID, Farmer> farmerCache = new HashMap<>();
+        Map<UUID, Shift> shiftCache = new HashMap<>();
+        Map<UUID, MilkType> milkTypeCache = new HashMap<>();
+        List<PreparedMilkCollection> preparedRows = new ArrayList<>(requests.size());
 
-        entity.setFarmerConfiguration(result.farmerConfiguration());
+        for (int index = 0; index < requests.size(); index++) {
+            CreateMilkCollectionRequest request = requests.get(index);
+            int rowNumber = index + 1;
+            try {
+                validator.validate(request);
 
-        entity.setMilkRateChart(result.milkRateChart());
+                Farmer farmer = farmerCache.computeIfAbsent(request.farmerUuid(), this::findFarmer);
+                Shift shift = shiftCache.computeIfAbsent(request.shiftUuid(), this::findShift);
+                MilkType milkType = milkTypeCache.computeIfAbsent(request.milkTypeUuid(), this::findMilkType);
+                RateCalculationResult result = resolveRate(request, farmer);
 
-        entity.setShift(shift);
+                preparedRows.add(new PreparedMilkCollection(request, farmer, shift, milkType, result));
+            } catch (BusinessException ex) {
+                log.warn(
+                        "Bulk milk collection failed at row={} for farmerUuid={}, collectionDate={}: {}",
+                        rowNumber,
+                        request.farmerUuid(),
+                        request.collectionDate(),
+                        ex.getMessage());
+                throw new BusinessException("Row " + rowNumber + ": " + ex.getMessage());
+            } catch (ResourceNotFoundException ex) {
+                log.warn(
+                        "Bulk milk collection failed at row={} for farmerUuid={}, collectionDate={}: {}",
+                        rowNumber,
+                        request.farmerUuid(),
+                        request.collectionDate(),
+                        ex.getMessage());
+                throw new ResourceNotFoundException("Row " + rowNumber + ": " + ex.getMessage());
+            }
+        }
 
-        entity.setMilkType(milkType);
+        return preparedRows;
+    }
 
-        entity.setCollectionMethod(
-                result.farmerConfiguration().getCollectionMethod());
+    private List<MilkCollection> buildEntities(List<PreparedMilkCollection> preparedRows) {
+        Set<String> reservedCollectionNos = new HashSet<>();
+        List<MilkCollection> entities = new ArrayList<>(preparedRows.size());
 
-        entity.setCalculatedRate(result.calculatedRate());
+        for (PreparedMilkCollection row : preparedRows) {
+            CreateMilkCollectionRequest request = row.request();
+            MilkCollection entity = mapper.toEntity(request);
 
-        entity.setGrossAmount(result.grossAmount());
+            entity.setCollectionNo(generateUniqueCollectionNo(reservedCollectionNos));
+            entity.setBranch(row.farmer().getBranch());
+            entity.setFarmer(row.farmer());
+            entity.setFarmerConfiguration(row.result().farmerConfiguration());
+            entity.setMilkRateChart(row.result().milkRateChart());
+            entity.setShift(row.shift());
+            entity.setMilkType(row.milkType());
+            entity.setCollectionMethod(row.result().farmerConfiguration().getCollectionMethod());
+            entity.setCalculatedRate(row.result().calculatedRate());
+            entity.setGrossAmount(row.result().grossAmount());
+            entity.setEntryMode(request.entryMode() == null ? CollectionEntryMode.SINGLE : request.entryMode());
+            entity.setEntryType(EntryType.REGULAR);
+            entity.setEntrySource(EntrySource.WEB);
 
-        entity.setEntryMode(
-                request.entryMode() == null
-                        ? CollectionEntryMode.SINGLE
-                        : request.entryMode());
+            entities.add(entity);
+        }
 
-        entity.setEntryType(EntryType.REGULAR);
-
-        entity.setEntrySource(EntrySource.WEB);
-
-        MilkCollection saved = repository.save(entity);
-        milkInventoryService.stockIn(saved);
-
-        return mapper.toResponse(saved);
+        return entities;
     }
 
     private MilkType findMilkType(UUID uuid) {
@@ -135,10 +209,37 @@ public class CreateMilkCollectionService {
                 request.mava());
     }
 
-    private String generateCollectionNo() {
+    private String generateUniqueCollectionNo(Set<String> reservedCollectionNos) {
+        for (int attempt = 0; attempt < 50; attempt++) {
+            String candidate = generateCollectionNoCandidate();
+            if (reservedCollectionNos.contains(candidate)) {
+                continue;
+            }
 
+            if (repository.findByCollectionNo(candidate).isPresent()) {
+                continue;
+            }
+
+            reservedCollectionNos.add(candidate);
+            return candidate;
+        }
+
+        throw new BusinessException("Unable to generate unique collection number. Please retry.");
+    }
+
+    private String generateCollectionNoCandidate() {
+        String entropy = UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
         return "MC"
-                + LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE)
-                + ThreadLocalRandom.current().nextInt(1000, 9999);
+            + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
+            + entropy;
+    }
+
+    private record PreparedMilkCollection(
+            CreateMilkCollectionRequest request,
+            Farmer farmer,
+            Shift shift,
+            MilkType milkType,
+            RateCalculationResult result
+    ) {
     }
 }

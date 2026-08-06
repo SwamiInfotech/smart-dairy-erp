@@ -14,6 +14,8 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long>,
 
     Optional<Settlement> findByUuid(UUID uuid);
 
+        Optional<Settlement> findByUuidAndActiveTrue(UUID uuid);
+
     boolean existsBySettlementNo(String settlementNo);
 
     @Query("""

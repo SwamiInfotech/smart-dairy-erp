@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -39,6 +40,15 @@ public class MilkCollectionController {
         MilkCollectionResponse response = service.create(request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Milk collection saved successfully.", response));
+    }
+
+    @PostMapping("/bulk")
+    public ResponseEntity<ApiResponse<List<MilkCollectionResponse>>> createBulk(@Valid @RequestBody CreateMilkCollectionBulkRequest request) {
+        log.info("Received request to create bulk milk collections with size={}", request.entries().size());
+
+        List<MilkCollectionResponse> response = service.createBulk(request.entries());
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Milk collections saved successfully.", response));
     }
 
     @GetMapping

@@ -6,7 +6,6 @@ import { useMasterDataCrud } from './useMasterDataCrud'
 
 export function useAppShellMasterFarmerOperations(
   state: AppShellState,
-  onSwitchToMilkCollections: () => void,
 ) {
   const { session, entities, forms, runAction, nextProductCode, nextFarmerCode, nextCollectionNo } = state
 
@@ -34,7 +33,6 @@ export function useAppShellMasterFarmerOperations(
     setCollectionMethods: entities.setCollectionMethods,
     setSelectedCollectionMethod: forms.setSelectedCollectionMethod,
     setCollectionForm: forms.setCollectionForm,
-    onSwitchToMilkCollections,
   })
 
   const collectionFarmerSelection = useCollectionFarmerSelection({

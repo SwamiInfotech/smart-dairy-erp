@@ -72,6 +72,7 @@ export const BACKEND_MODULES: Record<string, BackendModuleDefinition> = {
     endpoints: [
       { method: 'GET', path: '/api/v1/milk-collections' },
       { method: 'POST', path: '/api/v1/milk-collections' },
+      { method: 'POST', path: '/api/v1/milk-collections/bulk' },
       { method: 'PUT', path: '/api/v1/milk-collections/{uuid}' },
       { method: 'DELETE', path: '/api/v1/milk-collections/{uuid}' },
     ],
@@ -137,18 +138,19 @@ export const BACKEND_MODULES: Record<string, BackendModuleDefinition> = {
     label: 'Settlements',
     endpoints: [
       { method: 'GET', path: '/api/v1/settlements' },
-      { method: 'POST', path: '/api/v1/settlements' },
+      { method: 'POST', path: '/api/v1/settlements/generate' },
+      { method: 'GET', path: '/api/v1/settlements/{uuid}' },
       { method: 'PUT', path: '/api/v1/settlements/{uuid}' },
       { method: 'DELETE', path: '/api/v1/settlements/{uuid}' },
+      { method: 'PATCH', path: '/api/v1/settlements/{uuid}/pay' },
     ],
   },
   payments: {
     label: 'Payments',
     endpoints: [
       { method: 'GET', path: '/api/v1/payments' },
+      { method: 'GET', path: '/api/v1/payments/{uuid}' },
       { method: 'POST', path: '/api/v1/payments' },
-      { method: 'PUT', path: '/api/v1/payments/{uuid}' },
-      { method: 'DELETE', path: '/api/v1/payments/{uuid}' },
     ],
   },
   reports: {
@@ -183,6 +185,9 @@ export const BACKEND_MODULES: Record<string, BackendModuleDefinition> = {
     endpoints: [
       { method: 'GET', path: '/api/v1/payment-cycles' },
       { method: 'POST', path: '/api/v1/payment-cycles' },
+      { method: 'GET', path: '/api/v1/payment-cycles/{uuid}' },
+      { method: 'PUT', path: '/api/v1/payment-cycles/{uuid}' },
+      { method: 'DELETE', path: '/api/v1/payment-cycles/{uuid}' },
     ],
   },
   pricing: {

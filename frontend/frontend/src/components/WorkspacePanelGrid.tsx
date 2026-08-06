@@ -465,6 +465,7 @@ export function WorkspacePanelGrid({
           collectionForm={collectionForm}
           setCollectionForm={setCollectionForm}
           farmers={farmers}
+          collectionMethods={collectionMethods}
           shifts={shifts}
           milkTypes={milkTypes}
           milkRateCharts={milkRateCharts}

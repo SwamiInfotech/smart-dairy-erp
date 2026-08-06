@@ -214,77 +214,83 @@ export function useCollectionCrud({
     async (entries: MultiCollectionEntryInput[], shiftUuid: string) => {
       if (!token) return
 
+      let backendErrorMessage = ''
+
       const createdItems = await runAction(async () => {
-        if (!Array.isArray(entries) || entries.length === 0) {
-          throw new Error('Select at least one farmer row for multi-farmer collection.')
-        }
-
-        if (!Array.isArray(farmers) || farmers.length === 0) {
-          throw new Error('No farmers available. Load master data before saving collection.')
-        }
-
-        if (!Array.isArray(shifts) || shifts.length === 0) {
-          throw new Error('No shifts are configured. Please configure shifts in master data first.')
-        }
-
-        if (!Array.isArray(milkTypes) || milkTypes.length === 0) {
-          throw new Error('No milk types are configured. Please configure milk types in master data first.')
-        }
-
-        const selectedShift = shifts.find((item) => item.uuid === shiftUuid)
-        if (!selectedShift) {
-          throw new Error('Select a valid shift from the list before saving the collection.')
-        }
-
-        const selectedMilkType = milkTypes.find((item) => item.uuid === collectionForm.milkTypeUuid)
-        if (!selectedMilkType) {
-          throw new Error('Select a valid milk type before saving the collection.')
-        }
-
-        if (!collectionForm.collectionDate.trim()) {
-          throw new Error('Collection date is required.')
-        }
-
-        const qualityVisibility = resolveQualityFieldVisibility(selectedCollectionMethod)
-        const systemCollectionTime = toInputTime(new Date())
-        const created: CollectionListItem[] = []
-
-        for (const entry of entries) {
-          const selectedFarmer = farmers.find((item) => item.uuid === entry.farmerUuid)
-          if (!selectedFarmer) {
-            throw new Error('One or more selected rows contain an invalid farmer.')
+        try {
+          if (!Array.isArray(entries) || entries.length === 0) {
+            throw new Error('Select at least one farmer row for multi-farmer collection.')
           }
 
-          const quantity = Number(entry.quantity)
-          if (!Number.isFinite(quantity) || quantity <= 0) {
-            throw new Error(`Quantity must be greater than 0 liters for farmer ${selectedFarmer.farmerName}.`)
+          if (!Array.isArray(farmers) || farmers.length === 0) {
+            throw new Error('No farmers available. Load master data before saving collection.')
           }
 
-          if (entry.fat < 0 || (entry.snf ?? 0) < 0 || entry.mava < 0) {
-            throw new Error(`FAT, SNF, and Mava cannot be negative for farmer ${selectedFarmer.farmerName}.`)
+          if (!Array.isArray(shifts) || shifts.length === 0) {
+            throw new Error('No shifts are configured. Please configure shifts in master data first.')
           }
 
-          const saved = await api.createMilkCollection(token, {
-            farmerUuid: selectedFarmer.uuid,
-            shiftUuid: selectedShift.uuid,
-            milkTypeUuid: selectedMilkType.uuid,
-            collectionDate: collectionForm.collectionDate,
-            collectionTime: systemCollectionTime,
-            quantity,
-            fat: qualityVisibility.showFat ? entry.fat || null : null,
-            snf: qualityVisibility.showSnf ? entry.snf || null : null,
-            mava: qualityVisibility.showMava ? entry.mava || null : null,
-            entryMode: 'MULTI',
-            remarks: entry.remarks.trim(),
+          if (!Array.isArray(milkTypes) || milkTypes.length === 0) {
+            throw new Error('No milk types are configured. Please configure milk types in master data first.')
+          }
+
+          const selectedShift = shifts.find((item) => item.uuid === shiftUuid)
+          if (!selectedShift) {
+            throw new Error('Select a valid shift from the list before saving the collection.')
+          }
+
+          const selectedMilkType = milkTypes.find((item) => item.uuid === collectionForm.milkTypeUuid)
+          if (!selectedMilkType) {
+            throw new Error('Select a valid milk type before saving the collection.')
+          }
+
+          if (!collectionForm.collectionDate.trim()) {
+            throw new Error('Collection date is required.')
+          }
+
+          const qualityVisibility = resolveQualityFieldVisibility(selectedCollectionMethod)
+          const systemCollectionTime = toInputTime(new Date())
+          const payloads = entries.map((entry) => {
+            const selectedFarmer = farmers.find((item) => item.uuid === entry.farmerUuid)
+            if (!selectedFarmer) {
+              throw new Error('One or more selected rows contain an invalid farmer.')
+            }
+
+            const quantity = Number(entry.quantity)
+            if (!Number.isFinite(quantity) || quantity <= 0) {
+              throw new Error(`Quantity must be greater than 0 liters for farmer ${selectedFarmer.farmerName}.`)
+            }
+
+            if (entry.fat < 0 || (entry.snf ?? 0) < 0 || entry.mava < 0) {
+              throw new Error(`FAT, SNF, and Mava cannot be negative for farmer ${selectedFarmer.farmerName}.`)
+            }
+
+            return {
+              farmerUuid: selectedFarmer.uuid,
+              shiftUuid: selectedShift.uuid,
+              milkTypeUuid: selectedMilkType.uuid,
+              collectionDate: collectionForm.collectionDate,
+              collectionTime: systemCollectionTime,
+              quantity,
+              fat: qualityVisibility.showFat ? entry.fat || null : null,
+              snf: qualityVisibility.showSnf ? entry.snf || null : null,
+              mava: qualityVisibility.showMava ? entry.mava || null : null,
+              entryMode: 'MULTI' as ApiCollectionEntryMode,
+              remarks: entry.remarks.trim(),
+            }
           })
 
-          created.push(normalizeCollectionListItem(saved))
+          const savedRows = await api.createMilkCollectionsBulk(token, payloads)
+          return savedRows.map(normalizeCollectionListItem)
+        } catch (err) {
+          backendErrorMessage = err instanceof Error ? err.message : 'Unable to save multi farmer collection.'
+          throw err
         }
-
-        return created
       }, `Saved ${entries.length} milk collection entries.`)
 
-      if (!createdItems || createdItems.length === 0) return
+      if (!createdItems || createdItems.length === 0) {
+        throw new Error(backendErrorMessage || 'Unable to save multi farmer collection.')
+      }
 
       setCollections((prev) => [...createdItems, ...prev])
       setCollectionForm((prev) => ({

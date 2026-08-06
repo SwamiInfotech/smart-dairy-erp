@@ -14,11 +14,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
-@Transactional
 @Slf4j
-public class CreateFarmerService {
+@Transactional
+public class UpdateFarmerService {
 
     private final FarmerRepository farmerRepository;
     private final BranchRepository branchRepository;
@@ -26,19 +28,21 @@ public class CreateFarmerService {
     private final FarmerConfigurationUpsertService farmerConfigurationUpsertService;
     private final FarmerResponseFactory farmerResponseFactory;
 
-    public FarmerResponse create(CreateFarmerRequest request) {
-        log.info("Creating farmer with code={} and name={}.", request.farmerCode(), request.farmerName());
+    public FarmerResponse update(UUID uuid, CreateFarmerRequest request) {
+        log.info("Updating farmer with uuid={}.", uuid);
+
+        Farmer farmer = farmerRepository.findByUuidAndActiveTrue(uuid)
+                .orElseThrow(() -> new ResourceNotFoundException("Farmer not found."));
 
         Branch branch = branchRepository.findByUuid(request.branchUuid())
                 .orElseThrow(() -> new ResourceNotFoundException("Branch not found."));
 
-        if (farmerRepository.existsByBranchIdAndFarmerCode(branch.getId(), request.farmerCode())) {
+        if (farmerRepository.existsByBranchIdAndFarmerCodeAndUuidNot(branch.getId(), request.farmerCode(), uuid)) {
             throw new BusinessException("Farmer code already exists.");
         }
 
-        Farmer farmer = farmerMapper.toEntity(request);
+        farmerMapper.updateEntity(request, farmer);
         farmer.setBranch(branch);
-        farmer.setActive(true);
 
         Farmer saved = farmerRepository.saveAndFlush(farmer);
         farmerConfigurationUpsertService.upsert(saved, request);

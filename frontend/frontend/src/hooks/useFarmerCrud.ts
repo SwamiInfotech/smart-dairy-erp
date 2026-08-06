@@ -45,7 +45,6 @@ type UseFarmerCrudParams<TCollectionForm extends CollectionFormForFarmerSync> = 
   setCollectionMethods: React.Dispatch<React.SetStateAction<CollectionMethodResponse[]>>
   setSelectedCollectionMethod: React.Dispatch<React.SetStateAction<MasterLookupResponse | null>>
   setCollectionForm: React.Dispatch<React.SetStateAction<TCollectionForm>>
-  onSwitchToMilkCollections: () => void
 }
 
 export function useFarmerCrud<TCollectionForm extends CollectionFormForFarmerSync>({
@@ -62,7 +61,6 @@ export function useFarmerCrud<TCollectionForm extends CollectionFormForFarmerSyn
   setCollectionMethods,
   setSelectedCollectionMethod,
   setCollectionForm,
-  onSwitchToMilkCollections,
 }: UseFarmerCrudParams<TCollectionForm>) {
   const [editingFarmerUuid, setEditingFarmerUuid] = useState('')
   const [selectedFarmerRateChartUuid, setSelectedFarmerRateChartUuid] = useState('')
@@ -401,9 +399,7 @@ export function useFarmerCrud<TCollectionForm extends CollectionFormForFarmerSyn
           rate: selectedRateFromDetails,
         }))
 
-        onSwitchToMilkCollections()
       } catch {
-        onSwitchToMilkCollections()
         setCollectionForm((prev) => ({
           ...prev,
           farmerUuid: created.uuid,
@@ -414,7 +410,6 @@ export function useFarmerCrud<TCollectionForm extends CollectionFormForFarmerSyn
       branchUuid,
       editingFarmerUuid,
       farmerForm,
-      onSwitchToMilkCollections,
       resetFarmerForm,
       runAction,
       selectedFarmerRateChartUuid,

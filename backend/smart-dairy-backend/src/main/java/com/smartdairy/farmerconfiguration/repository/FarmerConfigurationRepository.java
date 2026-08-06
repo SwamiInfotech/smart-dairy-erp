@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -13,6 +14,8 @@ public interface FarmerConfigurationRepository extends JpaRepository<FarmerConfi
     Optional<FarmerConfiguration> findByUuid(UUID uuid);
 
     Optional<FarmerConfiguration> findByFarmerIdAndActiveTrue(Long farmerId);
+
+    List<FarmerConfiguration> findByFarmerIdAndActiveTrueOrderByEffectiveFromDesc(Long farmerId);
 
     Optional<FarmerConfiguration> findByFarmerIdAndEffectiveFromLessThanEqualAndEffectiveToGreaterThanEqual(
             Long farmerId,
@@ -28,8 +31,9 @@ public interface FarmerConfigurationRepository extends JpaRepository<FarmerConfi
                     fc.effectiveTo IS NULL
                     OR :collectionDate <= fc.effectiveTo
                 )
+            ORDER BY fc.effectiveFrom DESC
             """)
-    Optional<FarmerConfiguration> findApplicableConfiguration(Long farmerId, LocalDate collectionDate);
+    List<FarmerConfiguration> findApplicableConfigurations(Long farmerId, LocalDate collectionDate);
 
     boolean existsByMilkRateChartId(Long milkRateChartId);
 

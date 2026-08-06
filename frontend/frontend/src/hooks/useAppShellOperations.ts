@@ -10,10 +10,7 @@ export type AppShellOperations =
 
 export function useAppShellOperations(state: AppShellState): AppShellOperations {
   const coreOps = useAppShellCoreOperations(state)
-  const masterFarmerOps = useAppShellMasterFarmerOperations(
-    state,
-    coreOps.shell.switchToMilkCollections,
-  )
+  const masterFarmerOps = useAppShellMasterFarmerOperations(state)
   const commercialOps = useAppShellCommercialOperations(state)
 
   return {

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import type {
   FarmerResponse,
@@ -74,6 +75,27 @@ export function FarmersPage({
   onEditFarmer,
   onDeleteFarmer,
 }: FarmersPageProps) {
+  const farmerNameInputRef = useRef<HTMLInputElement | null>(null)
+  const previousFarmerNameRef = useRef(farmerForm.farmerName)
+
+  useEffect(() => {
+    // Keep focus on Farmer Name after form reset (save/update/cancel) and when edit row is opened.
+    if (editingFarmerUuid) {
+      requestAnimationFrame(() => farmerNameInputRef.current?.focus())
+      previousFarmerNameRef.current = farmerForm.farmerName
+      return
+    }
+
+    const previousName = previousFarmerNameRef.current.trim()
+    const currentName = farmerForm.farmerName.trim()
+
+    if (previousName && !currentName) {
+      requestAnimationFrame(() => farmerNameInputRef.current?.focus())
+    }
+
+    previousFarmerNameRef.current = farmerForm.farmerName
+  }, [editingFarmerUuid, farmerForm.farmerName])
+
   return (
     <section className="panel panel-farmer">
       <div className="panel-head">
@@ -100,6 +122,7 @@ export function FarmersPage({
                 <label className="farmer-field">
                   <span>Farmer Name</span>
                   <input
+                    ref={farmerNameInputRef}
                     required
                     value={farmerForm.farmerName}
                     onChange={(event) => setFarmerForm((prev) => ({ ...prev, farmerName: event.target.value }))}

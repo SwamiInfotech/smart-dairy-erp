@@ -143,6 +143,24 @@ function extractErrorMessage(payload: unknown, status: number) {
     }
   }
 
+  const validationErrors = record.validationErrors
+  if (Array.isArray(validationErrors) && validationErrors.length > 0) {
+    const messages = validationErrors
+      .map((item) => {
+        if (typeof item === 'string' && item.trim()) {
+          return item.trim()
+        }
+
+        const itemRecord = asRecord(item)
+        return readString(itemRecord, 'message', 'defaultMessage', 'error')
+      })
+      .filter((item): item is string => Boolean(item))
+
+    if (messages.length > 0) {
+      return `${directMessage || 'Validation failed'}: ${messages.join(' | ')}`
+    }
+  }
+
   return `Request failed with status ${status}`
 }
 

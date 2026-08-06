@@ -85,6 +85,72 @@ export type UpdateTenantRequest = {
 
 export type PaymentMode = 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'CREDIT'
 export type ApiCollectionEntryMode = 'SINGLE' | 'MULTI'
+export type SettlementStatus = 'GENERATED' | 'PAID'
+
+export type SettlementSearchRequest = {
+  farmerUuid?: string
+  status?: SettlementStatus
+  fromDate?: string
+  toDate?: string
+}
+
+export type CreateSettlementRequest = {
+  farmerUuid: string
+  fromDate: string
+  toDate: string
+  bonusAmount: number
+  loanRecovery: number
+  advanceRecovery: number
+  otherDeduction: number
+  remarks: string
+}
+
+export type UpdateSettlementRequest = {
+  bonusAmount: number
+  loanRecovery: number
+  advanceRecovery: number
+  otherDeduction: number
+  remarks: string
+}
+
+export type SettlementResponse = {
+  uuid: string
+  settlementNo: string
+  farmerUuid: string
+  farmerCode: string
+  farmerName: string
+  fromDate: string
+  toDate: string
+  milkAmount: number
+  bonusAmount: number
+  loanRecovery: number
+  advanceRecovery: number
+  otherDeduction: number
+  netPayable: number
+  status: SettlementStatus
+  remarks: string | null
+}
+
+export type CreatePaymentRequest = {
+  settlementUuid: string
+  paymentDate: string
+  paymentMode: PaymentMode
+  remarks: string
+}
+
+export type PaymentResponse = {
+  uuid: string
+  paymentNo: string
+  settlementUuid: string
+  settlementNo: string
+  farmerUuid: string
+  farmerCode: string
+  farmerName: string
+  paymentDate: string
+  paidAmount: number
+  paymentMode: PaymentMode
+  remarks: string | null
+}
 
 export type SalesDashboardResponse = {
   totalInvoices: number

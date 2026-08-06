@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type FormEvent, type KeyboardEvent, type SetStateAction } from 'react'
 import type {
+  CollectionMethodResponse,
   FarmerResponse,
   MilkRateChartResponse,
   MilkTypeResponse,
@@ -65,6 +66,7 @@ type MultiCollectionEntryInput = {
 type CollectionMode = 'single' | 'multi'
 type CollectionMethodFilter = 'ALL' | 'FAT' | 'MAVA'
 type CollectionEntryModeFilter = 'ALL' | 'SINGLE' | 'MULTI'
+type MultiCollectionMethodFilter = 'FAT' | 'SNF' | 'MAVA'
 
 type CollectionConfirmAction = 'save-single' | 'update-single' | 'save-multi' | 'delete'
 
@@ -114,6 +116,7 @@ type MilkCollectionsPageProps = {
   collectionForm: CollectionFormState
   setCollectionForm: Dispatch<SetStateAction<CollectionFormState>>
   farmers: FarmerResponse[]
+  collectionMethods: CollectionMethodResponse[]
   shifts: ShiftResponse[]
   milkTypes: MilkTypeResponse[]
   milkRateCharts: MilkRateChartResponse[]
@@ -148,6 +151,7 @@ export function MilkCollectionsPage({
   collectionForm,
   setCollectionForm,
   farmers,
+  collectionMethods,
   shifts,
   milkTypes,
   milkRateCharts,
@@ -195,9 +199,99 @@ export function MilkCollectionsPage({
   const [pendingMultiDateSync, setPendingMultiDateSync] = useState(false)
   const [pendingMultiDateValue, setPendingMultiDateValue] = useState('')
   const [multiGridEditedSinceLastSync, setMultiGridEditedSinceLastSync] = useState(false)
+  const [multiCollectionMethodFilter, setMultiCollectionMethodFilter] = useState<MultiCollectionMethodFilter>('MAVA')
   const multiCellRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const collectionListAnchorRef = useRef<HTMLDivElement | null>(null)
   const collectionDateInputRef = useRef<HTMLInputElement | null>(null)
+
+  const normalizeMethodTag = (value: string | null | undefined): MultiCollectionMethodFilter | '' => {
+    const normalized = (value || '').trim().toLowerCase().replace(/[^a-z]/g, '')
+    if (normalized === 'fat') return 'FAT'
+    if (normalized === 'snf') return 'SNF'
+    if (normalized === 'mava') return 'MAVA'
+    return ''
+  }
+
+  const resolveMethodTagFromChart = (chart: MilkRateChartResponse | null): MultiCollectionMethodFilter | '' => {
+    if (!chart) return ''
+
+    const hasMava = chart.details.some((detail) => detail.mavaFrom != null || detail.mavaTo != null)
+    const hasFat = chart.details.some((detail) => detail.fatFrom != null || detail.fatTo != null)
+    const hasSnf = chart.details.some((detail) => detail.snfFrom != null || detail.snfTo != null)
+
+    if (hasMava && !hasFat && !hasSnf) return 'MAVA'
+    if (hasFat && !hasSnf && !hasMava) return 'FAT'
+    if (hasSnf && !hasFat && !hasMava) return 'SNF'
+    if (hasMava) return 'MAVA'
+    if (hasFat) return 'FAT'
+    if (hasSnf) return 'SNF'
+
+    return normalizeMethodTag(chart.chartName)
+  }
+
+  const collectionMethodTagByUuid = useMemo(() => {
+    const map: Record<string, MultiCollectionMethodFilter | ''> = {}
+    for (const method of collectionMethods) {
+      const fromCode = normalizeMethodTag(method.code)
+      const fromName = normalizeMethodTag(method.name)
+      map[method.uuid] = fromCode || fromName || ''
+    }
+    return map
+  }, [collectionMethods])
+
+  const milkRateChartMethodTagByUuid = useMemo(() => {
+    const map: Record<string, MultiCollectionMethodFilter | ''> = {}
+    for (const chart of milkRateCharts) {
+      const fromMethod = collectionMethodTagByUuid[chart.collectionMethodUuid] || ''
+      map[chart.uuid] = fromMethod || resolveMethodTagFromChart(chart)
+    }
+    return map
+  }, [collectionMethodTagByUuid, milkRateCharts])
+
+  const resolveFarmerMethodTag = (farmer: FarmerResponse): MultiCollectionMethodFilter | '' => {
+    const directFromFarmer = farmer.collectionMethodUuid ? collectionMethodTagByUuid[farmer.collectionMethodUuid] || '' : ''
+    if (directFromFarmer) return directFromFarmer
+
+    const fromChart = farmer.milkRateChartUuid ? milkRateChartMethodTagByUuid[farmer.milkRateChartUuid] || '' : ''
+    if (fromChart) return fromChart
+
+    return ''
+  }
+
+  const availableMultiMethodOptions = useMemo(() => {
+    const tags = new Set<MultiCollectionMethodFilter>()
+    for (const farmer of farmers) {
+      const tag = resolveFarmerMethodTag(farmer)
+      if (tag) tags.add(tag)
+    }
+
+    const preferredFromVisibility = collectionQualityVisibility.showMava && !collectionQualityVisibility.showFat && !collectionQualityVisibility.showSnf
+      ? 'MAVA'
+      : collectionQualityVisibility.showFat && !collectionQualityVisibility.showMava
+        ? 'FAT'
+        : collectionQualityVisibility.showSnf && !collectionQualityVisibility.showFat && !collectionQualityVisibility.showMava
+          ? 'SNF'
+          : ''
+
+    if (preferredFromVisibility) {
+      tags.add(preferredFromVisibility)
+    }
+
+    if (tags.size === 0) {
+      tags.add('MAVA')
+      tags.add('FAT')
+    }
+
+    return Array.from(tags).map((tag) => ({
+      value: tag,
+      label: tag === 'MAVA' ? 'Mava' : tag,
+    }))
+  }, [collectionQualityVisibility.showFat, collectionQualityVisibility.showMava, collectionQualityVisibility.showSnf, farmers])
+
+  const filteredMultiFarmers = useMemo(
+    () => farmers.filter((farmer) => resolveFarmerMethodTag(farmer) === multiCollectionMethodFilter),
+    [farmers, multiCollectionMethodFilter],
+  )
 
   const focusCollectionDateField = () => {
     requestAnimationFrame(() => {
@@ -253,6 +347,28 @@ export function MilkCollectionsPage({
     return () => window.removeEventListener('keydown', onEscape)
   }, [confirmBusy, confirmDialog.open, noticeDialog.open])
 
+  useEffect(() => {
+    if (availableMultiMethodOptions.some((item) => item.value === multiCollectionMethodFilter)) return
+
+    const firstOption = availableMultiMethodOptions[0]
+    if (!firstOption) return
+    setMultiCollectionMethodFilter(firstOption.value)
+  }, [availableMultiMethodOptions, multiCollectionMethodFilter])
+
+  useEffect(() => {
+    if (collectionMode !== 'multi') return
+
+    const hasSelectedFilteredFarmer = filteredMultiFarmers.some((item) => item.uuid === collectionForm.farmerUuid)
+    if (hasSelectedFilteredFarmer) return
+
+    const firstFilteredFarmer = filteredMultiFarmers[0]
+    if (!firstFilteredFarmer) return
+
+    void onCollectionFarmerChange({
+      target: { value: firstFilteredFarmer.uuid },
+    } as ChangeEvent<HTMLSelectElement>)
+  }, [collectionForm.farmerUuid, collectionMode, filteredMultiFarmers, onCollectionFarmerChange])
+
   const getMultiRowsForShift = (variant: MultiShiftVariant) => {
     return multiRowsByShift[variant] || {}
   }
@@ -262,10 +378,10 @@ export function MilkCollectionsPage({
   }
 
   const getSelectedMultiCount = (variant: MultiShiftVariant) =>
-    farmers.filter((farmer) => getDraftRow(variant, farmer.uuid).selected).length
+    filteredMultiFarmers.filter((farmer) => getDraftRow(variant, farmer.uuid).selected).length
 
   const getAllFarmersSelected = (variant: MultiShiftVariant) =>
-    farmers.length > 0 && getSelectedMultiCount(variant) === farmers.length
+    filteredMultiFarmers.length > 0 && getSelectedMultiCount(variant) === filteredMultiFarmers.length
 
   const resolveShiftUuidForVariant = (variant: MultiShiftVariant) => {
     const directMatch = shifts.find((shift) => {
@@ -285,7 +401,7 @@ export function MilkCollectionsPage({
   }
 
   const buildMultiRowCalculations = (variant: MultiShiftVariant) =>
-    farmers.map((farmer) => {
+    filteredMultiFarmers.map((farmer) => {
       const row = getDraftRow(variant, farmer.uuid)
       return {
         farmer,
@@ -583,7 +699,7 @@ export function MilkCollectionsPage({
     let nextColumnIndex = columnIndex
 
     if (direction === 'up') nextRowIndex = Math.max(0, rowIndex - 1)
-    if (direction === 'down' || direction === 'enter') nextRowIndex = Math.min(farmers.length - 1, rowIndex + 1)
+    if (direction === 'down' || direction === 'enter') nextRowIndex = Math.min(filteredMultiFarmers.length - 1, rowIndex + 1)
     if (direction === 'left') nextColumnIndex = Math.max(0, columnIndex - 1)
     if (direction === 'right') nextColumnIndex = Math.min(multiEditableColumns.length - 1, columnIndex + 1)
 
@@ -646,7 +762,7 @@ export function MilkCollectionsPage({
     setMultiRowsByShift((prev) => {
       const next = { ...prev }
       next[variant] = { ...(next[variant] || {}) }
-      for (const farmer of farmers) {
+      for (const farmer of filteredMultiFarmers) {
         next[variant][farmer.uuid] = {
           ...(next[variant][farmer.uuid] || EMPTY_MULTI_ROW),
           selected: nextSelected,
@@ -747,7 +863,7 @@ export function MilkCollectionsPage({
   }, [collectionMode, collections, multiGridEditedSinceLastSync, pendingMultiDateSync, pendingMultiDateValue])
 
   const handleCreateMultiCollections = async (variant: MultiShiftVariant) => {
-    const entries: MultiCollectionEntryInput[] = farmers
+    const entries: MultiCollectionEntryInput[] = filteredMultiFarmers
       .map((farmer) => ({ farmer, row: getDraftRow(variant, farmer.uuid) }))
       .filter(({ row }) => shouldIncludeMultiRowForSave(row))
       .map(({ farmer, row }) => ({
@@ -764,7 +880,7 @@ export function MilkCollectionsPage({
     setMultiRowsByShift((prev) => {
       const next = { ...prev }
       next[variant] = { ...(next[variant] || {}) }
-      for (const farmer of farmers) {
+      for (const farmer of filteredMultiFarmers) {
         if (!next[variant][farmer.uuid]?.selected) continue
         next[variant][farmer.uuid] = { ...EMPTY_MULTI_ROW }
       }
@@ -775,9 +891,13 @@ export function MilkCollectionsPage({
   const validateMultiCollectionsBeforeSave = (variant: MultiShiftVariant) => {
     const shiftLabel = variant === 'morning' ? 'Morning' : 'Evening'
 
-    for (const farmer of farmers) {
+    for (const farmer of filteredMultiFarmers) {
       const row = getDraftRow(variant, farmer.uuid)
       if (!shouldIncludeMultiRowForSave(row)) continue
+
+      if (resolveFarmerMethodTag(farmer) !== multiCollectionMethodFilter) {
+        return `${shiftLabel}: ${farmer.farmerName} is not configured for ${multiCollectionMethodFilter}.`
+      }
 
       const quantity = Number(row.quantity || 0)
       const fat = Number(row.fat || 0)
@@ -805,6 +925,7 @@ export function MilkCollectionsPage({
     const eveningAllSelected = getAllFarmersSelected('evening')
     const morningColumnCount = 4 + (collectionQualityVisibility.showFat ? 1 : 0) + (collectionQualityVisibility.showSnf ? 1 : 0) + (collectionQualityVisibility.showMava ? 1 : 0)
     const eveningColumnCount = morningColumnCount
+    const fullRowColSpan = 2 + morningColumnCount + 1 + eveningColumnCount
 
     return (
       <div className="collection-field-wide collection-panel-table-wrap">
@@ -865,7 +986,12 @@ export function MilkCollectionsPage({
               </tr>
             </thead>
             <tbody>
-              {farmers.map((farmer, rowIndex) => {
+              {filteredMultiFarmers.length === 0 && (
+                <tr>
+                  <td colSpan={fullRowColSpan}>No farmers configured for {multiCollectionMethodFilter} method.</td>
+                </tr>
+              )}
+              {filteredMultiFarmers.map((farmer, rowIndex) => {
                 const morningRow = morningRows[rowIndex]
                 const eveningRow = eveningRows[rowIndex]
 
@@ -1122,6 +1248,18 @@ export function MilkCollectionsPage({
     setNoticeDialog((prev) => ({ ...prev, open: false }))
   }
 
+  const toErrorMessage = (error: unknown) => {
+    if (error instanceof Error && error.message.trim()) {
+      return error.message.trim()
+    }
+
+    if (typeof error === 'string' && error.trim()) {
+      return error.trim()
+    }
+
+    return 'Unable to save multi farmer collection. Please try again.'
+  }
+
   const handleConfirmAction = async () => {
     if (confirmBusy) return
 
@@ -1140,6 +1278,15 @@ export function MilkCollectionsPage({
       } else {
         await onCreateCollection({ preventDefault: () => {} } as FormEvent<HTMLFormElement>)
         await loadCollections()
+      }
+    } catch (error) {
+      if (confirmDialog.action === 'save-multi') {
+        openNoticeDialog(toErrorMessage(error))
+        try {
+          await loadCollections()
+        } catch {
+          // Keep original save error visible even if reload fails.
+        }
       }
     } finally {
       setConfirmBusy(false)
@@ -1317,6 +1464,20 @@ export function MilkCollectionsPage({
                     {milkTypes.map((item) => (
                       <option key={item.uuid} value={item.uuid}>
                         {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="collection-field">
+                  <span>Collection Method</span>
+                  <select
+                    value={multiCollectionMethodFilter}
+                    onChange={(event) => setMultiCollectionMethodFilter(event.target.value as MultiCollectionMethodFilter)}
+                  >
+                    {availableMultiMethodOptions.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
                       </option>
                     ))}
                   </select>

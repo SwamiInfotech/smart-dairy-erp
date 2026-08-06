@@ -1,4 +1,10 @@
 import type {
+  CreateSettlementRequest,
+  SettlementResponse,
+  SettlementSearchRequest,
+  UpdateSettlementRequest,
+  CreatePaymentRequest,
+  PaymentResponse,
   CreateInventoryTransactionRequest,
   ApiCollectionEntryMode,
   CreateCustomerRequest,
@@ -130,6 +136,28 @@ export function createApiBusinessModule({ request }: ApiBusinessModuleDependenci
       }>('POST', '/api/v1/milk-collections', token, payload)
     },
 
+    createMilkCollectionsBulk(token: string, payloads: CreateMilkCollectionRequest[]) {
+      return request<{
+        uuid: string
+        collectionNo: string
+        farmerName: string
+        farmerUuid?: string
+        shiftUuid?: string
+        milkTypeUuid?: string
+        collectionDate: string
+        collectionTime?: string
+        quantity: number
+        fat?: number | null
+        snf?: number | null
+        mava?: number | null
+        entryMode?: ApiCollectionEntryMode | null
+        remarks?: string | null
+        grossAmount: number
+      }[]>('POST', '/api/v1/milk-collections/bulk', token, {
+        entries: payloads,
+      })
+    },
+
     updateMilkCollection(token: string, collectionUuid: string, payload: CreateMilkCollectionRequest) {
       return request<{
         uuid: string
@@ -165,6 +193,65 @@ export function createApiBusinessModule({ request }: ApiBusinessModuleDependenci
 
     createSalesInvoice(token: string, payload: CreateSalesInvoiceRequest) {
       return request<SalesInvoiceResponse>('POST', '/api/v1/sales', token, payload)
+    },
+
+    generateSettlement(token: string, payload: CreateSettlementRequest) {
+      return request<SettlementResponse>('POST', '/api/v1/settlements/generate', token, payload)
+    },
+
+    getSettlement(token: string, settlementUuid: string) {
+      return request<SettlementResponse>('GET', `/api/v1/settlements/${settlementUuid}`, token)
+    },
+
+    searchSettlements(token: string, params?: SettlementSearchRequest & { page?: number; size?: number }) {
+      return request<PageResult<SettlementResponse>>('GET', '/api/v1/settlements', token, undefined, {
+        query: {
+          farmerUuid: params?.farmerUuid,
+          status: params?.status,
+          fromDate: params?.fromDate,
+          toDate: params?.toDate,
+          page: params?.page ?? 0,
+          size: params?.size ?? 200,
+        },
+      })
+    },
+
+    updateSettlement(token: string, settlementUuid: string, payload: UpdateSettlementRequest) {
+      return request<SettlementResponse>('PUT', `/api/v1/settlements/${settlementUuid}`, token, payload)
+    },
+
+    deleteSettlement(token: string, settlementUuid: string) {
+      return request<void>('DELETE', `/api/v1/settlements/${settlementUuid}`, token)
+    },
+
+    paySettlement(token: string, settlementUuid: string) {
+      return request<SettlementResponse>('PATCH', `/api/v1/settlements/${settlementUuid}/pay`, token)
+    },
+
+    createPayment(token: string, payload: CreatePaymentRequest) {
+      return request<PaymentResponse>('POST', '/api/v1/payments', token, payload)
+    },
+
+    searchPayments(token: string, params?: {
+      farmerUuid?: string
+      settlementUuid?: string
+      paymentMode?: string
+      fromDate?: string
+      toDate?: string
+      page?: number
+      size?: number
+    }) {
+      return request<PageResult<PaymentResponse>>('GET', '/api/v1/payments', token, undefined, {
+        query: {
+          farmerUuid: params?.farmerUuid,
+          settlementUuid: params?.settlementUuid,
+          paymentMode: params?.paymentMode,
+          fromDate: params?.fromDate,
+          toDate: params?.toDate,
+          page: params?.page ?? 0,
+          size: params?.size ?? 200,
+        },
+      })
     },
 
     async searchInventoryTransactions(token: string, page = 0, size = 100) {

@@ -19,17 +19,17 @@ spring:
 
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
-    show-sql: true
+    show-sql: false
     hibernate:
       # Use 'update' for dev, 'validate' or 'none' for production
       ddl-auto: validate
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
         jdbc:
-          batch_size: 20
-          order_inserts: true
-          order_updates: true
+          batch_size: 100
+        order_inserts: true
+        order_updates: true
 
   flyway:
     validate-on-migrate: false
@@ -52,11 +52,13 @@ management:
     health:
       show-details: always
 
-# Optional Logging Configuration for Debugging SQL Queries
+# Logging Configuration - Only show important logs
 logging:
   level:
-    org.hibernate.SQL: DEBUG
-    org.hibernate.orm.jdbc.bind: TRACE
+    root: WARN
+    com.smartdairy: INFO
+    org.springframework.web: WARN
+    org.hibernate: WARN
 
 
 server:

@@ -2,6 +2,7 @@ package com.smartdairy.settlement.mapper;
 
 import com.smartdairy.settlement.dto.GenerateSettlementRequest;
 import com.smartdairy.settlement.dto.SettlementResponse;
+import com.smartdairy.settlement.dto.UpdateSettlementRequest;
 import com.smartdairy.settlement.entity.Settlement;
 import com.smartdairy.settlement.enums.SettlementStatus;
 import org.mapstruct.AfterMapping;
@@ -39,4 +40,18 @@ public abstract class SettlementMapper {
     @Mapping(target = "farmerCode", source = "farmer.farmerCode")
     @Mapping(target = "farmerName", source = "farmer.farmerName")
     public abstract SettlementResponse toResponse(Settlement entity);
+
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "uuid", ignore = true)
+    @Mapping(target = "version", ignore = true)
+    @Mapping(target = "branch", ignore = true)
+    @Mapping(target = "farmer", ignore = true)
+    @Mapping(target = "settlementNo", ignore = true)
+    @Mapping(target = "fromDate", ignore = true)
+    @Mapping(target = "toDate", ignore = true)
+    @Mapping(target = "milkAmount", ignore = true)
+    @Mapping(target = "netPayable", ignore = true)
+    @Mapping(target = "status", ignore = true)
+    @Mapping(target = "active", ignore = true)
+    public abstract void updateEntity(UpdateSettlementRequest request, @MappingTarget Settlement entity);
 }

@@ -12,15 +12,18 @@ import com.smartdairy.pricing.dto.RateCalculationResult;
 import com.smartdairy.pricing.service.PricingRateDetailCacheService;
 import com.smartdairy.pricing.service.RateResolverService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class RateResolverServiceImpl implements RateResolverService {
@@ -43,12 +46,13 @@ public class RateResolverServiceImpl implements RateResolverService {
 
         FarmerConfiguration configuration = findFarmerConfiguration(farmer, collectionDate);
 
-        System.out.println("========== Milk Rate Chart Lookup ==========");
-        System.out.println("Branch Id         : " + configuration.getFarmer().getBranch().getId());
-        System.out.println("Rate Category Id  : " + configuration.getRateCategory().getId());
-        System.out.println("Collection Method : " + configuration.getCollectionMethod().getId());
-        System.out.println("Collection Date   : " + collectionDate);
-        System.out.println("============================================");
+        log.debug(
+                "Resolving milk rate chart for farmerUuid={}, branchId={}, rateCategoryId={}, collectionMethodId={}, collectionDate={}",
+                farmer.getUuid(),
+                configuration.getFarmer().getBranch().getId(),
+                configuration.getRateCategory().getId(),
+                configuration.getCollectionMethod().getId(),
+                collectionDate);
 
         MilkRateChart chart =
                 findMilkRateChart(configuration, collectionDate);
@@ -99,14 +103,37 @@ public class RateResolverServiceImpl implements RateResolverService {
     }
 
     private FarmerConfiguration findFarmerConfiguration(Farmer farmer, LocalDate collectionDate) {
-
-        return farmerConfigurationRepository
-                .findApplicableConfiguration(
-                        farmer.getId(),
-                        collectionDate)
-                .orElseThrow(() ->
-                        new BusinessException(
-                                "Farmer configuration not found."));
+        List<FarmerConfiguration> configs = farmerConfigurationRepository
+                .findApplicableConfigurations(farmer.getId(), collectionDate);
+        
+        if (configs.isEmpty()) {
+            String message = "No active farmer configuration found for farmerCode="
+                    + farmer.getFarmerCode()
+                    + ", farmerUuid="
+                    + farmer.getUuid()
+                    + " on collectionDate="
+                    + collectionDate;
+            log.error(message);
+            throw new ResourceNotFoundException(message);
+        }
+        
+        if (configs.size() > 1) {
+            // Data corruption: Multiple active configs. Log warning and use the most recent one.
+            log.warn("Data integrity issue: Found {} active farmer configurations for farmerCode={}, farmerUuid={}, collectionDate={}. Using most recent configuration.",
+                    configs.size(), farmer.getFarmerCode(), farmer.getUuid(), collectionDate);
+            
+            // Deactivate older ones automatically to prevent future issues
+            for (int i = 1; i < configs.size(); i++) {
+                FarmerConfiguration oldConfig = configs.get(i);
+                oldConfig.setActive(false);
+                oldConfig.setEffectiveTo(collectionDate.minusDays(1));
+                farmerConfigurationRepository.saveAndFlush(oldConfig);
+                log.info("Automatically deactivated duplicate farmer configuration (id={}) for farmerUuid={}",
+                        oldConfig.getId(), farmer.getUuid());
+            }
+        }
+        
+        return configs.get(0);
     }
 
     private MilkRateChart findMilkRateChart(FarmerConfiguration configuration, LocalDate collectionDate) {
