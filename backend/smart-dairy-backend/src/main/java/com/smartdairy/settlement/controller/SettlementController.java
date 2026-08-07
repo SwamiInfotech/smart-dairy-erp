@@ -7,6 +7,7 @@ import com.smartdairy.settlement.dto.SettlementSearchRequest;
 import com.smartdairy.settlement.dto.UpdateSettlementRequest;
 import com.smartdairy.settlement.service.DeleteSettlementService;
 import com.smartdairy.settlement.service.GenerateSettlementService;
+import com.smartdairy.settlement.service.GenerateSettlementPdfService;
 import com.smartdairy.settlement.service.GetSettlementService;
 import com.smartdairy.settlement.service.PaySettlementService;
 import com.smartdairy.settlement.service.SearchSettlementService;
@@ -16,7 +17,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -34,6 +37,7 @@ public class SettlementController {
         private final GetSettlementService getSettlementService;
         private final UpdateSettlementService updateSettlementService;
         private final DeleteSettlementService deleteSettlementService;
+        private final GenerateSettlementPdfService generateSettlementPdfService;
 
     @PostMapping("/generate")
     public ResponseEntity<ApiResponse<SettlementResponse>> generate(
@@ -103,4 +107,16 @@ public class SettlementController {
                         "Settlement deleted successfully.",
                         null));
     }
+
+        @GetMapping(value = "/{uuid}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+        public ResponseEntity<byte[]> printPdf(@PathVariable UUID uuid) {
+                log.info("Received request to generate settlement PDF with uuid={}", uuid);
+
+                byte[] pdfBytes = generateSettlementPdfService.generatePdf(uuid);
+
+                return ResponseEntity.ok()
+                                .contentType(MediaType.APPLICATION_PDF)
+                                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=settlement-" + uuid + ".pdf")
+                                .body(pdfBytes);
+        }
 }

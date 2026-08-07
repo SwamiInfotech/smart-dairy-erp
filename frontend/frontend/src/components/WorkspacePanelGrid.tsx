@@ -9,6 +9,7 @@ import { MilkCollectionsPage } from './MilkCollectionsPage'
 import { MilkRateChartsPage } from './MilkRateChartsPage'
 import { PaymentCyclesPanel } from './PaymentCyclesPanel'
 import { ProductsPage } from './ProductsPage'
+import { SmartDairyConfigurationPage } from './SmartDairyConfigurationPage'
 import { RateProfilesPage } from './RateProfilesPage'
 import { SalesPage } from './SalesPage'
 import { ShiftsPanel } from './ShiftsPanel'
@@ -47,6 +48,7 @@ type TabKey =
   | 'milkCollections'
   | 'sales'
   | 'farmers'
+  | 'configuration'
   | 'tenants'
 
 type CollectionListItem = {
@@ -620,6 +622,10 @@ export function WorkspacePanelGrid({
           onEditFarmer={onEditFarmer}
           onDeleteFarmer={onDeleteFarmer}
         />
+      )}
+
+      {activeTab === 'configuration' && activeSidebarMenu === 'configuration' && (
+        <SmartDairyConfigurationPage />
       )}
 
       {activeTab === 'tenants' && activeSidebarMenu === 'tenants' && (

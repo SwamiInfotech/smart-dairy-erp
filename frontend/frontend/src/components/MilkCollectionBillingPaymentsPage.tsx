@@ -757,13 +757,44 @@ export function MilkCollectionBillingPaymentsPage({
     }
   }
 
-  const printBill = () => {
+  const printBill = async () => {
     if (!generatedBill) return
 
     const printNode = printSheetRef.current
     if (!printNode) return
 
     setBillingActionError('')
+    setBillingActionSuccess('')
+
+    if (authToken && generatedBill.settlementUuid) {
+      setBillingActionBusy(true)
+      try {
+        const pdfBlob = await api.getSettlementPdf(authToken, generatedBill.settlementUuid)
+        const pdfUrl = URL.createObjectURL(pdfBlob)
+        const popup = window.open(pdfUrl, '_blank', 'noopener,noreferrer')
+
+        if (!popup) {
+          const link = document.createElement('a')
+          link.href = pdfUrl
+          link.target = '_blank'
+          link.rel = 'noopener noreferrer'
+          link.download = `${generatedBill.billNo}.pdf`
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+        }
+
+        setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000)
+        setBillingActionSuccess('Bill status: Jasper PDF generated successfully.')
+        return
+      } catch (error) {
+        setBillingActionError(error instanceof Error
+          ? `${error.message} Showing HTML fallback preview.`
+          : 'Unable to generate Jasper PDF. Showing HTML fallback preview.')
+      } finally {
+        setBillingActionBusy(false)
+      }
+    }
 
     const printableMarkup = printNode.outerHTML
     const styleMarkup = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))

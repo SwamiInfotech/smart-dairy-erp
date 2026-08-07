@@ -77,6 +77,26 @@ export function FarmersPage({
 }: FarmersPageProps) {
   const farmerNameInputRef = useRef<HTMLInputElement | null>(null)
   const previousFarmerNameRef = useRef(farmerForm.farmerName)
+  const currentFarmerRateChart = farmerRateCharts.find((item) => item.uuid === selectedFarmerRateChartUuid)
+  const currentMilkType = milkTypes.find((item) => item.uuid === farmerForm.milkTypeUuid)
+  const currentPaymentCycle = paymentCycles.find((item) => item.uuid === farmerForm.paymentCycleUuid)
+  const totalFarmers = farmers.length
+  const currentBranchFarmers = farmers.filter((item) => item.branchUuid === branchUuid).length
+  const linkedRateCharts = farmers.filter((item) => Boolean(item.milkRateChartUuid)).length
+  const currentRateChartDetails = currentFarmerRateChart?.details ?? []
+  const currentRateChartRates = currentRateChartDetails.map((item) => item.rate)
+  const currentRateChartMinRate = currentRateChartRates.length ? Math.min(...currentRateChartRates) : null
+  const currentRateChartMaxRate = currentRateChartRates.length ? Math.max(...currentRateChartRates) : null
+  const activeFormCompleteness = [
+    farmerForm.farmerCode,
+    farmerForm.farmerName,
+    farmerForm.mobileNo,
+    farmerForm.village,
+    farmerForm.milkTypeUuid,
+    farmerForm.paymentCycleUuid,
+    farmerForm.configEffectiveFrom,
+  ].filter((value) => value.trim()).length
+  const formCompletionPercent = Math.round((activeFormCompleteness / 7) * 100)
 
   useEffect(() => {
     // Keep focus on Farmer Name after form reset (save/update/cancel) and when edit row is opened.
@@ -350,6 +370,122 @@ export function FarmersPage({
             )}
           </div>
         </form>
+
+        <aside className="farmer-snapshot-card">
+          <div className="farmer-snapshot-head">
+            <div>
+              <p className="eyebrow">Snapshot Window</p>
+              <h3>{editingFarmerUuid ? 'Editing farmer snapshot' : 'Live farmer snapshot'}</h3>
+            </div>
+            <span className={editingFarmerUuid ? 'farmer-snapshot-badge is-editing' : 'farmer-snapshot-badge is-ready'}>
+              {editingFarmerUuid ? 'EDIT MODE' : 'READY'}
+            </span>
+          </div>
+
+          <div className="farmer-snapshot-grid">
+            <article>
+              <span>Total Farmers</span>
+              <strong>{totalFarmers}</strong>
+            </article>
+            <article>
+              <span>Current Branch</span>
+              <strong>{branchName || 'Branch not loaded'}</strong>
+            </article>
+            <article>
+              <span>Current Branch Farmers</span>
+              <strong>{currentBranchFarmers}</strong>
+            </article>
+            <article>
+              <span>Linked Rate Charts</span>
+              <strong>{linkedRateCharts}</strong>
+            </article>
+          </div>
+
+          <div className="farmer-snapshot-details">
+            <div>
+              <span>Farmer Code</span>
+              <strong>{farmerForm.farmerCode || 'Auto-generated'}</strong>
+            </div>
+            <div>
+              <span>Farmer Name</span>
+              <strong>{farmerForm.farmerName || 'Not entered yet'}</strong>
+            </div>
+            <div>
+              <span>Mobile</span>
+              <strong>{farmerForm.mobileNo || 'Pending'}</strong>
+            </div>
+            <div>
+              <span>Village</span>
+              <strong>{farmerForm.village || 'Pending'}</strong>
+            </div>
+            <div>
+              <span>Milk Type</span>
+              <strong>{currentMilkType?.name || 'Select milk type'}</strong>
+            </div>
+            <div>
+              <span>Payment Cycle</span>
+              <strong>{currentPaymentCycle?.name || 'Select payment cycle'}</strong>
+            </div>
+            <div>
+              <span>Rate Chart</span>
+              <strong>{currentFarmerRateChart?.chartName || 'Select chart'}</strong>
+            </div>
+            <div>
+              <span>Effective From</span>
+              <strong>{farmerForm.configEffectiveFrom || 'Not set'}</strong>
+            </div>
+          </div>
+
+          <div className="farmer-snapshot-chart">
+            <div className="farmer-snapshot-chart-head">
+              <div>
+                <span>Selected Rate Chart</span>
+                <strong>{currentFarmerRateChart?.chartName || 'No chart selected'}</strong>
+              </div>
+              <span className={currentFarmerRateChart?.active ? 'farmer-snapshot-badge is-ready' : 'farmer-snapshot-badge is-editing'}>
+                {currentFarmerRateChart?.active ? 'ACTIVE' : 'INACTIVE'}
+              </span>
+            </div>
+            <div className="farmer-snapshot-chart-meta">
+              <div>
+                <span>Entries</span>
+                <strong>{currentRateChartDetails.length}</strong>
+              </div>
+              <div>
+                <span>Rate Range</span>
+                <strong>
+                  {currentRateChartMinRate !== null && currentRateChartMaxRate !== null
+                    ? `${currentRateChartMinRate.toFixed(2)} - ${currentRateChartMaxRate.toFixed(2)}`
+                    : 'No data'}
+                </strong>
+              </div>
+              <div>
+                <span>Effective From</span>
+                <strong>{currentFarmerRateChart?.effectiveFrom || 'Not set'}</strong>
+              </div>
+              <div>
+                <span>Effective To</span>
+                <strong>{currentFarmerRateChart?.effectiveTo || 'Open ended'}</strong>
+              </div>
+            </div>
+            <p className="subtle">
+              {currentFarmerRateChart?.remarks || 'The selected chart preview shows the range and status that will drive the farmer rate setup.'}
+            </p>
+          </div>
+
+          <div className="farmer-snapshot-progress">
+            <div className="farmer-snapshot-progress-head">
+              <span>Form Completion</span>
+              <strong>{formCompletionPercent}%</strong>
+            </div>
+            <div className="farmer-snapshot-progress-bar" aria-hidden="true">
+              <span style={{ width: `${formCompletionPercent}%` }} />
+            </div>
+            <p className="subtle">
+              The form stays on the left, the live snapshot stays on the right, and the table flows below on every screen size.
+            </p>
+          </div>
+        </aside>
       </div>
 
       <div className="table-wrap farmer-table">

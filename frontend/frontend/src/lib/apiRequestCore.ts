@@ -21,6 +21,13 @@ export type RequestFn = <T>(
   options?: RequestOptions,
 ) => Promise<T>
 
+export type RequestBinaryFn = (
+  method: RequestMethod,
+  path: string,
+  token: string,
+  options?: RequestOptions,
+) => Promise<Blob>
+
 function toQueryString(query?: Record<string, QueryValue>) {
   const params = new URLSearchParams()
 
@@ -40,6 +47,28 @@ function normalizeBaseUrl(baseUrl: string) {
   return baseUrl.replace(/\/+$/, '')
 }
 
+function buildRequestHeaders(token: string, options?: RequestOptions) {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+  }
+
+  if (token && !options?.skipAuthHeader) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
+  const tenantUuid = options?.tenantUuid?.trim() || localStorage.getItem(TENANT_UUID_KEY)
+  if (tenantUuid) {
+    headers['X-Tenant-Id'] = tenantUuid
+  }
+
+  const branchUuid = localStorage.getItem(BRANCH_UUID_KEY)
+  if (branchUuid && !options?.skipAuthHeader) {
+    headers['X-Branch-Id'] = branchUuid
+  }
+
+  return headers
+}
+
 export function createRequest(baseUrl: string): RequestFn {
   return async function request<T>(
     method: RequestMethod,
@@ -48,29 +77,13 @@ export function createRequest(baseUrl: string): RequestFn {
     body?: unknown,
     options?: RequestOptions,
   ): Promise<T> {
-    const headers: Record<string, string> = {
-      Accept: 'application/json',
-    }
+    const headers = buildRequestHeaders(token, options)
 
     const bodyMode = options?.bodyMode ?? 'json'
 
     if (body !== undefined) {
       headers['Content-Type'] =
         bodyMode === 'form' ? 'application/x-www-form-urlencoded;charset=UTF-8' : 'application/json'
-    }
-
-    if (token && !options?.skipAuthHeader) {
-      headers.Authorization = `Bearer ${token}`
-    }
-
-    const tenantUuid = options?.tenantUuid?.trim() || localStorage.getItem(TENANT_UUID_KEY)
-    if (tenantUuid) {
-      headers['X-Tenant-Id'] = tenantUuid
-    }
-
-    const branchUuid = localStorage.getItem(BRANCH_UUID_KEY)
-    if (branchUuid && !options?.skipAuthHeader) {
-      headers['X-Branch-Id'] = branchUuid
     }
 
     let serializedBody: string | undefined
@@ -98,5 +111,29 @@ export function createRequest(baseUrl: string): RequestFn {
     })
 
     return parseResponse<T>(response)
+  }
+}
+
+export function createBinaryRequest(baseUrl: string): RequestBinaryFn {
+  return async function requestBinary(
+    method: RequestMethod,
+    path: string,
+    token: string,
+    options?: RequestOptions,
+  ): Promise<Blob> {
+    const headers = buildRequestHeaders(token, options)
+
+    headers.Accept = 'application/pdf,application/json;q=0.9,*/*;q=0.8'
+
+    const response = await fetch(`${normalizeBaseUrl(baseUrl)}${path}${toQueryString(options?.query)}`, {
+      method,
+      headers,
+    })
+
+    if (!response.ok) {
+      await parseResponse<never>(response)
+    }
+
+    return response.blob()
   }
 }

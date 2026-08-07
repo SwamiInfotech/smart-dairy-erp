@@ -83,6 +83,46 @@ export type UpdateTenantRequest = {
   name: string
 }
 
+export type SmartDairyConfigurationResponse = {
+  uuid: string
+  collectionFat: boolean
+  collectionMava: boolean
+  morningCollectionLimit: number
+  eveningCollectionLimit: number
+  allowMultipleCollection: boolean
+  allowLoan: boolean
+  allowAdvance: boolean
+  allowLoanAndAdvanceTogether: boolean
+  dailyPayment: boolean
+  weeklyPayment: boolean
+  monthlyPayment: boolean
+  allowBackdatedEntry: boolean
+  maxBackdatedDays: number
+  autoLock: boolean
+  active: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateSmartDairyConfigurationRequest = {
+  collectionFat: boolean
+  collectionMava: boolean
+  morningCollectionLimit: number
+  eveningCollectionLimit: number
+  allowMultipleCollection: boolean
+  allowLoan: boolean
+  allowAdvance: boolean
+  allowLoanAndAdvanceTogether: boolean
+  dailyPayment: boolean
+  weeklyPayment: boolean
+  monthlyPayment: boolean
+  allowBackdatedEntry: boolean
+  maxBackdatedDays: number
+  autoLock: boolean
+}
+
+export type UpdateSmartDairyConfigurationRequest = CreateSmartDairyConfigurationRequest
+
 export type PaymentMode = 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'CREDIT'
 export type ApiCollectionEntryMode = 'SINGLE' | 'MULTI'
 export type SettlementStatus = 'GENERATED' | 'PAID'

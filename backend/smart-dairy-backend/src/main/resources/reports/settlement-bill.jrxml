@@ -1,0 +1,392 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd"
+              name="settlement_bill"
+              pageWidth="842"
+              pageHeight="595"
+              orientation="Landscape"
+              columnWidth="802"
+              leftMargin="20"
+              rightMargin="20"
+              topMargin="20"
+              bottomMargin="20"
+              uuid="5163436a-501a-46cf-b754-3c4693554827">
+
+    <property name="net.sf.jasperreports.default.font.name" value="SansSerif"/>
+
+    <parameter name="billNo" class="java.lang.String"/>
+    <parameter name="farmerName" class="java.lang.String"/>
+    <parameter name="farmerCode" class="java.lang.String"/>
+    <parameter name="branchName" class="java.lang.String"/>
+    <parameter name="milkType" class="java.lang.String"/>
+    <parameter name="fromDate" class="java.lang.String"/>
+    <parameter name="toDate" class="java.lang.String"/>
+    <parameter name="generatedAt" class="java.lang.String"/>
+    <parameter name="collectionsFound" class="java.lang.Integer"/>
+    <parameter name="morningQtyTotal" class="java.math.BigDecimal"/>
+    <parameter name="morningRateAvg" class="java.math.BigDecimal"/>
+    <parameter name="morningAmountTotal" class="java.math.BigDecimal"/>
+    <parameter name="eveningQtyTotal" class="java.math.BigDecimal"/>
+    <parameter name="eveningRateAvg" class="java.math.BigDecimal"/>
+    <parameter name="eveningAmountTotal" class="java.math.BigDecimal"/>
+    <parameter name="totalQty" class="java.math.BigDecimal"/>
+    <parameter name="totalAmount" class="java.math.BigDecimal"/>
+    <parameter name="netPayable" class="java.math.BigDecimal"/>
+    <parameter name="status" class="java.lang.String"/>
+
+    <field name="date" class="java.lang.String"/>
+    <field name="morningCollectionNo" class="java.lang.String"/>
+    <field name="morningQty" class="java.math.BigDecimal"/>
+    <field name="morningRate" class="java.math.BigDecimal"/>
+    <field name="morningAmount" class="java.math.BigDecimal"/>
+    <field name="eveningCollectionNo" class="java.lang.String"/>
+    <field name="eveningQty" class="java.math.BigDecimal"/>
+    <field name="eveningRate" class="java.math.BigDecimal"/>
+    <field name="eveningAmount" class="java.math.BigDecimal"/>
+    <field name="totalMilk" class="java.math.BigDecimal"/>
+    <field name="totalForDay" class="java.math.BigDecimal"/>
+
+    <title>
+        <band height="98">
+            <staticText>
+                <reportElement x="0" y="0" width="360" height="18"/>
+                <textElement><font size="12" isBold="true"/></textElement>
+                <text><![CDATA[Smart Dairy ERP - Milk Billing Statement]]></text>
+            </staticText>
+
+            <textField>
+                <reportElement x="560" y="0" width="242" height="14"/>
+                <textElement textAlignment="Right"><font size="9" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA["Bill No: " + $P{billNo}]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="560" y="16" width="242" height="14"/>
+                <textElement textAlignment="Right"><font size="9"/></textElement>
+                <textFieldExpression><![CDATA["Status: " + $P{status}]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="560" y="32" width="242" height="14"/>
+                <textElement textAlignment="Right"><font size="9"/></textElement>
+                <textFieldExpression><![CDATA["Generated: " + $P{generatedAt}]]></textFieldExpression>
+            </textField>
+
+            <rectangle>
+                <reportElement x="0" y="52" width="160" height="42" backcolor="#FFF8EE" mode="Opaque"/>
+            </rectangle>
+            <rectangle>
+                <reportElement x="162" y="52" width="160" height="42" backcolor="#FFF8EE" mode="Opaque"/>
+            </rectangle>
+            <rectangle>
+                <reportElement x="324" y="52" width="120" height="42" backcolor="#FFF8EE" mode="Opaque"/>
+            </rectangle>
+            <rectangle>
+                <reportElement x="446" y="52" width="120" height="42" backcolor="#FFF8EE" mode="Opaque"/>
+            </rectangle>
+            <rectangle>
+                <reportElement x="568" y="52" width="234" height="42" backcolor="#E7F2FF" mode="Opaque"/>
+            </rectangle>
+
+            <textField>
+                <reportElement x="6" y="56" width="148" height="12"/>
+                <textElement><font size="8"/></textElement>
+                <textFieldExpression><![CDATA["Farmer"]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="6" y="70" width="148" height="18"/>
+                <textElement><font size="9" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA[$P{farmerName}]]></textFieldExpression>
+            </textField>
+
+            <textField>
+                <reportElement x="168" y="56" width="148" height="12"/>
+                <textElement><font size="8"/></textElement>
+                <textFieldExpression><![CDATA["Milk Type"]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="168" y="70" width="148" height="18"/>
+                <textElement><font size="9" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA[$P{milkType}]]></textFieldExpression>
+            </textField>
+
+            <textField>
+                <reportElement x="330" y="56" width="108" height="12"/>
+                <textElement><font size="8"/></textElement>
+                <textFieldExpression><![CDATA["From date"]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="330" y="70" width="108" height="18"/>
+                <textElement><font size="9" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA[$P{fromDate}]]></textFieldExpression>
+            </textField>
+
+            <textField>
+                <reportElement x="452" y="56" width="108" height="12"/>
+                <textElement><font size="8"/></textElement>
+                <textFieldExpression><![CDATA["To date"]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="452" y="70" width="108" height="18"/>
+                <textElement><font size="9" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA[$P{toDate}]]></textFieldExpression>
+            </textField>
+
+            <textField>
+                <reportElement x="574" y="56" width="222" height="12"/>
+                <textElement><font size="8"/></textElement>
+                <textFieldExpression><![CDATA["Collections found"]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="574" y="68" width="222" height="22"/>
+                <textElement textAlignment="Center"><font size="13" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA[$P{collectionsFound}]]></textFieldExpression>
+            </textField>
+        </band>
+    </title>
+
+    <columnHeader>
+        <band height="44">
+            <staticText>
+                <reportElement x="0" y="0" width="80" height="44" mode="Opaque" backcolor="#F7E5CF"/>
+                <box><pen lineWidth="0.5"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <text><![CDATA[DATE]]></text>
+            </staticText>
+
+            <staticText>
+                <reportElement x="80" y="0" width="320" height="22" mode="Opaque" backcolor="#F7E5CF"/>
+                <box><pen lineWidth="0.5"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <text><![CDATA[MORNING COLLECTION]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="400" y="0" width="320" height="22" mode="Opaque" backcolor="#F7E5CF"/>
+                <box><pen lineWidth="0.5"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <text><![CDATA[EVENING COLLECTION]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="720" y="0" width="82" height="22" mode="Opaque" backcolor="#F7E5CF"/>
+                <box><pen lineWidth="0.5"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <text><![CDATA[DAY TOTAL]]></text>
+            </staticText>
+
+            <staticText>
+                <reportElement x="80" y="22" width="150" height="22" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.5"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <text><![CDATA[COLLECTION NO]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="230" y="22" width="50" height="22" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.5"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <text><![CDATA[QTY]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="280" y="22" width="55" height="22" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.5"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <text><![CDATA[RATE]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="335" y="22" width="65" height="22" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.5"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <text><![CDATA[AMOUNT]]></text>
+            </staticText>
+
+            <staticText>
+                <reportElement x="400" y="22" width="150" height="22" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.5"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <text><![CDATA[COLLECTION NO]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="550" y="22" width="50" height="22" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.5"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <text><![CDATA[QTY]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="600" y="22" width="55" height="22" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.5"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <text><![CDATA[RATE]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="655" y="22" width="65" height="22" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.5"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <text><![CDATA[AMOUNT]]></text>
+            </staticText>
+
+            <staticText>
+                <reportElement x="720" y="22" width="40" height="22" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.5"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <text><![CDATA[TOTAL MILK]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="760" y="22" width="42" height="22" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.5"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <text><![CDATA[TOTAL]]></text>
+            </staticText>
+        </band>
+    </columnHeader>
+
+    <detail>
+        <band height="18">
+            <textField>
+                <reportElement x="0" y="0" width="80" height="18"/>
+                <box><pen lineWidth="0.4"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font size="8"/></textElement>
+                <textFieldExpression><![CDATA[$F{date}]]></textFieldExpression>
+            </textField>
+
+            <textField>
+                <reportElement x="80" y="0" width="150" height="18"/>
+                <box><pen lineWidth="0.4"/></box>
+                <textElement verticalAlignment="Middle"><font size="8"/></textElement>
+                <textFieldExpression><![CDATA[$F{morningCollectionNo}]]></textFieldExpression>
+            </textField>
+            <textField pattern="#0.00">
+                <reportElement x="230" y="0" width="50" height="18"/>
+                <box><pen lineWidth="0.4"/></box>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font size="8"/></textElement>
+                <textFieldExpression><![CDATA[$F{morningQty}]]></textFieldExpression>
+            </textField>
+            <textField pattern="#0.00">
+                <reportElement x="280" y="0" width="55" height="18"/>
+                <box><pen lineWidth="0.4"/></box>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font size="8"/></textElement>
+                <textFieldExpression><![CDATA[$F{morningRate}]]></textFieldExpression>
+            </textField>
+            <textField pattern="#0.00">
+                <reportElement x="335" y="0" width="65" height="18"/>
+                <box><pen lineWidth="0.4"/></box>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font size="8"/></textElement>
+                <textFieldExpression><![CDATA[$F{morningAmount}]]></textFieldExpression>
+            </textField>
+
+            <textField>
+                <reportElement x="400" y="0" width="150" height="18"/>
+                <box><pen lineWidth="0.4"/></box>
+                <textElement verticalAlignment="Middle"><font size="8"/></textElement>
+                <textFieldExpression><![CDATA[$F{eveningCollectionNo}]]></textFieldExpression>
+            </textField>
+            <textField pattern="#0.00">
+                <reportElement x="550" y="0" width="50" height="18"/>
+                <box><pen lineWidth="0.4"/></box>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font size="8"/></textElement>
+                <textFieldExpression><![CDATA[$F{eveningQty}]]></textFieldExpression>
+            </textField>
+            <textField pattern="#0.00">
+                <reportElement x="600" y="0" width="55" height="18"/>
+                <box><pen lineWidth="0.4"/></box>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font size="8"/></textElement>
+                <textFieldExpression><![CDATA[$F{eveningRate}]]></textFieldExpression>
+            </textField>
+            <textField pattern="#0.00">
+                <reportElement x="655" y="0" width="65" height="18"/>
+                <box><pen lineWidth="0.4"/></box>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font size="8"/></textElement>
+                <textFieldExpression><![CDATA[$F{eveningAmount}]]></textFieldExpression>
+            </textField>
+
+            <textField pattern="#0.00">
+                <reportElement x="720" y="0" width="40" height="18"/>
+                <box><pen lineWidth="0.4"/></box>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font size="8"/></textElement>
+                <textFieldExpression><![CDATA[$F{totalMilk}]]></textFieldExpression>
+            </textField>
+            <textField pattern="#0.00">
+                <reportElement x="760" y="0" width="42" height="18"/>
+                <box><pen lineWidth="0.4"/></box>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font size="8"/></textElement>
+                <textFieldExpression><![CDATA[$F{totalForDay}]]></textFieldExpression>
+            </textField>
+        </band>
+    </detail>
+
+    <summary>
+        <band height="52">
+            <textField>
+                <reportElement x="0" y="0" width="80" height="20" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.6"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA["Totals"]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="80" y="0" width="150" height="20" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.6"/></box>
+                <textElement verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA["Morning Totals"]]></textFieldExpression>
+            </textField>
+            <textField pattern="#0.00">
+                <reportElement x="230" y="0" width="50" height="20" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.6"/></box>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA[$P{morningQtyTotal}]]></textFieldExpression>
+            </textField>
+            <textField pattern="#0.00">
+                <reportElement x="280" y="0" width="55" height="20" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.6"/></box>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA[$P{morningRateAvg}]]></textFieldExpression>
+            </textField>
+            <textField pattern="#0.00">
+                <reportElement x="335" y="0" width="65" height="20" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.6"/></box>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA[$P{morningAmountTotal}]]></textFieldExpression>
+            </textField>
+
+            <textField>
+                <reportElement x="400" y="0" width="150" height="20" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.6"/></box>
+                <textElement verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA["Evening Totals"]]></textFieldExpression>
+            </textField>
+            <textField pattern="#0.00">
+                <reportElement x="550" y="0" width="50" height="20" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.6"/></box>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA[$P{eveningQtyTotal}]]></textFieldExpression>
+            </textField>
+            <textField pattern="#0.00">
+                <reportElement x="600" y="0" width="55" height="20" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.6"/></box>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA[$P{eveningRateAvg}]]></textFieldExpression>
+            </textField>
+            <textField pattern="#0.00">
+                <reportElement x="655" y="0" width="65" height="20" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.6"/></box>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA[$P{eveningAmountTotal}]]></textFieldExpression>
+            </textField>
+
+            <textField pattern="#0.00">
+                <reportElement x="720" y="0" width="40" height="20" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.6"/></box>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA[$P{totalQty}]]></textFieldExpression>
+            </textField>
+            <textField pattern="#0.00">
+                <reportElement x="760" y="0" width="42" height="20" mode="Opaque" backcolor="#FFF2DF"/>
+                <box><pen lineWidth="0.6"/></box>
+                <textElement textAlignment="Right" verticalAlignment="Middle"><font size="8" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA[$P{totalAmount}]]></textFieldExpression>
+            </textField>
+
+            <textField>
+                <reportElement x="0" y="28" width="802" height="16"/>
+                <textElement textAlignment="Right"><font size="10" isBold="true"/></textElement>
+                <textFieldExpression><![CDATA["Net Payable: " + new java.text.DecimalFormat("#,##0.00").format($P{netPayable})]]></textFieldExpression>
+            </textField>
+        </band>
+    </summary>
+</jasperReport>

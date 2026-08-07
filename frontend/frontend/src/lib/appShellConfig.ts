@@ -7,6 +7,7 @@ export type TabKey =
   | 'milkCollections'
   | 'sales'
   | 'farmers'
+  | 'configuration'
   | 'tenants'
 
 export const SIDEBAR_GROUPS = [
@@ -17,6 +18,10 @@ export const SIDEBAR_GROUPS = [
   {
     title: 'Masters',
     items: ['master', 'collectionMethods', 'paymentCycles', 'pricing', 'rateProfiles', 'milkRateCharts', 'shifts'],
+  },
+  {
+    title: 'Settings',
+    items: ['configuration'],
   },
   {
     title: 'Transactions',
@@ -49,6 +54,7 @@ export const TAB_LABELS: Record<TabKey, string> = {
   milkCollections: 'Milk Collections',
   sales: 'Sales',
   farmers: 'Farmers',
+  configuration: 'Configuration',
   tenants: 'Tenants',
 }
 
@@ -59,6 +65,7 @@ export const SIDEBAR_ICON_MAP: Record<string, string> = {
   milkCollections: 'icon-drop',
   sales: 'icon-chart',
   farmers: 'icon-user',
+  configuration: 'icon-cog',
   master: 'icon-sliders',
   collectionMethods: 'icon-filter',
   paymentCycles: 'icon-calendar',

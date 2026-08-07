@@ -24,13 +24,14 @@ import type {
 } from '../types/api'
 import { asRecord, readNumber, readString } from './apiResponseParsers'
 import { normalizeFarmerPageResponse } from './apiEntityNormalizers'
-import type { RequestFn } from './apiRequestCore'
+import type { RequestBinaryFn, RequestFn } from './apiRequestCore'
 
 type ApiBusinessModuleDependencies = {
   request: RequestFn
+  requestBinary: RequestBinaryFn
 }
 
-export function createApiBusinessModule({ request }: ApiBusinessModuleDependencies) {
+export function createApiBusinessModule({ request, requestBinary }: ApiBusinessModuleDependencies) {
   return {
     getSalesDashboard(token: string, fromDate: string, toDate: string) {
       return request<SalesDashboardResponse>('GET', '/api/v1/sales/dashboard', token, undefined, {
@@ -226,6 +227,10 @@ export function createApiBusinessModule({ request }: ApiBusinessModuleDependenci
 
     paySettlement(token: string, settlementUuid: string) {
       return request<SettlementResponse>('PATCH', `/api/v1/settlements/${settlementUuid}/pay`, token)
+    },
+
+    getSettlementPdf(token: string, settlementUuid: string) {
+      return requestBinary('GET', `/api/v1/settlements/${settlementUuid}/pdf`, token)
     },
 
     createPayment(token: string, payload: CreatePaymentRequest) {

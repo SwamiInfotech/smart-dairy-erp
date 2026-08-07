@@ -31,6 +31,16 @@ export const BACKEND_MODULES: Record<string, BackendModuleDefinition> = {
       { method: 'PUT', path: '/api/v1/tenants/{tenantUuid}', note: 'Phase 2 backend support' },
     ],
   },
+  configuration: {
+    label: 'Configuration',
+    endpoints: [
+      { method: 'GET', path: '/api/v1/smart-dairy-configuration/current/tenant' },
+      { method: 'GET', path: '/api/v1/smart-dairy-configuration/{uuid}' },
+      { method: 'POST', path: '/api/v1/smart-dairy-configuration' },
+      { method: 'PUT', path: '/api/v1/smart-dairy-configuration/{uuid}' },
+      { method: 'DELETE', path: '/api/v1/smart-dairy-configuration/{uuid}' },
+    ],
+  },
   companies: {
     label: 'Companies',
     endpoints: [
@@ -143,6 +153,7 @@ export const BACKEND_MODULES: Record<string, BackendModuleDefinition> = {
       { method: 'PUT', path: '/api/v1/settlements/{uuid}' },
       { method: 'DELETE', path: '/api/v1/settlements/{uuid}' },
       { method: 'PATCH', path: '/api/v1/settlements/{uuid}/pay' },
+      { method: 'GET', path: '/api/v1/settlements/{uuid}/pdf' },
     ],
   },
   payments: {

@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -50,6 +51,19 @@ public interface MilkCollectionRepository extends JpaRepository<MilkCollection, 
             AND m.collectionDate BETWEEN :fromDate AND :toDate
             """)
     BigDecimal getMilkAmount(
+            UUID farmerUuid,
+            LocalDate fromDate,
+            LocalDate toDate);
+
+    @Query("""
+            SELECT m
+            FROM MilkCollection m
+            WHERE m.farmer.uuid = :farmerUuid
+            AND m.collectionDate BETWEEN :fromDate AND :toDate
+            AND m.active = true
+            ORDER BY m.collectionDate ASC, m.collectionTime ASC, m.collectionNo ASC
+            """)
+    List<MilkCollection> findForSettlementPrint(
             UUID farmerUuid,
             LocalDate fromDate,
             LocalDate toDate);
