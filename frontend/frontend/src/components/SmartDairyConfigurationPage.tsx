@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { api, getSavedAuth } from '../lib/api'
 import { ApiError } from '../lib/apiResponseParsers'
 import type {
@@ -7,7 +7,12 @@ import type {
   SmartDairyConfigurationResponse,
 } from '../types/api'
 
-type SmartDairyConfigurationForm = CreateSmartDairyConfigurationRequest
+type SmartDairyConfigurationForm = Omit<
+  CreateSmartDairyConfigurationRequest,
+  'dailyPayment' | 'weeklyPayment' | 'monthlyPayment'
+>
+type CollectionTypeOption = 'FAT' | 'SNF' | 'MAVA'
+type CollectionEntryModeOption = 'SINGLE' | 'MULTI'
 
 type BooleanField = {
   key: keyof SmartDairyConfigurationForm
@@ -16,10 +21,9 @@ type BooleanField = {
 }
 
 type NumberField = {
-  key: 'morningCollectionLimit' | 'eveningCollectionLimit' | 'maxBackdatedDays'
+  key: 'morningCollectionLimit' | 'eveningCollectionLimit'
   label: string
   description: string
-  min: number
 }
 
 const DEFAULT_CONFIGURATION_FORM: SmartDairyConfigurationForm = {
@@ -27,13 +31,10 @@ const DEFAULT_CONFIGURATION_FORM: SmartDairyConfigurationForm = {
   collectionMava: true,
   morningCollectionLimit: 1,
   eveningCollectionLimit: 1,
-  allowMultipleCollection: false,
+  allowMultipleCollection: true,
   allowLoan: true,
   allowAdvance: true,
   allowLoanAndAdvanceTogether: false,
-  dailyPayment: true,
-  weeklyPayment: true,
-  monthlyPayment: true,
   allowBackdatedEntry: true,
   maxBackdatedDays: 7,
   autoLock: false,
@@ -42,61 +43,25 @@ const DEFAULT_CONFIGURATION_FORM: SmartDairyConfigurationForm = {
 const BOOLEAN_GROUPS: Array<{ title: string; fields: BooleanField[] }> = [
   {
     title: 'Milk Collection Settings',
-    fields: [
-      {
-        key: 'collectionFat',
-        label: 'Collection FAT',
-        description: 'Enable FAT input and rules for collection entry.',
-      },
-      {
-        key: 'collectionMava',
-        label: 'Collection MAVA',
-        description: 'Enable MAVA input and rules for collection entry.',
-      },
-      {
-        key: 'allowMultipleCollection',
-        label: 'Allow Multiple Collection',
-        description: 'Allow multi-farmer or multi-row collection flow.',
-      },
-    ],
+    fields: [],
   },
   {
     title: 'Farmer Finance Settings',
     fields: [
       {
         key: 'allowLoan',
-        label: 'Allow Loan',
+        label: 'Allow Loan in the Milk Collection',
         description: 'Show and permit loan recovery actions.',
       },
       {
         key: 'allowAdvance',
-        label: 'Allow Advance',
+        label: 'Allow Advance in the Milk Collection',
         description: 'Show and permit advance recovery actions.',
       },
       {
         key: 'allowLoanAndAdvanceTogether',
-        label: 'Loan + Advance Together',
+        label: 'Loan + Advance Together in the Milk Collection',
         description: 'Allow both deductions in the same settlement.',
-      },
-    ],
-  },
-  {
-    title: 'Payment Settings',
-    fields: [
-      {
-        key: 'dailyPayment',
-        label: 'Daily Payment',
-        description: 'Enable daily settlement workflow.',
-      },
-      {
-        key: 'weeklyPayment',
-        label: 'Weekly Payment',
-        description: 'Enable weekly settlement workflow.',
-      },
-      {
-        key: 'monthlyPayment',
-        label: 'Monthly Payment',
-        description: 'Enable monthly settlement workflow.',
       },
     ],
   },
@@ -120,21 +85,39 @@ const BOOLEAN_GROUPS: Array<{ title: string; fields: BooleanField[] }> = [
 const NUMBER_FIELDS: NumberField[] = [
   {
     key: 'morningCollectionLimit',
-    label: 'Morning Collection Limit',
+    label: 'How many times Morning milk to be supplied',
     description: 'Minimum collection rows allowed for morning.',
-    min: 1,
   },
   {
     key: 'eveningCollectionLimit',
-    label: 'Evening Collection Limit',
+    label: 'How many times Evening milk to be supplied',
     description: 'Minimum collection rows allowed for evening.',
-    min: 1,
+  },
+]
+
+type CollectionLimitOption = 'ONE_TIME' | 'MULTIPLE_TIME'
+
+const COLLECTION_TYPE_OPTIONS: Array<{
+  value: CollectionTypeOption
+  label: string
+  description: string
+  disabled?: boolean
+}> = [
+  {
+    value: 'FAT',
+    label: 'FAT',
+    description: 'Enable FAT-based collection entry and quality rules.',
   },
   {
-    key: 'maxBackdatedDays',
-    label: 'Maximum Backdated Days',
-    description: 'How many days back the customer may enter data.',
-    min: 1,
+    value: 'SNF',
+    label: 'SNF',
+    description: 'Reserved for future SNF-based collection rules.',
+    disabled: true,
+  },
+  {
+    value: 'MAVA',
+    label: 'MAVA',
+    description: 'Enable MAVA-based collection entry and quality rules.',
   },
 ]
 
@@ -143,21 +126,38 @@ function cloneDefaults(): SmartDairyConfigurationForm {
 }
 
 function mapResponseToForm(response: SmartDairyConfigurationResponse): SmartDairyConfigurationForm {
+  const allowMultipleCollection = true
+
   return {
     collectionFat: response.collectionFat,
     collectionMava: response.collectionMava,
     morningCollectionLimit: response.morningCollectionLimit,
     eveningCollectionLimit: response.eveningCollectionLimit,
-    allowMultipleCollection: response.allowMultipleCollection,
+    allowMultipleCollection,
     allowLoan: response.allowLoan,
     allowAdvance: response.allowAdvance,
     allowLoanAndAdvanceTogether: response.allowLoanAndAdvanceTogether,
-    dailyPayment: response.dailyPayment,
-    weeklyPayment: response.weeklyPayment,
-    monthlyPayment: response.monthlyPayment,
     allowBackdatedEntry: response.allowBackdatedEntry,
-    maxBackdatedDays: response.maxBackdatedDays,
+    maxBackdatedDays: response.allowBackdatedEntry ? response.maxBackdatedDays : 0,
     autoLock: response.autoLock,
+  }
+}
+
+function deriveCollectionTypes(form: SmartDairyConfigurationForm): CollectionTypeOption[] {
+  const selected: CollectionTypeOption[] = []
+  if (form.collectionFat) selected.push('FAT')
+  if (form.collectionMava) selected.push('MAVA')
+  return selected
+}
+
+function applyCollectionTypesToForm(
+  prev: SmartDairyConfigurationForm,
+  selectedTypes: CollectionTypeOption[],
+): SmartDairyConfigurationForm {
+  return {
+    ...prev,
+    collectionFat: selectedTypes.includes('FAT'),
+    collectionMava: selectedTypes.includes('MAVA'),
   }
 }
 
@@ -168,6 +168,32 @@ function formatDateTime(value: string) {
 
 function getToggleStateLabel(value: boolean) {
   return value ? 'Enabled' : 'Disabled'
+}
+
+function getCollectionModeLabel(allowMultipleCollection: boolean) {
+  return allowMultipleCollection ? 'Multi Farmer' : 'Single Farmer'
+}
+
+function deriveCollectionEntryModes(form: SmartDairyConfigurationForm): CollectionEntryModeOption[] {
+  return (form.allowMultipleCollection ?? true) ? ['MULTI'] : ['SINGLE']
+}
+
+function applyCollectionEntryModesToForm(
+  prev: SmartDairyConfigurationForm,
+  selectedModes: CollectionEntryModeOption[],
+): SmartDairyConfigurationForm {
+  return {
+    ...prev,
+    allowMultipleCollection: selectedModes.includes('MULTI'),
+  }
+}
+
+function deriveCollectionLimitOption(value: number): CollectionLimitOption {
+  return value > 1 ? 'MULTIPLE_TIME' : 'ONE_TIME'
+}
+
+function getCollectionLimitLabel(value: number) {
+  return deriveCollectionLimitOption(value) === 'MULTIPLE_TIME' ? 'Multiple Time' : 'One Time'
 }
 
 export function SmartDairyConfigurationPage() {
@@ -181,13 +207,23 @@ export function SmartDairyConfigurationPage() {
   const [success, setSuccess] = useState('')
 
   const isEditMode = Boolean(configurationUuid)
+  const selectedCollectionTypes = useMemo(() => deriveCollectionTypes(form), [form])
+  const selectedCollectionTypeLabel = useMemo(() => {
+    if (!selectedCollectionTypes.length) return 'None selected'
+    return selectedCollectionTypes.join(' + ')
+  }, [selectedCollectionTypes])
 
   const headerSummary = useMemo(() => [
     { label: 'Tenant mode', value: isEditMode ? 'Override saved' : 'Default draft' },
     { label: 'Collection mode', value: form.allowMultipleCollection ? 'Multi' : 'Single' },
-    { label: 'Payment modes', value: [form.dailyPayment, form.weeklyPayment, form.monthlyPayment].filter(Boolean).length.toString() },
+    { label: 'Collection types', value: selectedCollectionTypeLabel },
     { label: 'Backdated days', value: String(form.maxBackdatedDays) },
-  ], [form.allowMultipleCollection, form.dailyPayment, form.maxBackdatedDays, form.monthlyPayment, form.weeklyPayment, isEditMode])
+  ], [
+    form.allowMultipleCollection,
+    form.maxBackdatedDays,
+    isEditMode,
+    selectedCollectionTypeLabel,
+  ])
 
   const loadConfiguration = async () => {
     if (!authToken) {
@@ -224,12 +260,72 @@ export function SmartDairyConfigurationPage() {
   }, [authToken])
 
   const updateBooleanField = (field: keyof SmartDairyConfigurationForm, value: boolean) => {
-    setForm((prev) => ({ ...prev, [field]: value }))
+    setForm((prev) => {
+      if (field === 'allowBackdatedEntry') {
+        return {
+          ...prev,
+          allowBackdatedEntry: value,
+          maxBackdatedDays: value ? (prev.maxBackdatedDays > 0 ? prev.maxBackdatedDays : 7) : 0,
+        }
+      }
+
+      return { ...prev, [field]: value }
+    })
   }
 
-  const updateNumberField = (field: NumberField['key'], value: string) => {
+  const updateNumberField = (field: NumberField['key'] | 'maxBackdatedDays', value: string) => {
     const nextValue = value === '' ? 0 : Number(value)
     setForm((prev) => ({ ...prev, [field]: nextValue }))
+  }
+
+  const updateCollectionLimitOption = (
+    field: NumberField['key'],
+    mode: CollectionLimitOption,
+    checked: boolean,
+  ) => {
+    setForm((prev) => {
+      const currentValue = prev[field]
+      const currentMode = deriveCollectionLimitOption(currentValue)
+
+      if (!checked && currentMode === mode) {
+        return { ...prev, [field]: 1 }
+      }
+
+      if (checked) {
+        return {
+          ...prev,
+          [field]: mode === 'ONE_TIME' ? 1 : currentValue > 1 ? currentValue : 2,
+        }
+      }
+
+      return prev
+    })
+  }
+
+  const updateCollectionModeOption = (mode: CollectionEntryModeOption, checked: boolean) => {
+    setForm((prev) => {
+      const current = deriveCollectionEntryModes(prev)
+      const next = checked
+        ? current.includes(mode)
+          ? current
+          : [...current.filter((item) => item !== 'SINGLE' && item !== 'MULTI'), mode]
+        : current.filter((item) => item !== mode)
+
+      const normalized: CollectionEntryModeOption[] = next.length ? next : ['MULTI']
+      return applyCollectionEntryModesToForm(prev, normalized)
+    })
+  }
+
+  const updateCollectionTypeOption = (type: CollectionTypeOption, checked: boolean) => {
+    setForm((prev) => {
+      const current = deriveCollectionTypes(prev)
+      const next = checked
+        ? current.includes(type)
+          ? current
+          : [...current, type]
+        : current.filter((item) => item !== type)
+      return applyCollectionTypesToForm(prev, next)
+    })
   }
 
   const saveConfiguration = async (event: FormEvent<HTMLFormElement>) => {
@@ -245,9 +341,17 @@ export function SmartDairyConfigurationPage() {
     setSuccess('')
 
     try {
+      const payload: CreateSmartDairyConfigurationRequest = {
+        ...form,
+        // Payment Settings removed from page; keep API contract stable.
+        dailyPayment: true,
+        weeklyPayment: true,
+        monthlyPayment: true,
+      }
+
       const response = configurationUuid
-        ? await api.updateSmartDairyConfiguration(authToken, configurationUuid, form)
-        : await api.createSmartDairyConfiguration(authToken, form)
+        ? await api.updateSmartDairyConfiguration(authToken, configurationUuid, payload)
+        : await api.createSmartDairyConfiguration(authToken, payload)
 
       setConfigurationUuid(response.uuid)
       setConfigurationStatus(response)
@@ -342,58 +446,160 @@ export function SmartDairyConfigurationPage() {
         </article>
 
         <form className="smart-config-form" onSubmit={saveConfiguration}>
-          {BOOLEAN_GROUPS.map((group) => (
-            <section className="smart-config-card" key={group.title}>
-              <div className="smart-config-card-head">
-                <h4>{group.title}</h4>
-                <p>Toggle customer-specific behavior for this tenant.</p>
-              </div>
+          <div className="smart-config-sheet-wrap">
+            <table className="smart-config-sheet">
+              <thead>
+                <tr>
+                  <th>Setting</th>
+                  <th>Description</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {BOOLEAN_GROUPS.map((group, groupIndex) => (
+                  <Fragment key={group.title}>
+                    <tr key={`${group.title}-group`} className="smart-config-sheet-group">
+                      <td colSpan={3}>{group.title}</td>
+                    </tr>
 
-              <div className="smart-config-toggle-grid">
-                {group.fields.map((field) => {
-                  const value = form[field.key]
-                  return (
-                    <label key={field.key} className="smart-config-toggle-card">
-                      <div>
-                        <span>{field.label}</span>
-                        <small>{field.description}</small>
+                    {groupIndex === 0 && (
+                      <tr className="smart-config-sheet-row" key="collection-type-row">
+                        <td>Collection Type</td>
+                        <td>Select one or more quality modes for this Dairy.</td>
+                        <td>
+                          <div className="smart-config-sheet-multi-list" role="group" aria-label="Collection Type multi select">
+                            {COLLECTION_TYPE_OPTIONS.map((option) => {
+                              const checked = selectedCollectionTypes.includes(option.value)
+                              return (
+                                <label
+                                  key={option.value}
+                                  className={
+                                    option.disabled
+                                      ? 'smart-config-sheet-check is-disabled'
+                                      : 'smart-config-sheet-check'
+                                  }
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    disabled={option.disabled}
+                                    onChange={(event) =>
+                                      updateCollectionTypeOption(option.value, event.target.checked)
+                                    }
+                                  />
+                                  <span>{option.label}</span>
+                                </label>
+                              )
+                            })}
+                          </div>
+                          <small className="smart-config-sheet-note">
+                            Multi-select values are currently saved as FAT/MAVA flags.
+                          </small>
+                        </td>
+                      </tr>
+                    )}
+
+                    {groupIndex === 0 && (
+                      <tr className="smart-config-sheet-row" key="collection-mode-row">
+                        <td>Collection Entry Mode</td>
+                        <td>Choose whether collection entry should be Single Farmer or Multi Farmer.</td>
+                        <td>
+                          <div className="smart-config-sheet-multi-list" role="group" aria-label="Collection Entry Mode multi select">
+                            {(['SINGLE', 'MULTI'] as const).map((mode) => {
+                              const checked = deriveCollectionEntryModes(form).includes(mode)
+                              return (
+                                <label key={mode} className="smart-config-sheet-check">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(event) => updateCollectionModeOption(mode, event.target.checked)}
+                                  />
+                                  <span>{mode === 'SINGLE' ? 'Single Farmer' : 'Multi Farmer'}</span>
+                                </label>
+                              )
+                            })}
+                          </div>
+                          <small className="smart-config-sheet-note">
+                            Selected mode: {getCollectionModeLabel(form.allowMultipleCollection)}.
+                          </small>
+                        </td>
+                      </tr>
+                    )}
+
+                    {group.fields.map((field) => {
+                      const value = form[field.key]
+                      return (
+                        <Fragment key={field.key}>
+                          <tr className="smart-config-sheet-row">
+                            <td>{field.label}</td>
+                            <td>{field.description}</td>
+                            <td>
+                              <label className="smart-config-sheet-toggle">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(value)}
+                                  onChange={(event) => updateBooleanField(field.key, event.target.checked)}
+                                />
+                                <span>{getToggleStateLabel(Boolean(value))}</span>
+                              </label>
+                            </td>
+                          </tr>
+
+                          {field.key === 'allowBackdatedEntry' && (
+                            <tr className="smart-config-sheet-row" key="max-backdated-days-row">
+                              <td>Maximum Backdated Days</td>
+                              <td>How many days back the customer may enter data.</td>
+                              <td>
+                                <input
+                                  className="smart-config-sheet-number"
+                                  type="number"
+                                  min={1}
+                                  disabled={!form.allowBackdatedEntry}
+                                  value={form.maxBackdatedDays}
+                                  onChange={(event) => updateNumberField('maxBackdatedDays', event.target.value)}
+                                />
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      )
+                    })}
+                  </Fragment>
+                ))}
+
+                <tr className="smart-config-sheet-group">
+                  <td colSpan={3}>Collection Limits</td>
+                </tr>
+
+                {NUMBER_FIELDS.map((field) => (
+                  <tr key={field.key} className="smart-config-sheet-row">
+                    <td>{field.label}</td>
+                    <td>{field.description}</td>
+                    <td>
+                      <div className="smart-config-sheet-multi-list" role="group" aria-label={`${field.label} selection`}>
+                        {(['ONE_TIME', 'MULTIPLE_TIME'] as const).map((mode) => {
+                          const checked = deriveCollectionLimitOption(form[field.key]) === mode
+                          return (
+                            <label key={`${field.key}-${mode}`} className="smart-config-sheet-check">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(event) => updateCollectionLimitOption(field.key, mode, event.target.checked)}
+                              />
+                              <span>{mode === 'ONE_TIME' ? 'One Time' : 'Multiple Time'}</span>
+                            </label>
+                          )
+                        })}
                       </div>
-                      <div className="smart-config-toggle-control">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(value)}
-                          onChange={(event) => updateBooleanField(field.key, event.target.checked)}
-                        />
-                        <strong>{getToggleStateLabel(Boolean(value))}</strong>
-                      </div>
-                    </label>
-                  )
-                })}
-              </div>
-            </section>
-          ))}
-
-          <section className="smart-config-card smart-config-card-wide">
-            <div className="smart-config-card-head">
-              <h4>Collection Limits</h4>
-              <p>Use compact numeric defaults that can be customized per tenant.</p>
-            </div>
-
-            <div className="smart-config-number-grid">
-              {NUMBER_FIELDS.map((field) => (
-                <label key={field.key} className="smart-config-number-field">
-                  <span>{field.label}</span>
-                  <input
-                    type="number"
-                    min={field.min}
-                    value={form[field.key]}
-                    onChange={(event) => updateNumberField(field.key, event.target.value)}
-                  />
-                  <small>{field.description}</small>
-                </label>
-              ))}
-            </div>
-          </section>
+                      <small className="smart-config-sheet-note">
+                        Selected: {getCollectionLimitLabel(form[field.key])}.
+                      </small>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           <div className="smart-config-actions">
             <button type="button" className="payment-secondary-btn" onClick={resetToDefaults} disabled={busy || loading}>

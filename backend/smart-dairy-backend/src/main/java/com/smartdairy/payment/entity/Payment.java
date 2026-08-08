@@ -48,6 +48,9 @@ public class Payment extends BaseEntity {
     @Column(name = "payment_mode", nullable = false, length = 20)
     private PaymentMode paymentMode;
 
+        @Column(name = "reference_no", length = 100)
+        private String referenceNo;
+
     @Column(name = "remarks", columnDefinition = "TEXT")
     private String remarks;
 

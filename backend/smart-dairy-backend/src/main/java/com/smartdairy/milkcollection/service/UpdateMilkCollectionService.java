@@ -21,6 +21,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Service
@@ -66,6 +67,10 @@ public class UpdateMilkCollectionService {
         entity.setSnf(request.snf());
 
         entity.setMava(request.mava());
+
+        entity.setLoan(request.loan() == null ? BigDecimal.ZERO : request.loan());
+
+        entity.setAdvance(request.advance() == null ? BigDecimal.ZERO : request.advance());
 
                 if (request.entryMode() != null) {
                         entity.setEntryMode(request.entryMode());

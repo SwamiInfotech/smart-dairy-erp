@@ -19,6 +19,9 @@ public class SmartDairyConfiguration extends BaseEntity {
     @Column(name = "collection_fat", nullable = false)
     private Boolean collectionFat = true;
 
+    @Column(name = "collection_snf", nullable = false)
+    private Boolean collectionSnf = false;
+
     @Column(name = "collection_mava", nullable = false)
     private Boolean collectionMava = true;
 

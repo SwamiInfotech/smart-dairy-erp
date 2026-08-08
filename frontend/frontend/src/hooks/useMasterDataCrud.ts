@@ -192,14 +192,14 @@ export function useMasterDataCrud({
     }
 
     if (!payload.code || !payload.name) {
-      setError('Payment cycle code and name are required.')
+      setError('Farmer Billing/Payment Cycle code and name are required.')
       return
     }
 
     if (editingPaymentCycleUuid) {
       const updated = await runAction(
         () => api.updatePaymentCycle(token, editingPaymentCycleUuid, payload),
-        'Payment cycle updated successfully.',
+        'Farmer Billing/Payment Cycle updated successfully.',
       )
       if (!updated) return
 
@@ -210,7 +210,7 @@ export function useMasterDataCrud({
 
     const created = await runAction(
       () => api.createPaymentCycle(token, payload),
-      'Payment cycle created successfully.',
+      'Farmer Billing/Payment Cycle created successfully.',
     )
     if (!created) return
 
@@ -232,12 +232,12 @@ export function useMasterDataCrud({
   const onDeletePaymentCycle = useCallback(
     async (cycle: PaymentCycleResponse) => {
       if (!token) return
-      const confirmed = window.confirm(`Delete payment cycle "${cycle.name}"?`)
+      const confirmed = window.confirm(`Delete Farmer Billing/Payment Cycle "${cycle.name}"?`)
       if (!confirmed) return
 
       const result = await runAction(
         () => api.deletePaymentCycle(token, cycle.uuid),
-        'Payment cycle deleted successfully.',
+        'Farmer Billing/Payment Cycle deleted successfully.',
       )
       if (result === null) return
 

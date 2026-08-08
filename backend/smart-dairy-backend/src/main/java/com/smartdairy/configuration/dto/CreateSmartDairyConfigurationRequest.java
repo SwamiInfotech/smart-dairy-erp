@@ -17,6 +17,8 @@ public class CreateSmartDairyConfigurationRequest {
     @NotNull(message = "Collection FAT flag is required")
     private Boolean collectionFat;
 
+    private Boolean collectionSnf;
+
     @NotNull(message = "Collection MAVA flag is required")
     private Boolean collectionMava;
 
@@ -42,13 +44,10 @@ public class CreateSmartDairyConfigurationRequest {
     private Boolean allowLoanAndAdvanceTogether;
 
     // Payment Settings
-    @NotNull(message = "Daily payment flag is required")
     private Boolean dailyPayment;
 
-    @NotNull(message = "Weekly payment flag is required")
     private Boolean weeklyPayment;
 
-    @NotNull(message = "Monthly payment flag is required")
     private Boolean monthlyPayment;
 
     // Backdated Collection Settings
@@ -56,7 +55,7 @@ public class CreateSmartDairyConfigurationRequest {
     private Boolean allowBackdatedEntry;
 
     @NotNull(message = "Maximum backdated days is required")
-    @Min(value = 1, message = "Maximum backdated days must be at least 1")
+    @Min(value = 0, message = "Maximum backdated days cannot be negative")
     private Integer maxBackdatedDays;
 
     // Collection Lock Settings

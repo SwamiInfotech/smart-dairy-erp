@@ -58,6 +58,8 @@ public record CreateFarmerRequest(
 
         LocalDate configEffectiveFrom,
 
+        String billingCycle,
+
         @Valid
         FarmerConfigurationRequest farmerConfiguration
 
@@ -70,7 +72,6 @@ public record CreateFarmerRequest(
             @NotNull(message = "Collection Method UUID is required for farmer configuration")
             UUID collectionMethodUuid,
 
-            @NotNull(message = "Payment Cycle UUID is required for farmer configuration")
             UUID paymentCycleUuid,
 
             @NotNull(message = "Rate Category UUID is required for farmer configuration")
@@ -79,8 +80,10 @@ public record CreateFarmerRequest(
             @NotNull(message = "Milk Rate Chart UUID is required for farmer configuration")
             UUID milkRateChartUuid,
 
-            @NotNull(message = "Configuration Effective From date is required for farmer configuration")
-            LocalDate configEffectiveFrom
+                        @NotNull(message = "Configuration Effective From date is required for farmer configuration")
+                        LocalDate configEffectiveFrom,
+
+                        String billingCycle
 
     ) {
     }

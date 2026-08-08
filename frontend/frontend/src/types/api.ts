@@ -126,6 +126,46 @@ export type UpdateSmartDairyConfigurationRequest = CreateSmartDairyConfiguration
 export type PaymentMode = 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'CREDIT'
 export type ApiCollectionEntryMode = 'SINGLE' | 'MULTI'
 export type SettlementStatus = 'GENERATED' | 'PAID'
+export type LoanStatus = 'PENDING' | 'APPROVED' | 'CLOSED'
+export type LoanType = 'CATTLE' | 'FEED' | 'EQUIPMENT' | 'PERSONAL' | 'OTHER'
+
+export type LoanSearchRequest = {
+  farmerUuid?: string
+  branchUuid?: string
+  status?: LoanStatus
+  loanType?: LoanType
+  fromDate?: string
+  toDate?: string
+}
+
+export type LoanResponse = {
+  uuid: string
+  loanNo: string
+  farmerUuid: string
+  farmerCode: string
+  farmerName: string
+  loanDate: string
+  loanAmount: number
+  status: LoanStatus
+  remarks: string | null
+}
+
+export type CreateLoanRequest = {
+  farmerUuid: string
+  loanDate: string
+  loanAmount: number
+  remarks: string
+}
+
+export type UpdateLoanRequest = {
+  loanType: LoanType
+  loanDate: string
+  sanctionedAmount: number
+  interestRate?: number
+  tenureMonths?: number
+  installmentAmount?: number
+  remarks: string
+}
 
 export type SettlementSearchRequest = {
   farmerUuid?: string
@@ -167,6 +207,10 @@ export type SettlementResponse = {
   advanceRecovery: number
   otherDeduction: number
   netPayable: number
+  outstandingLoanBefore?: number
+  outstandingAdvanceBefore?: number
+  calculatedLoanRecovery?: number
+  calculatedAdvanceRecovery?: number
   status: SettlementStatus
   remarks: string | null
 }
@@ -175,6 +219,7 @@ export type CreatePaymentRequest = {
   settlementUuid: string
   paymentDate: string
   paymentMode: PaymentMode
+  referenceNo?: string
   remarks: string
 }
 
@@ -189,6 +234,7 @@ export type PaymentResponse = {
   paymentDate: string
   paidAmount: number
   paymentMode: PaymentMode
+  referenceNo?: string | null
   remarks: string | null
 }
 
@@ -436,6 +482,8 @@ export type CreateMilkCollectionRequest = {
   fat: number | null
   snf: number | null
   mava: number | null
+  loan: number
+  advance: number
   entryMode?: ApiCollectionEntryMode
   remarks: string
 }
@@ -503,6 +551,7 @@ export type FarmerResponse = {
   milkRateChartUuid?: string | null
   collectionMethodUuid?: string
   paymentCycleUuid?: string
+  billingCycle?: string
   rateCategoryUuid?: string
   configEffectiveFrom?: string
 }
@@ -528,6 +577,7 @@ export type CreateFarmerRequest = {
   milkRateChartUuid: string
   collectionMethodUuid: string
   paymentCycleUuid: string
+  billingCycle: string
   rateCategoryUuid: string
   configEffectiveFrom: string
 }

@@ -56,6 +56,28 @@ public interface MilkCollectionRepository extends JpaRepository<MilkCollection, 
             LocalDate toDate);
 
     @Query("""
+            SELECT COALESCE(SUM(m.loan),0)
+            FROM MilkCollection m
+            WHERE m.farmer.uuid = :farmerUuid
+            AND m.collectionDate BETWEEN :fromDate AND :toDate
+            """)
+    BigDecimal getLoanAmount(
+            UUID farmerUuid,
+            LocalDate fromDate,
+            LocalDate toDate);
+
+    @Query("""
+            SELECT COALESCE(SUM(m.advance),0)
+            FROM MilkCollection m
+            WHERE m.farmer.uuid = :farmerUuid
+            AND m.collectionDate BETWEEN :fromDate AND :toDate
+            """)
+    BigDecimal getAdvanceAmount(
+            UUID farmerUuid,
+            LocalDate fromDate,
+            LocalDate toDate);
+
+    @Query("""
             SELECT m
             FROM MilkCollection m
             WHERE m.farmer.uuid = :farmerUuid

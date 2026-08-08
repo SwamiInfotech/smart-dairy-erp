@@ -63,6 +63,8 @@ export function useAppFormState(initialBranchUuid: string, nextCollectionNo: str
     fat: 0,
     snf: null as number | null,
     mava: 0,
+    loan: 0,
+    advance: 0,
     remarks: '',
   })
   const [selectedCollectionMethod, setSelectedCollectionMethod] = useState<MasterLookupResponse | null>(null)

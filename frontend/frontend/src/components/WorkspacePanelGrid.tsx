@@ -4,6 +4,7 @@ import { CustomersPage } from './CustomersPage'
 import { DashboardPage } from './DashboardPage'
 import { FarmersPage } from './FarmersPage'
 import { InventoryTransactionsPage } from './InventoryTransactionsPage'
+import { LoansPage } from './LoansPage'
 import { MilkCollectionBillingPaymentsPage } from './MilkCollectionBillingPaymentsPage'
 import { MilkCollectionsPage } from './MilkCollectionsPage'
 import { MilkRateChartsPage } from './MilkRateChartsPage'
@@ -12,6 +13,7 @@ import { ProductsPage } from './ProductsPage'
 import { SmartDairyConfigurationPage } from './SmartDairyConfigurationPage'
 import { RateProfilesPage } from './RateProfilesPage'
 import { SalesPage } from './SalesPage'
+import { SettlementsPage } from './SettlementsPage'
 import { ShiftsPanel } from './ShiftsPanel'
 import { TenantsPage } from './TenantsPage'
 import type {
@@ -112,6 +114,8 @@ type CollectionFormState = {
   fat: number
   snf: number | null
   mava: number
+  loan: number
+  advance: number
   remarks: string
 }
 
@@ -190,6 +194,8 @@ type WorkspacePanelGridProps = {
     fat: number
     snf: number | null
     mava: number
+    loan: number
+    advance: number
     remarks: string
   }[], shiftUuid: string) => void | Promise<void>
   editingCollectionUuid: string
@@ -600,6 +606,15 @@ export function WorkspacePanelGrid({
         />
       )}
 
+      {activeSidebarMenu === 'settlements' && (
+        <SettlementsPage
+          busy={busy}
+          farmers={farmers}
+          branchDisplay={branchName || branchUuid}
+          loadFarmers={loadFarmers}
+        />
+      )}
+
       {activeTab === 'farmers' && activeSidebarMenu === 'farmers' && (
         <FarmersPage
           busy={busy}
@@ -651,6 +666,14 @@ export function WorkspacePanelGrid({
           loadInventoryTransactions={loadInventoryTransactions}
           loadInventoryCurrentStock={loadInventoryCurrentStock}
           onCreateInventoryTransaction={onCreateInventoryTransaction}
+        />
+      )}
+
+      {activeSidebarMenu === 'loans' && (
+        <LoansPage
+          busy={busy}
+          farmers={farmers}
+          loadFarmers={loadFarmers}
         />
       )}
     </main>

@@ -120,6 +120,8 @@ class MilkCollectionControllerTest {
                 BigDecimal.valueOf(4.20),
                 BigDecimal.valueOf(8.60),
                 BigDecimal.valueOf(2.10),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
                 CollectionEntryMode.MULTI,
                 remarks
         );
@@ -142,6 +144,8 @@ class MilkCollectionControllerTest {
                 request.fat(),
                 request.snf(),
                 request.mava(),
+                request.loan(),
+                request.advance(),
                 BigDecimal.valueOf(35.50),
                 CollectionEntryMode.MULTI,
                 BigDecimal.valueOf(363.88)

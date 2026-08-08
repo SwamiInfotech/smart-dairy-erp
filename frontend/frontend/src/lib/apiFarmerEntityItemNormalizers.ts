@@ -52,6 +52,12 @@ export function normalizeFarmerItem(payload: unknown): FarmerResponse | null {
     readString(paymentCycleRecord, 'uuid', 'id') ||
     ''
 
+  const billingCycle =
+    readString(record, 'billingCycle', 'billing_cycle') ||
+    readString(config, 'billingCycle', 'billing_cycle') ||
+    readString(paymentCycleRecord, 'code', 'name') ||
+    ''
+
   const rateCategoryUuid =
     readString(record, 'rateCategoryUuid', 'rate_category_uuid', 'rateCategoryId') ||
     readString(config, 'rateCategoryUuid', 'rate_category_uuid', 'rateCategoryId') ||
@@ -91,6 +97,7 @@ export function normalizeFarmerItem(payload: unknown): FarmerResponse | null {
     milkRateChartUuid,
     collectionMethodUuid,
     paymentCycleUuid,
+    billingCycle,
     rateCategoryUuid,
     configEffectiveFrom,
   }

@@ -22,6 +22,7 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long>,
             SELECT COALESCE(SUM(s.loanRecovery),0)
             FROM Settlement s
             WHERE s.farmer.uuid = :farmerUuid
+            AND s.active = true
             AND s.status IN (com.smartdairy.settlement.enums.SettlementStatus.GENERATED,
             com.smartdairy.settlement.enums.SettlementStatus.PAID )
             """)
@@ -31,6 +32,7 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long>,
             SELECT COALESCE(SUM(s.advanceRecovery),0)
             FROM Settlement s
             WHERE s.farmer.uuid = :farmerUuid
+            AND s.active = true
             AND s.status IN (com.smartdairy.settlement.enums.SettlementStatus.GENERATED,
             com.smartdairy.settlement.enums.SettlementStatus.PAID )
             """)

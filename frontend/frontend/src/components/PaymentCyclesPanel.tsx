@@ -29,7 +29,7 @@ export function PaymentCyclesPanel({
   return (
     <section className="panel panel-payment-cycles">
       <div className="panel-head">
-        <h2>Payment Cycles</h2>
+        <h2>Farmer Billing/Payment Cycles</h2>
         <button type="button" onClick={loadPaymentCyclesView} disabled={busy}>
           Reload
         </button>

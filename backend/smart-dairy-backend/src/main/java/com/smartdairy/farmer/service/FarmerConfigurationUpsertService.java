@@ -26,12 +26,16 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
 @Slf4j
 public class FarmerConfigurationUpsertService {
+
+    private static final Pattern EVERY_DAYS_PATTERN = Pattern.compile("EVERY[_\\s-]?(\\d{1,2})[_\\s-]?DAYS?", Pattern.CASE_INSENSITIVE);
 
     private final FarmerConfigurationRepository farmerConfigurationRepository;
     private final FarmerRepository farmerRepository;
@@ -192,10 +196,75 @@ public class FarmerConfigurationUpsertService {
     }
 
     private UUID resolvePaymentCycleUuid(CreateFarmerRequest request) {
+        String billingCycleToken = request.farmerConfiguration() != null
+                ? request.farmerConfiguration().billingCycle()
+                : request.billingCycle();
+
+        String normalizedBillingCycleCode = normalizeBillingCycleCode(billingCycleToken);
+        if (normalizedBillingCycleCode != null) {
+            PaymentCycle matchedByCode = paymentCycleRepository.findByCode(normalizedBillingCycleCode).orElse(null);
+            if (matchedByCode != null) {
+                return matchedByCode.getUuid();
+            }
+
+            PaymentCycle created = new PaymentCycle();
+            created.setCode(normalizedBillingCycleCode);
+            created.setName(normalizedBillingCycleCode.replace('_', ' '));
+            created.setDescription("Auto-created from farmer billing cycle selection");
+            Integer displayOrder = extractDisplayOrder(normalizedBillingCycleCode);
+            if (displayOrder != null) {
+                created.setDisplayOrder(displayOrder);
+            }
+            created.setActive(true);
+
+            return paymentCycleRepository.saveAndFlush(created).getUuid();
+        }
+
         if (request.farmerConfiguration() != null && request.farmerConfiguration().paymentCycleUuid() != null) {
             return request.farmerConfiguration().paymentCycleUuid();
         }
         return request.paymentCycleUuid();
+    }
+
+    private String normalizeBillingCycleCode(String raw) {
+        if (raw == null || raw.trim().isEmpty()) {
+            return null;
+        }
+
+        String normalized = raw.trim().toUpperCase().replace('-', '_').replace(' ', '_');
+        Matcher matcher = EVERY_DAYS_PATTERN.matcher(normalized);
+        if (matcher.find()) {
+            int days = Integer.parseInt(matcher.group(1));
+            if (days >= 2 && days <= 30) {
+                normalized = "EVERY_" + days + "_DAYS";
+            }
+        }
+
+        if ("DAILY".equals(normalized) || "WEEKLY".equals(normalized) || "MONTHLY".equals(normalized)) {
+            return normalized;
+        }
+
+        return normalized.matches("EVERY_\\d{1,2}_DAYS") ? normalized : null;
+    }
+
+    private Integer extractDisplayOrder(String normalizedCode) {
+        if ("DAILY".equals(normalizedCode)) {
+            return 1;
+        }
+        if ("WEEKLY".equals(normalizedCode)) {
+            return 7;
+        }
+        if ("MONTHLY".equals(normalizedCode)) {
+            return 30;
+        }
+
+        Matcher matcher = Pattern.compile("EVERY_(\\d{1,2})_DAYS").matcher(normalizedCode);
+        if (!matcher.matches()) {
+            return null;
+        }
+
+        int days = Integer.parseInt(matcher.group(1));
+        return days >= 2 && days <= 30 ? days : null;
     }
 
     private UUID resolveRateCategoryUuid(CreateFarmerRequest request) {

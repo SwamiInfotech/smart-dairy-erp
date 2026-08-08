@@ -27,6 +27,8 @@ export type CollectionFormState = {
   fat: number
   snf: number | null
   mava: number
+  loan: number
+  advance: number
   remarks: string
 }
 
@@ -49,6 +51,8 @@ type CollectionListItem = {
   fat?: number | null
   snf?: number | null
   mava?: number | null
+  loan?: number | null
+  advance?: number | null
   remarks?: string | null
   entryMode?: CollectionEntryMode
   grossAmount: number
@@ -60,6 +64,8 @@ type MultiCollectionEntryInput = {
   fat: number
   snf: number | null
   mava: number
+  loan: number
+  advance: number
   remarks: string
 }
 
@@ -92,6 +98,8 @@ type MultiCollectionDraftRow = {
   fat: string
   snf: string
   mava: string
+  loan: string
+  advance: string
   remarks: string
   activeMetric: 'fat' | 'snf' | 'mava' | ''
 }
@@ -142,6 +150,8 @@ const EMPTY_MULTI_ROW: MultiCollectionDraftRow = {
   fat: '',
   snf: '',
   mava: '',
+  loan: '',
+  advance: '',
   remarks: '',
   activeMetric: '',
 }
@@ -424,6 +434,24 @@ export function MilkCollectionsPage({
     )
   }
 
+  const buildMultiSharedTotals = () => {
+    return filteredMultiFarmers.reduce(
+      (acc, farmer) => {
+        const morningRow = getDraftRow('morning', farmer.uuid)
+        const eveningRow = getDraftRow('evening', farmer.uuid)
+        if (!morningRow.selected && !eveningRow.selected) return acc
+
+        const loan = Number(morningRow.loan || eveningRow.loan || 0)
+        const advance = Number(morningRow.advance || eveningRow.advance || 0)
+
+        acc.loan += Number.isFinite(loan) ? loan : 0
+        acc.advance += Number.isFinite(advance) ? advance : 0
+        return acc
+      },
+      { loan: 0, advance: 0 },
+    )
+  }
+
   const resolveRowRateAmount = (farmer: FarmerResponse, row: MultiCollectionDraftRow) => {
     const chartUuid = farmer.milkRateChartUuid || ''
     const chart = chartUuid ? milkRateCharts.find((item) => item.uuid === chartUuid) || null : null
@@ -643,6 +671,28 @@ export function MilkCollectionsPage({
           <span>Amount</span>
           <input type="number" step="0.01" value={calculatedCollectionAmount} disabled />
         </label>
+
+        <label className="collection-field collection-field-compact">
+          <span>Loan</span>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={collectionForm.loan}
+            onChange={(event) => setCollectionForm((prev) => ({ ...prev, loan: Number(event.target.value) }))}
+          />
+        </label>
+
+        <label className="collection-field collection-field-compact">
+          <span>Advance</span>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={collectionForm.advance}
+            onChange={(event) => setCollectionForm((prev) => ({ ...prev, advance: Number(event.target.value) }))}
+          />
+        </label>
       </div>
 
       <label className="collection-field collection-field-wide">
@@ -657,7 +707,7 @@ export function MilkCollectionsPage({
   )
 
   const multiEditableColumns = useMemo(() => {
-    const columns: Array<'quantity' | 'fat' | 'snf' | 'mava' | 'remarks'> = ['quantity']
+    const columns: Array<'quantity' | 'fat' | 'snf' | 'mava' | 'loan' | 'advance' | 'remarks'> = ['quantity']
 
     if (collectionQualityVisibility.showFat) {
       columns.push('fat')
@@ -672,6 +722,8 @@ export function MilkCollectionsPage({
     }
 
     columns.push('remarks')
+    columns.push('loan')
+    columns.push('advance')
     return columns
   }, [collectionQualityVisibility.showFat, collectionQualityVisibility.showMava, collectionQualityVisibility.showSnf])
 
@@ -710,7 +762,7 @@ export function MilkCollectionsPage({
     variant: MultiShiftVariant,
     event: KeyboardEvent<HTMLInputElement>,
     rowIndex: number,
-    columnKey: 'quantity' | 'fat' | 'snf' | 'mava' | 'remarks',
+    columnKey: 'quantity' | 'fat' | 'snf' | 'mava' | 'loan' | 'advance' | 'remarks',
   ) => {
     if (event.key === 'Enter') {
       event.preventDefault()
@@ -782,9 +834,11 @@ export function MilkCollectionsPage({
     const fat = Number(row.fat || 0)
     const snf = Number(row.snf || 0)
     const mava = Number(row.mava || 0)
+    const loan = Number(row.loan || 0)
+    const advance = Number(row.advance || 0)
     const hasRemarks = row.remarks.trim().length > 0
 
-    return quantity > 0 || fat > 0 || snf > 0 || mava > 0 || hasRemarks
+    return quantity > 0 || fat > 0 || snf > 0 || mava > 0 || loan > 0 || advance > 0 || hasRemarks
   }
 
   const populateMultiRowsFromCollectionsForDate = (dateValue: string, sourceCollections: CollectionListItem[]) => {
@@ -810,6 +864,8 @@ export function MilkCollectionsPage({
       const fat = Number(item.fat || 0)
       const snf = item.snf == null ? '' : String(Number(item.snf || 0))
       const mava = Number(item.mava || 0)
+      const loan = Number(item.loan || 0)
+      const advance = Number(item.advance || 0)
 
       nextRowsByShift[shiftVariant][item.farmerUuid] = {
         selected: true,
@@ -817,6 +873,8 @@ export function MilkCollectionsPage({
         fat: fat > 0 ? String(fat) : '',
         snf,
         mava: mava > 0 ? String(mava) : '',
+        loan: loan > 0 ? String(loan) : '',
+        advance: advance > 0 ? String(advance) : '',
         remarks: item.remarks || '',
         activeMetric: mava > 0 ? 'mava' : fat > 0 ? 'fat' : Number(snf || 0) > 0 ? 'snf' : '',
       }
@@ -863,17 +921,31 @@ export function MilkCollectionsPage({
   }, [collectionMode, collections, multiGridEditedSinceLastSync, pendingMultiDateSync, pendingMultiDateValue])
 
   const handleCreateMultiCollections = async (variant: MultiShiftVariant) => {
+    const pairedVariant: MultiShiftVariant = variant === 'morning' ? 'evening' : 'morning'
+    const persistSharedRecoveryInThisShift = variant === 'morning'
+
     const entries: MultiCollectionEntryInput[] = filteredMultiFarmers
-      .map((farmer) => ({ farmer, row: getDraftRow(variant, farmer.uuid) }))
-      .filter(({ row }) => shouldIncludeMultiRowForSave(row))
-      .map(({ farmer, row }) => ({
-        farmerUuid: farmer.uuid,
-        quantity: Number(row.quantity || 0),
-        fat: Number(row.fat || 0),
-        snf: row.snf.trim() === '' ? null : Number(row.snf),
-        mava: Number(row.mava || 0),
-        remarks: row.remarks,
+      .map((farmer) => ({
+        farmer,
+        row: getDraftRow(variant, farmer.uuid),
+        pairedRow: getDraftRow(pairedVariant, farmer.uuid),
       }))
+      .filter(({ row }) => shouldIncludeMultiRowForSave(row))
+      .map(({ farmer, row, pairedRow }) => {
+        const sharedLoan = Number(row.loan || pairedRow.loan || 0)
+        const sharedAdvance = Number(row.advance || pairedRow.advance || 0)
+
+        return {
+          farmerUuid: farmer.uuid,
+          quantity: Number(row.quantity || 0),
+          fat: Number(row.fat || 0),
+          snf: row.snf.trim() === '' ? null : Number(row.snf),
+          mava: Number(row.mava || 0),
+          loan: persistSharedRecoveryInThisShift && Number.isFinite(sharedLoan) ? sharedLoan : 0,
+          advance: persistSharedRecoveryInThisShift && Number.isFinite(sharedAdvance) ? sharedAdvance : 0,
+          remarks: row.remarks,
+        }
+      })
 
     await onCreateMultipleCollections(entries, resolveShiftUuidForVariant(variant))
 
@@ -921,11 +993,13 @@ export function MilkCollectionsPage({
     const eveningRows = buildMultiRowCalculations('evening')
     const morningTotals = buildMultiSelectedTotals('morning')
     const eveningTotals = buildMultiSelectedTotals('evening')
+    const sharedTotals = buildMultiSharedTotals()
     const morningAllSelected = getAllFarmersSelected('morning')
     const eveningAllSelected = getAllFarmersSelected('evening')
     const morningColumnCount = 4 + (collectionQualityVisibility.showFat ? 1 : 0) + (collectionQualityVisibility.showSnf ? 1 : 0) + (collectionQualityVisibility.showMava ? 1 : 0)
     const eveningColumnCount = morningColumnCount
-    const fullRowColSpan = 2 + morningColumnCount + 1 + eveningColumnCount
+    const sharedColumnCount = 2
+    const fullRowColSpan = 2 + morningColumnCount + 1 + eveningColumnCount + 1 + sharedColumnCount
 
     return (
       <div className="collection-field-wide collection-panel-table-wrap">
@@ -949,6 +1023,9 @@ export function MilkCollectionsPage({
               <col className="col-evening-rate" />
               <col className="col-evening-amount" />
               <col className="col-evening-remarks-fill" />
+              <col className="col-shared-divider" />
+              <col className="col-shared-loan" />
+              <col className="col-shared-advance" />
             </colgroup>
             <thead>
               <tr className="multi-split-group-row">
@@ -967,6 +1044,8 @@ export function MilkCollectionsPage({
                 <th colSpan={morningColumnCount}>Morning Collection</th>
                 <th className="multi-split-divider" rowSpan={2} />
                 <th colSpan={eveningColumnCount}>Evening Collection</th>
+                <th className="multi-shared-divider" rowSpan={2} />
+                <th colSpan={sharedColumnCount}>Common (M+E)</th>
               </tr>
               <tr className="multi-split-columns-row">
                 <th className="multi-col-qty morning-highlight-col">Qty (L)</th>
@@ -983,6 +1062,8 @@ export function MilkCollectionsPage({
                 <th className="multi-col-rate">Rate</th>
                 <th className="multi-col-amount">Amount</th>
                 <th className="multi-col-remarks multi-col-remarks-fill">Remarks</th>
+                <th className="multi-col-shared-loan">Loan</th>
+                <th className="multi-col-shared-advance">Advance</th>
               </tr>
             </thead>
             <tbody>
@@ -1174,6 +1255,43 @@ export function MilkCollectionsPage({
                         onKeyDown={(event) => onMultiGridCellKeyDown('evening', event, rowIndex, 'remarks')}
                       />
                     </td>
+                    <td className="multi-shared-divider" />
+                    <td className="multi-col-shared-loan multi-col-shared-loan-cell">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={morningRow.row.loan || eveningRow.row.loan}
+                        onChange={(event) => {
+                          const nextValue = event.target.value
+                          updateDraftRow('morning', farmer.uuid, { loan: nextValue, selected: true })
+                          updateDraftRow('evening', farmer.uuid, { loan: nextValue, selected: true })
+                        }}
+                        placeholder="0.00"
+                        ref={(element) => {
+                          multiCellRefs.current[buildCellKey('morning', rowIndex, 'loan')] = element
+                        }}
+                        onKeyDown={(event) => onMultiGridCellKeyDown('morning', event, rowIndex, 'loan')}
+                      />
+                    </td>
+                    <td className="multi-col-shared-advance multi-col-shared-advance-cell">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={morningRow.row.advance || eveningRow.row.advance}
+                        onChange={(event) => {
+                          const nextValue = event.target.value
+                          updateDraftRow('morning', farmer.uuid, { advance: nextValue, selected: true })
+                          updateDraftRow('evening', farmer.uuid, { advance: nextValue, selected: true })
+                        }}
+                        placeholder="0.00"
+                        ref={(element) => {
+                          multiCellRefs.current[buildCellKey('morning', rowIndex, 'advance')] = element
+                        }}
+                        onKeyDown={(event) => onMultiGridCellKeyDown('morning', event, rowIndex, 'advance')}
+                      />
+                    </td>
                   </tr>
                 )
               })}
@@ -1197,6 +1315,9 @@ export function MilkCollectionsPage({
                 <td />
                 <td>{formatDecimal(eveningTotals.amount)}</td>
                 <td className="multi-col-remarks multi-col-remarks-fill" />
+                <td className="multi-shared-divider" />
+                <td className="multi-col-shared-loan">{formatDecimal(sharedTotals.loan)}</td>
+                <td className="multi-col-shared-advance">{formatDecimal(sharedTotals.advance)}</td>
               </tr>
             </tfoot>
           </table>
@@ -1633,6 +1754,8 @@ export function MilkCollectionsPage({
                     <th>Method</th>
                     <th>Entry Type</th>
                     <th>Qty</th>
+                    <th>Loan</th>
+                    <th>Advance</th>
                     <th>Gross</th>
                     <th>Actions</th>
                   </tr>
@@ -1640,7 +1763,7 @@ export function MilkCollectionsPage({
                 <tbody>
                   {paginatedCollections.length === 0 && (
                     <tr>
-                      <td colSpan={9}>No collections found for selected filters.</td>
+                      <td colSpan={11}>No collections found for selected filters.</td>
                     </tr>
                   )}
                   {paginatedCollections.map((item) => (
@@ -1652,6 +1775,8 @@ export function MilkCollectionsPage({
                       <td>{resolveCollectionMethodTag(item)}</td>
                       <td>{resolveCollectionEntryModeTag(item)}</td>
                       <td>{item.quantity}</td>
+                      <td>{item.loan ?? 0}</td>
+                      <td>{item.advance ?? 0}</td>
                       <td>{item.grossAmount}</td>
                       <td>
                         <div className="collection-list-actions">

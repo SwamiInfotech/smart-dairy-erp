@@ -15,6 +15,7 @@ public class SmartDairyConfigurationResponse {
 
     // Milk Collection Settings
     private Boolean collectionFat;
+    private Boolean collectionSnf;
     private Boolean collectionMava;
     private Integer morningCollectionLimit;
     private Integer eveningCollectionLimit;

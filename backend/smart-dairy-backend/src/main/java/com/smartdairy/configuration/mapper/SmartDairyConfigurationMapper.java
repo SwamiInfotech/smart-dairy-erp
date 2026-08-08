@@ -19,6 +19,7 @@ public class SmartDairyConfigurationMapper {
         return SmartDairyConfigurationResponse.builder()
                 .uuid(entity.getUuid().toString())
                 .collectionFat(entity.getCollectionFat())
+                .collectionSnf(entity.getCollectionSnf())
                 .collectionMava(entity.getCollectionMava())
                 .morningCollectionLimit(entity.getMorningCollectionLimit())
                 .eveningCollectionLimit(entity.getEveningCollectionLimit())

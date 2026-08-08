@@ -4,6 +4,7 @@ import com.smartdairy.exception.BusinessException;
 import com.smartdairy.exception.ResourceNotFoundException;
 import com.smartdairy.loan.repository.AdvanceRepository;
 import com.smartdairy.loan.repository.LoanRepository;
+import com.smartdairy.milkcollection.repository.MilkCollectionRepository;
 import com.smartdairy.settlement.dto.SettlementResponse;
 import com.smartdairy.settlement.dto.UpdateSettlementRequest;
 import com.smartdairy.settlement.entity.Settlement;
@@ -26,6 +27,7 @@ public class UpdateSettlementServiceImpl implements UpdateSettlementService {
     private final SettlementRepository settlementRepository;
     private final LoanRepository loanRepository;
     private final AdvanceRepository advanceRepository;
+    private final MilkCollectionRepository milkCollectionRepository;
     private final SettlementMapper mapper;
 
     @Override
@@ -44,37 +46,87 @@ public class UpdateSettlementServiceImpl implements UpdateSettlementService {
         BigDecimal recoveredLoan = settlementRepository.getRecoveredLoanAmount(settlement.getFarmer().getUuid());
         BigDecimal maxLoanRecovery = approvedLoan
                 .subtract(recoveredLoan.subtract(amountOrZero(settlement.getLoanRecovery())));
+        maxLoanRecovery = max(maxLoanRecovery, BigDecimal.ZERO);
 
         BigDecimal approvedAdvance = advanceRepository.getApprovedAdvanceAmount(settlement.getFarmer().getUuid());
         BigDecimal recoveredAdvance = settlementRepository.getRecoveredAdvanceAmount(settlement.getFarmer().getUuid());
         BigDecimal maxAdvanceRecovery = approvedAdvance
                 .subtract(recoveredAdvance.subtract(amountOrZero(settlement.getAdvanceRecovery())));
+        maxAdvanceRecovery = max(maxAdvanceRecovery, BigDecimal.ZERO);
 
-        validateRecovery(request.loanRecovery(), maxLoanRecovery, "Loan");
-        validateRecovery(request.advanceRecovery(), maxAdvanceRecovery, "Advance");
+        BigDecimal nextBonusAmount = request.bonusAmount() == null
+                ? amountOrZero(settlement.getBonusAmount())
+                : request.bonusAmount();
 
-        mapper.updateEntity(request, settlement);
+        BigDecimal requestedLoanRecovery = request.loanRecovery() == null
+                ? amountOrZero(settlement.getLoanRecovery())
+                : request.loanRecovery();
+
+        BigDecimal requestedAdvanceRecovery = request.advanceRecovery() == null
+                ? amountOrZero(settlement.getAdvanceRecovery())
+                : request.advanceRecovery();
+
+        BigDecimal nextOtherDeduction = request.otherDeduction() == null
+                ? amountOrZero(settlement.getOtherDeduction())
+                : request.otherDeduction();
+
+        BigDecimal nextLoanRecovery = capRecoveryToOutstanding(requestedLoanRecovery, maxLoanRecovery);
+        BigDecimal nextAdvanceRecovery = capRecoveryToOutstanding(requestedAdvanceRecovery, maxAdvanceRecovery);
+
+        settlement.setBonusAmount(nextBonusAmount);
+        settlement.setLoanRecovery(nextLoanRecovery);
+        settlement.setAdvanceRecovery(nextAdvanceRecovery);
+        settlement.setOtherDeduction(nextOtherDeduction);
+        settlement.setRemarks(request.remarks());
+
         settlement.setNetPayable(calculateNetPayable(
                 amountOrZero(settlement.getMilkAmount()),
-                amountOrZero(request.bonusAmount()),
-                amountOrZero(request.loanRecovery()),
-                amountOrZero(request.advanceRecovery()),
-                amountOrZero(request.otherDeduction())));
+                nextBonusAmount,
+                nextLoanRecovery,
+                nextAdvanceRecovery,
+                nextOtherDeduction));
 
-        return mapper.toResponse(settlementRepository.save(settlement));
+        Settlement saved = settlementRepository.save(settlement);
+
+        BigDecimal calculatedLoanRecovery = milkCollectionRepository.getLoanAmount(
+                saved.getFarmer().getUuid(),
+                saved.getFromDate(),
+                saved.getToDate());
+
+        BigDecimal calculatedAdvanceRecovery = milkCollectionRepository.getAdvanceAmount(
+                saved.getFarmer().getUuid(),
+                saved.getFromDate(),
+                saved.getToDate());
+
+                saved.setOutstandingLoanBefore(maxLoanRecovery);
+                saved.setOutstandingAdvanceBefore(maxAdvanceRecovery);
+                saved.setCalculatedLoanRecovery(amountOrZero(calculatedLoanRecovery));
+                saved.setCalculatedAdvanceRecovery(amountOrZero(calculatedAdvanceRecovery));
+
+                saved = settlementRepository.save(saved);
+
+        return withComputationContext(
+                mapper.toResponse(saved),
+                maxLoanRecovery,
+                maxAdvanceRecovery,
+                amountOrZero(calculatedLoanRecovery),
+                amountOrZero(calculatedAdvanceRecovery));
     }
 
-    private void validateRecovery(BigDecimal recovery, BigDecimal maxAllowed, String label) {
+        private BigDecimal capRecoveryToOutstanding(BigDecimal recovery, BigDecimal maxAllowed) {
 
-        if (recovery == null) {
-            return;
-        }
+                BigDecimal nonNegativeRecovery = amountOrZero(recovery);
 
-        if (recovery.compareTo(maxAllowed) > 0) {
-            throw new BusinessException(
-                    label + " recovery amount cannot exceed outstanding amount.");
+                if (nonNegativeRecovery.compareTo(BigDecimal.ZERO) < 0) {
+                        throw new BusinessException("Recovery amount cannot be negative.");
+                }
+
+                if (nonNegativeRecovery.compareTo(maxAllowed) > 0) {
+                        return maxAllowed;
+                }
+
+                return nonNegativeRecovery;
         }
-    }
 
     private BigDecimal calculateNetPayable(
             BigDecimal milkAmount,
@@ -92,6 +144,39 @@ public class UpdateSettlementServiceImpl implements UpdateSettlementService {
 
     private BigDecimal amountOrZero(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private BigDecimal max(BigDecimal left, BigDecimal right) {
+        return left.compareTo(right) >= 0 ? left : right;
+    }
+
+    private SettlementResponse withComputationContext(
+            SettlementResponse response,
+            BigDecimal outstandingLoanBefore,
+            BigDecimal outstandingAdvanceBefore,
+            BigDecimal calculatedLoanRecovery,
+            BigDecimal calculatedAdvanceRecovery) {
+
+        return new SettlementResponse(
+                response.uuid(),
+                response.settlementNo(),
+                response.farmerUuid(),
+                response.farmerCode(),
+                response.farmerName(),
+                response.fromDate(),
+                response.toDate(),
+                response.milkAmount(),
+                response.bonusAmount(),
+                response.loanRecovery(),
+                response.advanceRecovery(),
+                response.otherDeduction(),
+                response.netPayable(),
+                outstandingLoanBefore,
+                outstandingAdvanceBefore,
+                calculatedLoanRecovery,
+                calculatedAdvanceRecovery,
+                response.status(),
+                response.remarks());
     }
 
 }

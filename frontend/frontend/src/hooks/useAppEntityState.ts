@@ -31,6 +31,8 @@ export type CollectionListItem = {
   fat?: number | null
   snf?: number | null
   mava?: number | null
+  loan?: number | null
+  advance?: number | null
   remarks?: string | null
   entryMode?: CollectionEntryMode
   grossAmount: number

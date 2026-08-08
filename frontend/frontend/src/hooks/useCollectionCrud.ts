@@ -13,10 +13,25 @@ import { resolveQualityFieldVisibility } from '../lib/uiHelpers'
 import type {
   ApiCollectionEntryMode,
   FarmerResponse,
+  LoanResponse,
   MasterLookupResponse,
   MilkTypeResponse,
   ShiftResponse,
 } from '../types/api'
+
+const AUTO_MILK_COLLECTION_LOAN_TAG_PREFIX = '[AUTO_MILK_COLLECTION_LOAN:'
+
+function normalizeCollectionDateForLoan(value: string) {
+  return (value || '').slice(0, 10)
+}
+
+function buildAutoMilkCollectionLoanTag(collectionUuid: string) {
+  return `${AUTO_MILK_COLLECTION_LOAN_TAG_PREFIX}${collectionUuid}]`
+}
+
+function buildAutoMilkCollectionLoanRemarks(item: { uuid: string; collectionNo: string }) {
+  return `${buildAutoMilkCollectionLoanTag(item.uuid)} Auto loan from milk collection ${item.collectionNo}`
+}
 
 type CollectionFormState = {
   collectionNo: string
@@ -30,6 +45,8 @@ type CollectionFormState = {
   fat: number
   snf: number | null
   mava: number
+  loan: number
+  advance: number
   remarks: string
 }
 
@@ -46,6 +63,8 @@ type CollectionListItem = {
   fat?: number | null
   snf?: number | null
   mava?: number | null
+  loan?: number | null
+  advance?: number | null
   remarks?: string | null
   entryMode?: CollectionEntryMode
   grossAmount: number
@@ -61,12 +80,15 @@ type MultiCollectionEntryInput = {
   fat: number
   snf: number | null
   mava: number
+  loan: number
+  advance: number
   remarks: string
 }
 
 type UseCollectionCrudParams = {
   token: string
   collectionForm: CollectionFormState
+  collections: CollectionListItem[]
   farmers: FarmerResponse[]
   shifts: ShiftResponse[]
   milkTypes: MilkTypeResponse[]
@@ -80,6 +102,7 @@ type UseCollectionCrudParams = {
 export function useCollectionCrud({
   token,
   collectionForm,
+  collections,
   farmers,
   shifts,
   milkTypes,
@@ -105,10 +128,106 @@ export function useCollectionCrud({
     }
   }, [])
 
+  const findAutoLoanRecordForCollection = useCallback(
+    async (item: Pick<CollectionListItem, 'uuid' | 'farmerUuid' | 'collectionDate'>): Promise<LoanResponse | null> => {
+      if (!token) return null
+      if (!item.uuid) return null
+
+      const farmerUuid = (item.farmerUuid || '').trim()
+      if (!farmerUuid) return null
+
+      const collectionDate = normalizeCollectionDateForLoan(item.collectionDate)
+      const page = await api.searchLoans(token, {
+        farmerUuid,
+        fromDate: collectionDate || undefined,
+        toDate: collectionDate || undefined,
+        page: 0,
+        size: 200,
+      })
+
+      const tag = buildAutoMilkCollectionLoanTag(item.uuid)
+      return (page.content || []).find((loan) => (loan.remarks || '').includes(tag)) || null
+    },
+    [token],
+  )
+
+  const upsertAutoLoanRecordForCollection = useCallback(
+    async (item: Pick<CollectionListItem, 'uuid' | 'collectionNo' | 'farmerUuid' | 'collectionDate' | 'loan'>) => {
+      if (!token) return
+      if (!item.uuid) return
+
+      const farmerUuid = (item.farmerUuid || '').trim()
+      if (!farmerUuid) return
+
+      const loanAmount = Number(item.loan || 0)
+      if (!Number.isFinite(loanAmount)) return
+
+      const collectionDate = normalizeCollectionDateForLoan(item.collectionDate)
+      const existing = await findAutoLoanRecordForCollection(item)
+
+      if (loanAmount <= 0) {
+        if (existing && existing.status === 'PENDING') {
+          await api.deleteLoan(token, existing.uuid)
+        }
+        return
+      }
+
+      const remarks = buildAutoMilkCollectionLoanRemarks({
+        uuid: item.uuid,
+        collectionNo: item.collectionNo,
+      })
+
+      if (existing) {
+        if (existing.status !== 'PENDING') {
+          throw new Error('Linked loan is already approved and cannot be auto-updated from Milk Collections.')
+        }
+
+        const existingAmount = Number(existing.loanAmount || 0)
+        const existingDate = normalizeCollectionDateForLoan(existing.loanDate)
+        const existingRemarks = existing.remarks || ''
+        const hasAmountChanged = Math.abs(existingAmount - loanAmount) > 0.0001
+        const hasDateChanged = existingDate !== collectionDate
+        const hasRemarksChanged = existingRemarks !== remarks
+
+        if (!hasAmountChanged && !hasDateChanged && !hasRemarksChanged) {
+          return
+        }
+
+        // Backend update endpoint currently does not mutate loan_amount; recreate pending linked loan instead.
+        await api.deleteLoan(token, existing.uuid)
+      }
+
+      await api.createLoan(token, {
+        farmerUuid,
+        loanDate: collectionDate,
+        loanAmount,
+        remarks,
+      })
+    },
+    [findAutoLoanRecordForCollection, token],
+  )
+
+  const removeAutoLoanRecordForCollection = useCallback(
+    async (item: Pick<CollectionListItem, 'uuid' | 'farmerUuid' | 'collectionDate'>) => {
+      if (!token) return
+
+      const existing = await findAutoLoanRecordForCollection(item)
+      if (!existing) return
+      if (existing.status !== 'PENDING') return
+
+      await api.deleteLoan(token, existing.uuid)
+    },
+    [findAutoLoanRecordForCollection, token],
+  )
+
   const onCreateCollection = useCallback(
     async (event: FormEvent) => {
       event.preventDefault()
       if (!token) return
+
+      const previousCollection = editingCollectionUuid
+        ? collections.find((entry) => entry.uuid === editingCollectionUuid) || null
+        : null
 
       const created = await runAction(async () => {
         if (!Array.isArray(farmers) || farmers.length === 0) {
@@ -165,6 +284,8 @@ export function useCollectionCrud({
           fat: qualityVisibility.showFat ? collectionForm.fat || null : null,
           snf: qualityVisibility.showSnf ? collectionForm.snf || null : null,
           mava: qualityVisibility.showMava ? collectionForm.mava || null : null,
+          loan: Number(collectionForm.loan || 0),
+          advance: Number(collectionForm.advance || 0),
           entryMode: toApiCollectionEntryMode(
             editingCollectionUuid && editingCollectionEntryMode !== 'unknown'
               ? editingCollectionEntryMode
@@ -193,18 +314,39 @@ export function useCollectionCrud({
       setEditingCollectionUuid('')
       setEditingCollectionEntryMode('single')
       setCollectionForm((prev) => ({ ...prev, collectionNo: normalizedCreated.collectionNo }))
+
+      try {
+        if (
+          previousCollection
+          && (
+            previousCollection.farmerUuid !== normalizedCreated.farmerUuid
+            || normalizeCollectionDateForLoan(previousCollection.collectionDate)
+              !== normalizeCollectionDateForLoan(normalizedCreated.collectionDate)
+          )
+        ) {
+          await removeAutoLoanRecordForCollection(previousCollection)
+        }
+
+        await upsertAutoLoanRecordForCollection(normalizedCreated)
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Loan sync failed for this milk collection update.')
+      }
     },
     [
       collectionForm,
+      collections,
       editingCollectionEntryMode,
       editingCollectionUuid,
       farmers,
       milkTypes,
       normalizeCollectionListItem,
+      removeAutoLoanRecordForCollection,
       runAction,
       selectedCollectionMethod,
       setCollectionForm,
       setCollections,
+      setError,
+      upsertAutoLoanRecordForCollection,
       shifts,
       token,
     ],
@@ -275,6 +417,8 @@ export function useCollectionCrud({
               fat: qualityVisibility.showFat ? entry.fat || null : null,
               snf: qualityVisibility.showSnf ? entry.snf || null : null,
               mava: qualityVisibility.showMava ? entry.mava || null : null,
+              loan: Number(entry.loan || 0),
+              advance: Number(entry.advance || 0),
               entryMode: 'MULTI' as ApiCollectionEntryMode,
               remarks: entry.remarks.trim(),
             }
@@ -297,6 +441,12 @@ export function useCollectionCrud({
         ...prev,
         collectionNo: createdItems[createdItems.length - 1]?.collectionNo || prev.collectionNo,
       }))
+
+      try {
+        await Promise.all(createdItems.map((item) => upsertAutoLoanRecordForCollection(item)))
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Some loan records could not be synced from multi entry.')
+      }
     },
     [
       collectionForm.collectionDate,
@@ -307,8 +457,10 @@ export function useCollectionCrud({
       selectedCollectionMethod,
       setCollectionForm,
       setCollections,
+      setError,
       shifts,
       token,
+      upsertAutoLoanRecordForCollection,
     ],
   )
 
@@ -337,6 +489,8 @@ export function useCollectionCrud({
         fat: Number(item.fat || 0),
         snf: item.snf == null ? null : Number(item.snf),
         mava: Number(item.mava || 0),
+        loan: Number(item.loan || 0),
+        advance: Number(item.advance || 0),
         remarks: stripCollectionEntryModeTag(item.remarks),
       }))
     },
@@ -360,6 +514,8 @@ export function useCollectionCrud({
       fat: 0,
       snf: null,
       mava: 0,
+      loan: 0,
+      advance: 0,
       remarks: '',
     }))
   }, [setCollectionForm, setError])
@@ -378,8 +534,14 @@ export function useCollectionCrud({
         setEditingCollectionUuid('')
         setEditingCollectionEntryMode('single')
       }
+
+      try {
+        await removeAutoLoanRecordForCollection(item)
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Milk collection deleted, but linked loan cleanup failed.')
+      }
     },
-    [editingCollectionUuid, runAction, setCollections, token],
+    [editingCollectionUuid, removeAutoLoanRecordForCollection, runAction, setCollections, setError, token],
   )
 
   return {

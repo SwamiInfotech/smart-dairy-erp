@@ -19,6 +19,8 @@ type CollectionListItem = {
   fat?: number | null
   snf?: number | null
   mava?: number | null
+  loan?: number | null
+  advance?: number | null
   grossAmount: number
   entryMode?: CollectionEntryMode
 }
@@ -54,6 +56,12 @@ type GeneratedBill = {
   collections: CollectionListItem[]
   totalQty: number
   totalAmount: number
+  loanRecovery?: number
+  advanceRecovery?: number
+  outstandingLoanBefore?: number
+  outstandingAdvanceBefore?: number
+  calculatedLoanRecovery?: number
+  calculatedAdvanceRecovery?: number
 }
 
 type SavedBill = GeneratedBill & {
@@ -113,6 +121,17 @@ function getRowRate(item: CollectionListItem) {
   return Number(item.grossAmount || 0) / qty
 }
 
+function getRecoveryTotals(items: CollectionListItem[]) {
+  return items.reduce(
+    (acc, item) => {
+      acc.loanRecovery += Number(item.loan || 0)
+      acc.advanceRecovery += Number(item.advance || 0)
+      return acc
+    },
+    { loanRecovery: 0, advanceRecovery: 0 },
+  )
+}
+
 function compareCollectionsByDate(left: CollectionListItem, right: CollectionListItem) {
   const leftDate = (left.collectionDate || '').slice(0, 10)
   const rightDate = (right.collectionDate || '').slice(0, 10)
@@ -170,6 +189,8 @@ export function MilkCollectionBillingPaymentsPage({
   const [savedBills, setSavedBills] = useState<SavedBill[]>([])
   const [activeSavedBillUuid, setActiveSavedBillUuid] = useState('')
   const [savedBillSearch, setSavedBillSearch] = useState('')
+  const [showSavedBills, setShowSavedBills] = useState(false)
+  const [savedBillEditMode, setSavedBillEditMode] = useState(false)
   const [billingActionBusy, setBillingActionBusy] = useState(false)
   const [billingActionError, setBillingActionError] = useState('')
   const [billingActionSuccess, setBillingActionSuccess] = useState('')
@@ -180,6 +201,7 @@ export function MilkCollectionBillingPaymentsPage({
     referenceNo: '',
     remarks: '',
   })
+  const [emiDeduction, setEmiDeduction] = useState(0)
 
   const authToken = getSavedAuth().token
 
@@ -247,11 +269,30 @@ export function MilkCollectionBillingPaymentsPage({
   }, [collections, filters.farmerUuid, filters.fromDate, filters.milkTypeUuid, filters.toDate])
 
   const totalQty = filteredCollections.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
-  const totalAmount = filteredCollections.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0)
-  const paidAmount = payments.reduce((sum, item) => sum + Number(item.amount || 0), 0)
-  const balanceAmount = Math.max(0, totalAmount - paidAmount)
-  const averageRate = totalQty > 0 ? totalAmount / totalQty : 0
 
+  const activeBillCollections = generatedBill?.collections || filteredCollections
+  const generatedRecoveries = useMemo(() => getRecoveryTotals(activeBillCollections), [activeBillCollections])
+  const activeLoanRecovery = generatedRecoveries.loanRecovery
+  const activeAdvanceRecovery = generatedBill?.advanceRecovery ?? generatedRecoveries.advanceRecovery
+  const previousRemainingLoanBalance = Number(generatedBill?.outstandingLoanBefore || 0)
+
+  const activeBillAmount = activeBillCollections.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0)
+  const effectiveBillAmount = Math.max(0, activeBillAmount - activeAdvanceRecovery)
+  const loanBalanceAmount = previousRemainingLoanBalance + activeLoanRecovery - emiDeduction
+  const canEditGeneratedBill = Boolean(
+    generatedBill
+    && generatedBill.settlementStatus !== 'PAID'
+    && (!generatedBill.settlementUuid || savedBillEditMode),
+  )
+  const isViewModeLocked = Boolean(
+    generatedBill
+    && generatedBill.settlementStatus !== 'PAID'
+    && generatedBill.settlementUuid
+    && !savedBillEditMode,
+  )
+
+  const paidAmount = payments.reduce((sum, item) => sum + Number(item.amount || 0), 0)
+  const balanceAmount = Math.max(0, effectiveBillAmount - paidAmount)
   const shiftNameByUuid = useMemo(() => {
     const next = new Map<string, string>()
     for (const shift of shifts) {
@@ -290,34 +331,44 @@ export function MilkCollectionBillingPaymentsPage({
     })
   }, [collections, generatedBill?.farmerUuid, generatedBill?.fromDate, generatedBill?.milkTypeUuid, generatedBill?.toDate])
 
-  const openBill = () => {
-    const selectedFarmer = farmerOptions.find((item) => item.uuid === filters.farmerUuid) || null
+  useEffect(() => {
+    setPaymentForm((prev) => {
+      const nextAmount = generatedBill && generatedBill.settlementStatus !== 'PAID' ? balanceAmount : 0
+      if (prev.amount === nextAmount) return prev
+      return { ...prev, amount: nextAmount }
+    })
+  }, [balanceAmount, generatedBill])
+
+  const openBillForFilters = (nextFilters: BillFilters) => {
+    const selectedFarmer = farmerOptions.find((item) => item.uuid === nextFilters.farmerUuid) || null
     const selectedCollections = collections.filter((item) => {
       const itemDate = (item.collectionDate || '').slice(0, 10)
       if (selectedFarmer?.uuid && item.farmerUuid !== selectedFarmer.uuid) return false
-      if (filters.milkTypeUuid && item.milkTypeUuid !== filters.milkTypeUuid) return false
-      if (itemDate < filters.fromDate) return false
-      if (itemDate > filters.toDate) return false
+      if (nextFilters.milkTypeUuid && item.milkTypeUuid !== nextFilters.milkTypeUuid) return false
+      if (itemDate < nextFilters.fromDate) return false
+      if (itemDate > nextFilters.toDate) return false
       return true
     }).sort(compareCollectionsByDate)
 
     setGeneratedBill({
       uuid: crypto.randomUUID(),
-      billNo: buildBillNo(selectedFarmer?.farmerName || 'ALL', filters.fromDate, filters.toDate),
+      billNo: buildBillNo(selectedFarmer?.farmerName || 'ALL', nextFilters.fromDate, nextFilters.toDate),
       settlementUuid: '',
       settlementStatus: 'GENERATED',
       generatedAt: new Date().toISOString(),
       farmerUuid: selectedFarmer?.uuid || '',
       farmerName: selectedFarmer?.farmerName || 'All Farmers',
-      milkTypeUuid: filters.milkTypeUuid,
-      fromDate: filters.fromDate,
-      toDate: filters.toDate,
+      milkTypeUuid: nextFilters.milkTypeUuid,
+      fromDate: nextFilters.fromDate,
+      toDate: nextFilters.toDate,
       collections: selectedCollections,
       totalQty: selectedCollections.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
       totalAmount: selectedCollections.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0),
     })
     setPayments([])
+    setEmiDeduction(0)
     setActiveSavedBillUuid('')
+    setSavedBillEditMode(true)
   }
 
   const splitCollectionsByShift = useMemo(() => {
@@ -472,6 +523,21 @@ export function MilkCollectionBillingPaymentsPage({
     return selectedMilkType?.name || selectedMilkType?.code || 'Selected Milk Type'
   }, [generatedBill?.milkTypeUuid, milkTypes])
 
+  const mainGrossAmountTotal = useMemo(() => {
+    const morningAmountTotal = splitCollectionsByShift.morning.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0)
+    const eveningAmountTotal = splitCollectionsByShift.evening.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0)
+    return morningAmountTotal + eveningAmountTotal
+  }, [splitCollectionsByShift.evening, splitCollectionsByShift.morning])
+
+  const printGrossAmountTotal = useMemo(() => {
+    const morningAmountTotal = printSplitCollectionsByShift.morning.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0)
+    const eveningAmountTotal = printSplitCollectionsByShift.evening.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0)
+    return morningAmountTotal + eveningAmountTotal
+  }, [printSplitCollectionsByShift.evening, printSplitCollectionsByShift.morning])
+
+  const mainNetDayTotalAmount = mainGrossAmountTotal - activeAdvanceRecovery
+  const printNetDayTotalAmount = printGrossAmountTotal - activeAdvanceRecovery
+
   const reloadSavedBillsFromBackend = async () => {
     if (!authToken) {
       setSavedBills([])
@@ -505,6 +571,12 @@ export function MilkCollectionBillingPaymentsPage({
         collections: billCollections,
         totalQty: billCollections.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
         totalAmount: Number(settlement.netPayable || 0),
+        loanRecovery: Number(settlement.loanRecovery || 0),
+        advanceRecovery: Number(settlement.advanceRecovery || 0),
+        outstandingLoanBefore: Number(settlement.outstandingLoanBefore || 0),
+        outstandingAdvanceBefore: Number(settlement.outstandingAdvanceBefore || 0),
+        calculatedLoanRecovery: Number(settlement.calculatedLoanRecovery || 0),
+        calculatedAdvanceRecovery: Number(settlement.calculatedAdvanceRecovery || 0),
         payments: [],
       }
     })
@@ -535,7 +607,7 @@ export function MilkCollectionBillingPaymentsPage({
   }, [savedBillSearch, savedBills])
 
   const addPayment = async () => {
-    if (!generatedBill || paymentForm.amount <= 0) return
+    if (!generatedBill || balanceAmount <= 0) return
     if (!authToken) {
       setBillingActionError('You are not logged in. Please login again to record payment.')
       return
@@ -550,14 +622,17 @@ export function MilkCollectionBillingPaymentsPage({
     setBillingActionSuccess('')
 
     try {
-      const created = await api.createPayment(authToken, {
+      const createPaymentPayload = {
         settlementUuid: generatedBill.settlementUuid,
         paymentDate: paymentForm.paymentDate,
         paymentMode: paymentForm.mode,
+        referenceNo: paymentForm.referenceNo.trim(),
         remarks: paymentForm.remarks.trim(),
-      })
+      }
 
-      const settlementAfterPay = await api.paySettlement(authToken, generatedBill.settlementUuid)
+      console.log('[MilkCollectionBillingPaymentsPage] createPayment payload:', createPaymentPayload)
+
+      const created = await api.createPayment(authToken, createPaymentPayload)
 
       setPayments((prev) => [
         ...prev,
@@ -567,7 +642,7 @@ export function MilkCollectionBillingPaymentsPage({
           paymentDate: created.paymentDate,
           amount: Number(created.paidAmount || 0),
           mode: created.paymentMode,
-          referenceNo: paymentForm.referenceNo.trim(),
+          referenceNo: created.referenceNo || paymentForm.referenceNo.trim(),
           remarks: created.remarks || paymentForm.remarks.trim(),
         },
       ])
@@ -576,8 +651,7 @@ export function MilkCollectionBillingPaymentsPage({
       setGeneratedBill((prev) => (prev
         ? {
           ...prev,
-          settlementStatus: settlementAfterPay.status,
-          totalAmount: Number(settlementAfterPay.netPayable || prev.totalAmount),
+          settlementStatus: 'PAID',
         }
         : prev))
       await reloadSavedBillsFromBackend()
@@ -591,6 +665,10 @@ export function MilkCollectionBillingPaymentsPage({
 
   const saveGeneratedBill = async () => {
     if (!generatedBill) return
+    if (generatedBill.settlementUuid && !savedBillEditMode) {
+      setBillingActionError('Saved bill is locked. Open it in edit mode to re-generate.')
+      return
+    }
     if (!authToken) {
       setBillingActionError('You are not logged in. Please login again to save bill.')
       return
@@ -601,36 +679,104 @@ export function MilkCollectionBillingPaymentsPage({
     setBillingActionSuccess('')
 
     try {
+      const ADVANCE_OUTSTANDING_ERROR = 'Advance recovery amount cannot exceed outstanding amount.'
+      const runWithAdvanceFallback = async <T,>(
+        action: (advanceRecovery: number) => Promise<T>,
+      ) => {
+        const initialAdvanceRecovery = Math.max(0, Number(activeAdvanceRecovery || 0))
+
+        try {
+          return {
+            response: await action(initialAdvanceRecovery),
+            appliedAdvanceRecovery: initialAdvanceRecovery,
+            fallbackApplied: false,
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : ''
+          if (!message.includes(ADVANCE_OUTSTANDING_ERROR)) {
+            throw error
+          }
+
+          const outstandingCap = Math.max(0, Number(generatedBill.outstandingAdvanceBefore || 0))
+          const fallbackAdvanceRecovery = generatedBill.outstandingAdvanceBefore != null
+            ? Math.min(initialAdvanceRecovery, outstandingCap)
+            : 0
+
+          if (fallbackAdvanceRecovery === initialAdvanceRecovery) {
+            throw error
+          }
+
+          return {
+            response: await action(fallbackAdvanceRecovery),
+            appliedAdvanceRecovery: fallbackAdvanceRecovery,
+            fallbackApplied: true,
+          }
+        }
+      }
+
       let savedUuid = generatedBill.settlementUuid || ''
       let successMessage = 'Bill updated in backend successfully.'
+      let fallbackApplied = false
+      let appliedAdvanceRecovery = Math.max(0, Number(activeAdvanceRecovery || 0))
 
       if (generatedBill.settlementUuid) {
-        const settlement = await api.updateSettlement(authToken, generatedBill.settlementUuid, {
-          bonusAmount: 0,
-          loanRecovery: 0,
-          advanceRecovery: 0,
-          otherDeduction: 0,
-          remarks: 'Updated from billing screen',
+        const updateResult = await runWithAdvanceFallback((advanceRecovery) => {
+          const updateSettlementPayload = {
+            bonusAmount: 0,
+            loanRecovery: emiDeduction,
+            advanceRecovery,
+            otherDeduction: 0,
+            remarks: 'Updated from billing screen',
+          }
+
+          console.log('[MilkCollectionBillingPaymentsPage] updateSettlement payload:', {
+            settlementUuid: generatedBill.settlementUuid,
+            ...updateSettlementPayload,
+          })
+
+          return api.updateSettlement(
+            authToken,
+            generatedBill.settlementUuid || '',
+            updateSettlementPayload,
+          )
         })
+        const settlement = updateResult.response
+        fallbackApplied = updateResult.fallbackApplied
+        appliedAdvanceRecovery = updateResult.appliedAdvanceRecovery
 
         setGeneratedBill((prev) => (prev
           ? {
             ...prev,
             settlementStatus: settlement.status,
             totalAmount: Number(settlement.netPayable || prev.totalAmount),
+            loanRecovery: Number(settlement.loanRecovery || prev.loanRecovery || 0),
+            advanceRecovery: Number(settlement.advanceRecovery || prev.advanceRecovery || 0),
+            outstandingLoanBefore: Number(settlement.outstandingLoanBefore || prev.outstandingLoanBefore || 0),
+            outstandingAdvanceBefore: Number(settlement.outstandingAdvanceBefore || prev.outstandingAdvanceBefore || 0),
+            calculatedLoanRecovery: Number(settlement.calculatedLoanRecovery || prev.calculatedLoanRecovery || 0),
+            calculatedAdvanceRecovery: Number(settlement.calculatedAdvanceRecovery || prev.calculatedAdvanceRecovery || 0),
           }
           : prev))
       } else {
-        const settlement = await api.generateSettlement(authToken, {
-          farmerUuid: generatedBill.farmerUuid,
-          fromDate: generatedBill.fromDate,
-          toDate: generatedBill.toDate,
-          bonusAmount: 0,
-          loanRecovery: 0,
-          advanceRecovery: 0,
-          otherDeduction: 0,
-          remarks: 'Generated from billing screen',
+        const generateResult = await runWithAdvanceFallback((advanceRecovery) => {
+          const generateSettlementPayload = {
+            farmerUuid: generatedBill.farmerUuid,
+            fromDate: generatedBill.fromDate,
+            toDate: generatedBill.toDate,
+            bonusAmount: 0,
+            loanRecovery: emiDeduction,
+            advanceRecovery,
+            otherDeduction: 0,
+            remarks: 'Generated from billing screen',
+          }
+
+          console.log('[MilkCollectionBillingPaymentsPage] generateSettlement payload:', generateSettlementPayload)
+
+          return api.generateSettlement(authToken, generateSettlementPayload)
         })
+        const settlement = generateResult.response
+        fallbackApplied = generateResult.fallbackApplied
+        appliedAdvanceRecovery = generateResult.appliedAdvanceRecovery
 
         setGeneratedBill((prev) => (prev
           ? {
@@ -639,6 +785,12 @@ export function MilkCollectionBillingPaymentsPage({
             settlementUuid: settlement.uuid,
             settlementStatus: settlement.status,
             totalAmount: Number(settlement.netPayable || prev.totalAmount),
+            loanRecovery: Number(settlement.loanRecovery || prev.loanRecovery || 0),
+            advanceRecovery: Number(settlement.advanceRecovery || prev.advanceRecovery || 0),
+            outstandingLoanBefore: Number(settlement.outstandingLoanBefore || prev.outstandingLoanBefore || 0),
+            outstandingAdvanceBefore: Number(settlement.outstandingAdvanceBefore || prev.outstandingAdvanceBefore || 0),
+            calculatedLoanRecovery: Number(settlement.calculatedLoanRecovery || prev.calculatedLoanRecovery || 0),
+            calculatedAdvanceRecovery: Number(settlement.calculatedAdvanceRecovery || prev.calculatedAdvanceRecovery || 0),
           }
           : prev))
 
@@ -646,8 +798,13 @@ export function MilkCollectionBillingPaymentsPage({
         successMessage = 'Bill saved to backend successfully.'
       }
 
+      if (fallbackApplied) {
+        successMessage = `${successMessage} Advance deduction adjusted to ${formatAmount(appliedAdvanceRecovery)} to match outstanding advance.`
+      }
+
       await reloadSavedBillsFromBackend()
       setActiveSavedBillUuid(savedUuid || activeSavedBillUuid || generatedBill.uuid)
+      setSavedBillEditMode(false)
       setBillingActionSuccess(successMessage)
     } catch (error) {
       setBillingActionError(error instanceof Error ? error.message : 'Failed to save bill.')
@@ -656,7 +813,7 @@ export function MilkCollectionBillingPaymentsPage({
     }
   }
 
-  const openSavedBill = async (bill: SavedBill) => {
+  const openSavedBill = async (bill: SavedBill, mode: 'view' | 'edit' = 'view') => {
     const billCollections = deriveCollectionsForBill(
       bill.farmerUuid,
       bill.milkTypeUuid,
@@ -678,9 +835,17 @@ export function MilkCollectionBillingPaymentsPage({
       collections: billCollections,
       totalQty: billCollections.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
       totalAmount: bill.totalAmount,
+      loanRecovery: bill.loanRecovery,
+      advanceRecovery: bill.advanceRecovery,
+      outstandingLoanBefore: bill.outstandingLoanBefore,
+      outstandingAdvanceBefore: bill.outstandingAdvanceBefore,
+      calculatedLoanRecovery: bill.calculatedLoanRecovery,
+      calculatedAdvanceRecovery: bill.calculatedAdvanceRecovery,
     })
+    setEmiDeduction(0)
     setPayments([])
     setActiveSavedBillUuid(bill.uuid)
+    setSavedBillEditMode(mode === 'edit' && bill.settlementStatus !== 'PAID')
 
     if (!authToken || !bill.settlementUuid) {
       return
@@ -707,8 +872,15 @@ export function MilkCollectionBillingPaymentsPage({
           collections: refreshedBillCollections,
           totalQty: refreshedBillCollections.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
           totalAmount: Number(settlement.netPayable || 0),
+          loanRecovery: Number(settlement.loanRecovery || prev?.loanRecovery || bill.loanRecovery || 0),
+          advanceRecovery: Number(settlement.advanceRecovery || prev?.advanceRecovery || bill.advanceRecovery || 0),
+          outstandingLoanBefore: Number(settlement.outstandingLoanBefore || prev?.outstandingLoanBefore || bill.outstandingLoanBefore || 0),
+          outstandingAdvanceBefore: Number(settlement.outstandingAdvanceBefore || prev?.outstandingAdvanceBefore || bill.outstandingAdvanceBefore || 0),
+          calculatedLoanRecovery: Number(settlement.calculatedLoanRecovery || prev?.calculatedLoanRecovery || bill.calculatedLoanRecovery || 0),
+          calculatedAdvanceRecovery: Number(settlement.calculatedAdvanceRecovery || prev?.calculatedAdvanceRecovery || bill.calculatedAdvanceRecovery || 0),
         }
         : prev))
+      setEmiDeduction(0)
 
       const page = await api.searchPayments(authToken, {
         settlementUuid: bill.settlementUuid,
@@ -722,7 +894,7 @@ export function MilkCollectionBillingPaymentsPage({
         paymentDate: item.paymentDate,
         amount: Number(item.paidAmount || 0),
         mode: item.paymentMode,
-        referenceNo: '',
+        referenceNo: item.referenceNo || '',
         remarks: item.remarks || '',
       }))
 
@@ -748,6 +920,8 @@ export function MilkCollectionBillingPaymentsPage({
         setActiveSavedBillUuid('')
         setGeneratedBill(null)
         setPayments([])
+        setEmiDeduction(0)
+        setSavedBillEditMode(false)
       }
       setBillingActionSuccess('Bill deleted from backend successfully.')
     } catch (error) {
@@ -965,7 +1139,14 @@ export function MilkCollectionBillingPaymentsPage({
               Farmer
               <select
                 value={filters.farmerUuid}
-                onChange={(event) => setFilters((prev) => ({ ...prev, farmerUuid: event.target.value }))}
+                onChange={(event) => {
+                  const nextFarmerUuid = event.target.value
+                  setFilters((prev) => {
+                    const nextFilters = { ...prev, farmerUuid: nextFarmerUuid }
+                    openBillForFilters(nextFilters)
+                    return nextFilters
+                  })
+                }}
               >
                 {farmerOptions.map((farmer) => (
                   <option key={farmer.uuid} value={farmer.uuid}>
@@ -1024,12 +1205,15 @@ export function MilkCollectionBillingPaymentsPage({
                 <col className="payment-col-amount" />
                 <col className="payment-col-total" />
                 <col className="payment-col-total" />
+                <col className="payment-col-total" />
+                <col className="payment-col-total" />
               </colgroup>
               <thead>
                 <tr>
                   <th rowSpan={2} className="payment-billing-shared-date-head">Date</th>
                   <th colSpan={2 + (showFatColumn ? 1 : 0) + (showSnfColumn ? 1 : 0) + 2}>Morning Collection</th>
                   <th colSpan={2 + (showFatColumn ? 1 : 0) + (showSnfColumn ? 1 : 0) + 2}>Evening Collection</th>
+                  <th colSpan={2} className="payment-billing-shared-total-head payment-billing-shared-deduction-head">Deductions</th>
                   <th colSpan={2} className="payment-billing-shared-total-head">Day Total</th>
                 </tr>
                 <tr>
@@ -1045,14 +1229,16 @@ export function MilkCollectionBillingPaymentsPage({
                   {showSnfColumn && <th>SNF</th>}
                   <th>Rate</th>
                   <th>Amount</th>
-                  <th className="payment-billing-shared-total-start">Total Milk</th>
-                  <th className="payment-billing-shared-total-cell">Total for the day</th>
+                  <th className="payment-billing-shared-total-start payment-billing-shared-deduction-start">Loan</th>
+                  <th className="payment-billing-shared-total-cell payment-billing-shared-deduction-cell">Advance</th>
+                  <th className="payment-billing-shared-total-start">Total</th>
+                  <th className="payment-billing-shared-total-cell">Total</th>
                 </tr>
               </thead>
               <tbody>
                 {combinedBillRowCount === 0 && (
                   <tr>
-                    <td colSpan={3 + ((2 + (showFatColumn ? 1 : 0) + (showSnfColumn ? 1 : 0) + 2) * 2)}>No collection data found for this filter.</td>
+                    <td colSpan={3 + ((2 + (showFatColumn ? 1 : 0) + (showSnfColumn ? 1 : 0) + 2) * 2) + 2}>No collection data found for this filter.</td>
                   </tr>
                 )}
                 {combinedBillRows.map((row, index) => {
@@ -1063,26 +1249,38 @@ export function MilkCollectionBillingPaymentsPage({
                   const eveningQty = Number(eveningItem?.quantity || 0)
                   const morningAmount = Number(morningItem?.grossAmount || 0)
                   const eveningAmount = Number(eveningItem?.grossAmount || 0)
+                  const morningLoan = Number(morningItem?.loan || 0)
+                  const eveningLoan = Number(eveningItem?.loan || 0)
+                  const morningAdvance = Number(morningItem?.advance || 0)
+                  const eveningAdvance = Number(eveningItem?.advance || 0)
                   const totalMilkForRow = morningQty + eveningQty
-                  const totalAmountForRow = morningAmount + eveningAmount
+                  const rowLoanTotal = morningLoan + eveningLoan
+                  const rowAdvanceTotal = morningAdvance + eveningAdvance
+                  const totalAmountForRow = morningAmount + eveningAmount - rowAdvanceTotal
 
                   return (
                     <tr key={`${morningItem?.uuid || 'morning-empty'}-${eveningItem?.uuid || 'evening-empty'}-${index}`}>
                       <td className="payment-billing-shared-date-cell">{sharedDate}</td>
                       <td>{morningItem?.collectionNo || '-'}</td>
-                      <td>{morningItem ? morningItem.quantity : '-'}</td>
-                      {showFatColumn && <td>{morningItem?.fat != null ? morningItem.fat : '-'}</td>}
-                      {showSnfColumn && <td>{morningItem?.snf != null ? morningItem.snf : '-'}</td>}
-                      <td>{morningItem ? formatAmount(getRowRate(morningItem)) : '-'}</td>
-                      <td className="payment-billing-divider-cell">{morningItem ? formatAmount(morningItem.grossAmount) : '-'}</td>
+                      <td className="payment-billing-number">{morningItem ? morningItem.quantity : '-'}</td>
+                      {showFatColumn && <td className="payment-billing-number">{morningItem?.fat != null ? morningItem.fat : '-'}</td>}
+                      {showSnfColumn && <td className="payment-billing-number">{morningItem?.snf != null ? morningItem.snf : '-'}</td>}
+                      <td className="payment-billing-number">{morningItem ? formatAmount(getRowRate(morningItem)) : '-'}</td>
+                      <td className="payment-billing-divider-cell payment-billing-number">{morningItem ? formatAmount(morningItem.grossAmount) : '-'}</td>
                       <td>{eveningItem?.collectionNo || '-'}</td>
-                      <td>{eveningItem ? eveningItem.quantity : '-'}</td>
-                      {showFatColumn && <td>{eveningItem?.fat != null ? eveningItem.fat : '-'}</td>}
-                      {showSnfColumn && <td>{eveningItem?.snf != null ? eveningItem.snf : '-'}</td>}
-                      <td>{eveningItem ? formatAmount(getRowRate(eveningItem)) : '-'}</td>
-                      <td>{eveningItem ? formatAmount(eveningItem.grossAmount) : '-'}</td>
-                      <td className="payment-billing-shared-total-start">{formatAmount(totalMilkForRow)}</td>
-                      <td className="payment-billing-shared-total-cell">{formatAmount(totalAmountForRow)}</td>
+                      <td className="payment-billing-number">{eveningItem ? eveningItem.quantity : '-'}</td>
+                      {showFatColumn && <td className="payment-billing-number">{eveningItem?.fat != null ? eveningItem.fat : '-'}</td>}
+                      {showSnfColumn && <td className="payment-billing-number">{eveningItem?.snf != null ? eveningItem.snf : '-'}</td>}
+                      <td className="payment-billing-number">{eveningItem ? formatAmount(getRowRate(eveningItem)) : '-'}</td>
+                      <td className="payment-billing-number">{eveningItem ? formatAmount(eveningItem.grossAmount) : '-'}</td>
+                      <td className="payment-billing-shared-total-start payment-billing-shared-deduction-start payment-billing-number">{formatAmount(rowLoanTotal)}</td>
+                      <td className="payment-billing-shared-total-cell payment-billing-shared-deduction-cell payment-billing-number">{formatAmount(rowAdvanceTotal)}</td>
+                      <td className="payment-billing-shared-total-start payment-billing-number">{formatAmount(totalMilkForRow)}</td>
+                      <td className={[
+                        'payment-billing-shared-total-cell',
+                        'payment-billing-number',
+                        totalAmountForRow < 0 ? 'payment-billing-number-negative' : '',
+                      ].filter(Boolean).join(' ')}>{formatAmount(totalAmountForRow)}</td>
                     </tr>
                   )
                 })}
@@ -1091,186 +1289,164 @@ export function MilkCollectionBillingPaymentsPage({
                 <tr className="payment-template-footer-row">
                   <td className="payment-billing-shared-date-cell">Totals</td>
                   <td colSpan={1}>Morning Totals</td>
-                  <td>{formatAmount(splitCollectionsByShift.morning.reduce((sum, item) => sum + Number(item.quantity || 0), 0))}</td>
+                  <td className="payment-billing-number">{formatAmount(splitCollectionsByShift.morning.reduce((sum, item) => sum + Number(item.quantity || 0), 0))}</td>
                   {hiddenQualityColumnCount > 0 && <td colSpan={hiddenQualityColumnCount} />}
-                  <td>{formatAmount(splitCollectionsByShift.morning.reduce((sum, item) => sum + Number(item.quantity || 0), 0) > 0 ? splitCollectionsByShift.morning.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0) / splitCollectionsByShift.morning.reduce((sum, item) => sum + Number(item.quantity || 0), 0) : 0)}</td>
-                  <td className="payment-billing-divider-cell">{formatAmount(splitCollectionsByShift.morning.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0))}</td>
+                  <td className="payment-billing-number">-</td>
+                  <td className="payment-billing-divider-cell payment-billing-number">{formatAmount(splitCollectionsByShift.morning.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0))}</td>
                   <td colSpan={1}>Evening Totals</td>
-                  <td>{formatAmount(splitCollectionsByShift.evening.reduce((sum, item) => sum + Number(item.quantity || 0), 0))}</td>
+                  <td className="payment-billing-number">{formatAmount(splitCollectionsByShift.evening.reduce((sum, item) => sum + Number(item.quantity || 0), 0))}</td>
                   {hiddenQualityColumnCount > 0 && <td colSpan={hiddenQualityColumnCount} />}
-                  <td>{formatAmount(splitCollectionsByShift.evening.reduce((sum, item) => sum + Number(item.quantity || 0), 0) > 0 ? splitCollectionsByShift.evening.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0) / splitCollectionsByShift.evening.reduce((sum, item) => sum + Number(item.quantity || 0), 0) : 0)}</td>
-                  <td>{formatAmount(splitCollectionsByShift.evening.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0))}</td>
-                  <td className="payment-billing-shared-total-start">{formatAmount((generatedBill?.totalQty ?? totalQty) || 0)}</td>
-                  <td className="payment-billing-shared-total-cell">{formatAmount((generatedBill?.totalAmount ?? totalAmount) || 0)}</td>
+                  <td className="payment-billing-number">-</td>
+                  <td className="payment-billing-number">{formatAmount(splitCollectionsByShift.evening.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0))}</td>
+                  <td className="payment-billing-shared-total-start payment-billing-shared-deduction-start payment-billing-number">{formatAmount(activeLoanRecovery)}</td>
+                  <td className="payment-billing-shared-total-cell payment-billing-shared-deduction-cell payment-billing-number">{formatAmount(activeAdvanceRecovery)}</td>
+                  <td className="payment-billing-shared-total-start payment-billing-number">{formatAmount((generatedBill?.totalQty ?? totalQty) || 0)}</td>
+                  <td className={[
+                    'payment-billing-shared-total-cell',
+                    'payment-billing-number',
+                    mainNetDayTotalAmount < 0 ? 'payment-billing-number-negative' : '',
+                  ].filter(Boolean).join(' ')}>{formatAmount(mainNetDayTotalAmount)}</td>
                 </tr>
               </tfoot>
             </table>
           </div>
 
-          <div className="payment-billing-generate-action">
-            <button type="button" className="payment-primary-btn" onClick={openBill} disabled={busy || billingActionBusy}>
-              Generate Bill
-            </button>
-            <button
-              type="button"
-              className="payment-secondary-btn"
-              onClick={() => void saveGeneratedBill()}
-              disabled={!generatedBill || busy || billingActionBusy || generatedBill?.settlementStatus === 'PAID'}
-            >
-              {getSaveButtonLabel(generatedBill, activeSavedBillUuid)}
-            </button>
-            <button type="button" className="payment-secondary-btn" onClick={printBill} disabled={!generatedBill || busy || billingActionBusy}>
-              Print / Save PDF
-            </button>
-          </div>
-
           {billingActionError && <p className="field-error">{billingActionError}</p>}
           {billingActionSuccess && <p className="subtle">{billingActionSuccess}</p>}
-
-          <div className="payment-billing-summary-grid">
-            <article>
-              <p>Total quantity</p>
-              <strong>{formatAmount(generatedBill?.totalQty ?? totalQty)}</strong>
-            </article>
-            <article>
-              <p>Total amount</p>
-              <strong>{formatAmount(generatedBill?.totalAmount ?? totalAmount)}</strong>
-            </article>
-            <article>
-              <p>Average rate</p>
-              <strong>{formatAmount(generatedBill ? (generatedBill.totalQty > 0 ? generatedBill.totalAmount / generatedBill.totalQty : 0) : averageRate)}</strong>
-            </article>
-            <article>
-              <p>Collection count</p>
-              <strong>{generatedBill?.collections.length ?? filteredCollections.length}</strong>
-            </article>
-          </div>
         </section>
 
       </div>
 
       <div className="payment-billing-summary-dock">
-        <section className="payment-billing-card payment-billing-card-summary">
-          <div className="payment-billing-card-head">
+        <section className="payment-billing-summary-shell">
+          <div className="payment-billing-summary-shell-head">
             <h3>Payment Summary</h3>
-            <div className="payment-billing-pill-wrap">
-              <span className="payment-billing-pill">{generatedBill ? generatedBill.billNo : 'No bill generated'}</span>
-              {generatedBill && (
-                <span className={getSettlementStatusClassName(generatedBill.settlementStatus)}>
-                  {getSettlementStatusLabel(generatedBill.settlementStatus)}
-                </span>
-              )}
+            <div className="payment-billing-summary-head-actions">
+              <div className="payment-billing-pill-wrap">
+                <span className="payment-billing-pill">{generatedBill ? generatedBill.billNo : 'No bill generated'}</span>
+                {generatedBill && (
+                  <span className={getSettlementStatusClassName(generatedBill.settlementStatus)}>
+                    {getSettlementStatusLabel(generatedBill.settlementStatus)}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                className="payment-secondary-btn payment-billing-saved-toggle-btn"
+                onClick={() => setShowSavedBills((prev) => !prev)}
+                disabled={busy || billingActionBusy}
+              >
+                {showSavedBills ? 'Hide Bill' : 'View Saved Bill'}
+              </button>
             </div>
           </div>
 
-          <div className="payment-billing-bill-meta">
-            <article>
-              <span>Farmer</span>
-              <strong>{generatedBill?.farmerName || 'Select farmer and generate bill'}</strong>
-            </article>
-            <article>
-              <span>Bill period</span>
-              <strong>{generatedBill ? `${formatDisplayDate(generatedBill.fromDate)} to ${formatDisplayDate(generatedBill.toDate)}` : 'Not generated'}</strong>
-            </article>
-            <article>
-              <span>Bill amount</span>
-              <strong>{formatAmount(generatedBill?.totalAmount || 0)}</strong>
-            </article>
-            <article>
-              <span>Outstanding</span>
-              <strong>{formatAmount(balanceAmount)}</strong>
-            </article>
+          <div className="payment-billing-summary-metrics">
+            <div className="payment-billing-summary-metrics-row payment-billing-summary-metrics-row-general">
+              <article className="payment-billing-summary-metric-item">
+                <span>Farmer</span>
+                <strong>{generatedBill?.farmerName || 'Select farmer and generate bill'}</strong>
+              </article>
+              <article className="payment-billing-summary-metric-item">
+                <span>Bill period</span>
+                <strong>{generatedBill ? `${formatDisplayDate(generatedBill.fromDate)} to ${formatDisplayDate(generatedBill.toDate)}` : 'Not generated'}</strong>
+              </article>
+              <article className="payment-billing-summary-metric-item">
+                <span>Bill amount</span>
+                <strong className="payment-billing-number">{formatAmount(mainGrossAmountTotal)}</strong>
+              </article>
+              <article className="payment-billing-summary-metric-item">
+                <span>Advance deduction</span>
+                <strong className="payment-billing-number">{formatAmount(activeAdvanceRecovery)}</strong>
+              </article>
+              <article className="payment-billing-summary-metric-item payment-billing-summary-metric-item-highlight">
+                <span>Outstanding</span>
+                <strong className="payment-billing-number">{formatAmount(balanceAmount)}</strong>
+              </article>
+            </div>
+
+            <div className="payment-billing-summary-metrics-row payment-billing-summary-metrics-row-loan">
+              <article className="payment-billing-summary-metric-item">
+                <span>Previous Loan Balance</span>
+                <strong className="payment-billing-number">{formatAmount(previousRemainingLoanBalance)}</strong>
+              </article>
+              <article className="payment-billing-summary-metric-item">
+                <span>Current Given Loan amount</span>
+                <strong className="payment-billing-number">{formatAmount(activeLoanRecovery)}</strong>
+              </article>
+              <article className="payment-billing-summary-metric-item">
+                <span>EMI deduction</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={emiDeduction}
+                  onChange={(event) => setEmiDeduction(Math.max(0, Number(event.target.value || 0)))}
+                  disabled={!canEditGeneratedBill || busy || billingActionBusy}
+                />
+              </article>
+              <article className="payment-billing-summary-metric-item payment-billing-summary-metric-item-highlight">
+                <span>Current Loan balance</span>
+                <strong className="payment-billing-number">{formatAmount(loanBalanceAmount)}</strong>
+              </article>
+            </div>
           </div>
 
-          <div className="form two-col payment-billing-form">
+          <div className="form two-col payment-billing-form payment-billing-payment-form">
             <label>
               Payment date
-              <input type="date" value={paymentForm.paymentDate} onChange={(event) => setPaymentForm((prev) => ({ ...prev, paymentDate: event.target.value }))} disabled={!generatedBill} />
+              <input type="date" value={paymentForm.paymentDate} onChange={(event) => setPaymentForm((prev) => ({ ...prev, paymentDate: event.target.value }))} disabled={!generatedBill || isViewModeLocked} />
             </label>
             <label>
               Amount
-              <input type="number" step="0.01" min="0" value={paymentForm.amount} onChange={(event) => setPaymentForm((prev) => ({ ...prev, amount: Number(event.target.value) }))} disabled={!generatedBill} />
+              <input type="number" step="0.01" min="0" value={paymentForm.amount} readOnly disabled={!generatedBill} />
+            </label>
+            <label>
+              Reference no.
+              <input value={paymentForm.referenceNo} onChange={(event) => setPaymentForm((prev) => ({ ...prev, referenceNo: event.target.value }))} disabled={!generatedBill || isViewModeLocked} />
             </label>
             <label>
               Payment mode
-              <select value={paymentForm.mode} onChange={(event) => setPaymentForm((prev) => ({ ...prev, mode: event.target.value as PaymentMode }))} disabled={!generatedBill}>
+              <select value={paymentForm.mode} onChange={(event) => setPaymentForm((prev) => ({ ...prev, mode: event.target.value as PaymentMode }))} disabled={!generatedBill || isViewModeLocked}>
                 {PAYMENT_MODES.map((mode) => (
                   <option key={mode} value={mode}>{mode}</option>
                 ))}
               </select>
             </label>
             <label>
-              Reference no.
-              <input value={paymentForm.referenceNo} onChange={(event) => setPaymentForm((prev) => ({ ...prev, referenceNo: event.target.value }))} disabled={!generatedBill} />
-            </label>
-            <label className="payment-field-wide">
               Remarks
-              <input value={paymentForm.remarks} onChange={(event) => setPaymentForm((prev) => ({ ...prev, remarks: event.target.value }))} disabled={!generatedBill} />
+              <input value={paymentForm.remarks} onChange={(event) => setPaymentForm((prev) => ({ ...prev, remarks: event.target.value }))} disabled={!generatedBill || isViewModeLocked} />
             </label>
-            <button
-              type="button"
-              className="payment-primary-btn payment-field-wide"
-              onClick={() => void addPayment()}
-              disabled={!generatedBill || busy || billingActionBusy || balanceAmount <= 0 || generatedBill?.settlementStatus === 'PAID'}
-            >
-              Record Payment
-            </button>
+            <div className="payment-billing-action-row payment-field-wide">
+              <button
+                type="button"
+                className="payment-secondary-btn"
+                onClick={() => void saveGeneratedBill()}
+                disabled={!canEditGeneratedBill || busy || billingActionBusy}
+              >
+                {generatedBill?.settlementStatus === 'PAID' ? 'Locked' : generatedBill?.settlementUuid && !savedBillEditMode
+                  ? 'Locked'
+                  : getSaveButtonLabel(generatedBill, activeSavedBillUuid)}
+              </button>
+              <button type="button" className="payment-secondary-btn" onClick={printBill} disabled={!generatedBill || busy || billingActionBusy}>
+                Print / Save PDF
+              </button>
+              <button
+                type="button"
+                className="payment-primary-btn"
+                onClick={() => void addPayment()}
+                disabled={!generatedBill || busy || billingActionBusy || balanceAmount <= 0 || generatedBill?.settlementStatus === 'PAID' || isViewModeLocked}
+              >
+                Record Payment
+              </button>
+            </div>
           </div>
 
-          <div className="table-wrap payment-ledger-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Sr</th>
-                  <th>Date</th>
-                  <th>Mode</th>
-                  <th>Amount</th>
-                  <th>Reference</th>
-                  <th>Remarks</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payments.length === 0 && (
-                  <tr>
-                    <td colSpan={6}>No payments recorded for the current bill.</td>
-                  </tr>
-                )}
-                {payments.map((item, index) => (
-                  <tr key={item.uuid}>
-                    <td>{index + 1}</td>
-                    <td>{formatDisplayDate(item.paymentDate)}</td>
-                    <td>{item.mode}</td>
-                    <td>{formatAmount(item.amount)}</td>
-                    <td>{item.referenceNo || '-'}</td>
-                    <td>{item.remarks || '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="payment-billing-footer-summary">
-            <article>
-              <span>Bill Amount</span>
-              <strong>{formatAmount(generatedBill?.totalAmount || totalAmount)}</strong>
-            </article>
-            <article>
-              <span>Paid Total</span>
-              <strong>{formatAmount(paidAmount)}</strong>
-            </article>
-            <article>
-              <span>Outstanding</span>
-              <strong>{formatAmount(balanceAmount)}</strong>
-            </article>
-            <article>
-              <span>Collection Count</span>
-              <strong>{generatedBill?.collections.length || filteredCollections.length}</strong>
-            </article>
-          </div>
         </section>
 
-        <section className="payment-billing-card payment-billing-saved-section">
-          <div className="payment-billing-card-head">
+        {showSavedBills && (
+        <section className="payment-billing-summary-shell payment-billing-saved-shell">
+          <div className="payment-billing-summary-shell-head payment-billing-saved-shell-head">
             <h3>Saved Bills</h3>
             <input
               type="search"
@@ -1282,36 +1458,66 @@ export function MilkCollectionBillingPaymentsPage({
           </div>
 
           <div className="payment-billing-saved-list">
-            {filteredSavedBills.length === 0 && <p className="subtle">No saved bills found.</p>}
+            <div className="payment-billing-saved-grid-head" role="row">
+              <span>Bill No</span>
+              <span>Farmer</span>
+              <span>Status</span>
+              <span>Period</span>
+              <span>Totals</span>
+              <span>Actions</span>
+            </div>
+
+            {filteredSavedBills.length === 0 && (
+              <div className="payment-billing-saved-grid-empty">No saved bills found.</div>
+            )}
+
             {filteredSavedBills.map((bill) => (
-              <article key={bill.uuid} className="payment-billing-saved-item">
-                <strong>{bill.billNo}</strong>
-                <span>{bill.farmerName}</span>
-                <span className={getSettlementStatusClassName(bill.settlementStatus)}>
-                  {getSettlementStatusLabel(bill.settlementStatus)}
-                </span>
-                <small>{formatDisplayDate(bill.fromDate)} to {formatDisplayDate(bill.toDate)}</small>
-                <small>
-                  Qty {formatAmount(bill.totalQty)} | Amount {formatAmount(bill.totalAmount)}
-                </small>
-                <div className="payment-billing-saved-actions">
-                  <button type="button" className="payment-secondary-btn" onClick={() => void openSavedBill(bill)}>
-                    View / Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="payment-secondary-btn"
-                    onClick={() => void deleteSavedBill(bill.uuid)}
-                    disabled={bill.settlementStatus === 'PAID'}
-                    title={bill.settlementStatus === 'PAID' ? 'Paid settlements cannot be deleted.' : 'Delete settlement'}
-                  >
-                    Delete
-                  </button>
+              <div key={bill.uuid} className="payment-billing-saved-grid-row" role="row">
+                <div className="payment-billing-saved-grid-cell" data-label="Bill No">
+                  <strong>{bill.billNo}</strong>
                 </div>
-              </article>
+                <div className="payment-billing-saved-grid-cell" data-label="Farmer">
+                  {bill.farmerName}
+                </div>
+                <div className="payment-billing-saved-grid-cell" data-label="Status">
+                  <span className={getSettlementStatusClassName(bill.settlementStatus)}>
+                    {getSettlementStatusLabel(bill.settlementStatus)}
+                  </span>
+                </div>
+                <div className="payment-billing-saved-grid-cell" data-label="Period">
+                  {formatDisplayDate(bill.fromDate)} to {formatDisplayDate(bill.toDate)}
+                </div>
+                <div className="payment-billing-saved-grid-cell payment-billing-saved-grid-cell-number" data-label="Totals">
+                  Qty {formatAmount(bill.totalQty)} | Amount {formatAmount(bill.totalAmount)}
+                </div>
+                <div className="payment-billing-saved-grid-cell" data-label="Actions">
+                  <div className="payment-billing-saved-actions">
+                    <button type="button" className="payment-secondary-btn" onClick={() => void openSavedBill(bill, 'view')}>
+                      View
+                    </button>
+                    <button
+                      type="button"
+                      className="payment-secondary-btn"
+                      onClick={() => void openSavedBill(bill, 'edit')}
+                      disabled={bill.settlementStatus === 'PAID'}
+                      title={bill.settlementStatus === 'PAID' ? 'Paid settlements are always locked.' : 'Edit bill and re-generate'}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => void deleteSavedBill(bill.uuid)}
+                      disabled={bill.settlementStatus === 'PAID'}
+                      title={bill.settlementStatus === 'PAID' ? 'Paid settlements cannot be deleted.' : 'Delete settlement'}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         </section>
+        )}
       </div>
 
       {generatedBill && (
@@ -1338,6 +1544,10 @@ export function MilkCollectionBillingPaymentsPage({
               <span>Collections found</span>
               <strong>{generatedBill.collections.length}</strong>
             </article>
+            <article>
+              <span>Advance Deduction</span>
+              <strong>{formatAmount(activeAdvanceRecovery)}</strong>
+            </article>
           </div>
 
           <div className="table-wrap payment-template-table-wrap payment-billing-print-table-wrap">
@@ -1358,12 +1568,15 @@ export function MilkCollectionBillingPaymentsPage({
                 <col className="payment-col-amount" />
                 <col className="payment-col-total" />
                 <col className="payment-col-total" />
+                <col className="payment-col-total" />
+                <col className="payment-col-total" />
               </colgroup>
               <thead>
                 <tr>
                   <th rowSpan={2} className="payment-billing-shared-date-head">Date</th>
                   <th colSpan={2 + (printShowFatColumn ? 1 : 0) + (printShowSnfColumn ? 1 : 0) + 2}>Morning Collection</th>
                   <th colSpan={2 + (printShowFatColumn ? 1 : 0) + (printShowSnfColumn ? 1 : 0) + 2}>Evening Collection</th>
+                  <th colSpan={2} className="payment-billing-shared-total-head payment-billing-shared-deduction-head">Shared Deductions</th>
                   <th colSpan={2} className="payment-billing-shared-total-head">Day Total</th>
                 </tr>
                 <tr>
@@ -1379,6 +1592,8 @@ export function MilkCollectionBillingPaymentsPage({
                   {printShowSnfColumn && <th>SNF</th>}
                   <th>Rate</th>
                   <th>Amount</th>
+                  <th className="payment-billing-shared-total-start payment-billing-shared-deduction-start">Loan</th>
+                  <th className="payment-billing-shared-total-cell payment-billing-shared-deduction-cell">Advance</th>
                   <th className="payment-billing-shared-total-start">Total Milk</th>
                   <th className="payment-billing-shared-total-cell">Total for the day</th>
                 </tr>
@@ -1386,7 +1601,7 @@ export function MilkCollectionBillingPaymentsPage({
               <tbody>
                 {printCombinedBillRows.length === 0 && (
                   <tr>
-                    <td colSpan={3 + ((2 + (printShowFatColumn ? 1 : 0) + (printShowSnfColumn ? 1 : 0) + 2) * 2)}>No collection data found for this filter.</td>
+                    <td colSpan={3 + ((2 + (printShowFatColumn ? 1 : 0) + (printShowSnfColumn ? 1 : 0) + 2) * 2) + 2}>No collection data found for this filter.</td>
                   </tr>
                 )}
                 {printCombinedBillRows.map((row, index) => {
@@ -1397,26 +1612,38 @@ export function MilkCollectionBillingPaymentsPage({
                   const eveningQty = Number(eveningItem?.quantity || 0)
                   const morningAmount = Number(morningItem?.grossAmount || 0)
                   const eveningAmount = Number(eveningItem?.grossAmount || 0)
+                  const morningLoan = Number(morningItem?.loan || 0)
+                  const eveningLoan = Number(eveningItem?.loan || 0)
+                  const morningAdvance = Number(morningItem?.advance || 0)
+                  const eveningAdvance = Number(eveningItem?.advance || 0)
                   const totalMilkForRow = morningQty + eveningQty
-                  const totalAmountForRow = morningAmount + eveningAmount
+                  const rowLoanTotal = morningLoan + eveningLoan
+                  const rowAdvanceTotal = morningAdvance + eveningAdvance
+                  const totalAmountForRow = morningAmount + eveningAmount - rowAdvanceTotal
 
                   return (
                     <tr key={`${morningItem?.uuid || 'morning-empty'}-${eveningItem?.uuid || 'evening-empty'}-${index}`}>
                       <td className="payment-billing-shared-date-cell">{sharedDate}</td>
                       <td>{morningItem?.collectionNo || '-'}</td>
-                      <td>{morningItem ? morningItem.quantity : '-'}</td>
-                      {printShowFatColumn && <td>{morningItem?.fat != null ? morningItem.fat : '-'}</td>}
-                      {printShowSnfColumn && <td>{morningItem?.snf != null ? morningItem.snf : '-'}</td>}
-                      <td>{morningItem ? formatAmount(getRowRate(morningItem)) : '-'}</td>
-                      <td className="payment-billing-divider-cell">{morningItem ? formatAmount(morningItem.grossAmount) : '-'}</td>
+                      <td className="payment-billing-number">{morningItem ? morningItem.quantity : '-'}</td>
+                      {printShowFatColumn && <td className="payment-billing-number">{morningItem?.fat != null ? morningItem.fat : '-'}</td>}
+                      {printShowSnfColumn && <td className="payment-billing-number">{morningItem?.snf != null ? morningItem.snf : '-'}</td>}
+                      <td className="payment-billing-number">{morningItem ? formatAmount(getRowRate(morningItem)) : '-'}</td>
+                      <td className="payment-billing-divider-cell payment-billing-number">{morningItem ? formatAmount(morningItem.grossAmount) : '-'}</td>
                       <td>{eveningItem?.collectionNo || '-'}</td>
-                      <td>{eveningItem ? eveningItem.quantity : '-'}</td>
-                      {printShowFatColumn && <td>{eveningItem?.fat != null ? eveningItem.fat : '-'}</td>}
-                      {printShowSnfColumn && <td>{eveningItem?.snf != null ? eveningItem.snf : '-'}</td>}
-                      <td>{eveningItem ? formatAmount(getRowRate(eveningItem)) : '-'}</td>
-                      <td>{eveningItem ? formatAmount(eveningItem.grossAmount) : '-'}</td>
-                      <td className="payment-billing-shared-total-start">{formatAmount(totalMilkForRow)}</td>
-                      <td className="payment-billing-shared-total-cell">{formatAmount(totalAmountForRow)}</td>
+                      <td className="payment-billing-number">{eveningItem ? eveningItem.quantity : '-'}</td>
+                      {printShowFatColumn && <td className="payment-billing-number">{eveningItem?.fat != null ? eveningItem.fat : '-'}</td>}
+                      {printShowSnfColumn && <td className="payment-billing-number">{eveningItem?.snf != null ? eveningItem.snf : '-'}</td>}
+                      <td className="payment-billing-number">{eveningItem ? formatAmount(getRowRate(eveningItem)) : '-'}</td>
+                      <td className="payment-billing-number">{eveningItem ? formatAmount(eveningItem.grossAmount) : '-'}</td>
+                      <td className="payment-billing-shared-total-start payment-billing-shared-deduction-start payment-billing-number">{formatAmount(rowLoanTotal)}</td>
+                      <td className="payment-billing-shared-total-cell payment-billing-shared-deduction-cell payment-billing-number">{formatAmount(rowAdvanceTotal)}</td>
+                      <td className="payment-billing-shared-total-start payment-billing-number">{formatAmount(totalMilkForRow)}</td>
+                      <td className={[
+                        'payment-billing-shared-total-cell',
+                        'payment-billing-number',
+                        totalAmountForRow < 0 ? 'payment-billing-number-negative' : '',
+                      ].filter(Boolean).join(' ')}>{formatAmount(totalAmountForRow)}</td>
                     </tr>
                   )
                 })}
@@ -1425,17 +1652,23 @@ export function MilkCollectionBillingPaymentsPage({
                 <tr className="payment-template-footer-row">
                   <td className="payment-billing-shared-date-cell">Totals</td>
                   <td colSpan={1}>Morning Totals</td>
-                  <td>{formatAmount(printSplitCollectionsByShift.morning.reduce((sum, item) => sum + Number(item.quantity || 0), 0))}</td>
+                  <td className="payment-billing-number">{formatAmount(printSplitCollectionsByShift.morning.reduce((sum, item) => sum + Number(item.quantity || 0), 0))}</td>
                   {printHiddenQualityColumnCount > 0 && <td colSpan={printHiddenQualityColumnCount} />}
-                  <td>{formatAmount(printSplitCollectionsByShift.morning.reduce((sum, item) => sum + Number(item.quantity || 0), 0) > 0 ? printSplitCollectionsByShift.morning.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0) / printSplitCollectionsByShift.morning.reduce((sum, item) => sum + Number(item.quantity || 0), 0) : 0)}</td>
-                  <td className="payment-billing-divider-cell">{formatAmount(printSplitCollectionsByShift.morning.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0))}</td>
+                  <td className="payment-billing-number">-</td>
+                  <td className="payment-billing-divider-cell payment-billing-number">{formatAmount(printSplitCollectionsByShift.morning.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0))}</td>
                   <td colSpan={1}>Evening Totals</td>
-                  <td>{formatAmount(printSplitCollectionsByShift.evening.reduce((sum, item) => sum + Number(item.quantity || 0), 0))}</td>
+                  <td className="payment-billing-number">{formatAmount(printSplitCollectionsByShift.evening.reduce((sum, item) => sum + Number(item.quantity || 0), 0))}</td>
                   {printHiddenQualityColumnCount > 0 && <td colSpan={printHiddenQualityColumnCount} />}
-                  <td>{formatAmount(printSplitCollectionsByShift.evening.reduce((sum, item) => sum + Number(item.quantity || 0), 0) > 0 ? printSplitCollectionsByShift.evening.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0) / printSplitCollectionsByShift.evening.reduce((sum, item) => sum + Number(item.quantity || 0), 0) : 0)}</td>
-                  <td>{formatAmount(printSplitCollectionsByShift.evening.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0))}</td>
-                  <td className="payment-billing-shared-total-start">{formatAmount(generatedBill.totalQty || 0)}</td>
-                  <td className="payment-billing-shared-total-cell">{formatAmount(generatedBill.totalAmount || 0)}</td>
+                  <td className="payment-billing-number">-</td>
+                  <td className="payment-billing-number">{formatAmount(printSplitCollectionsByShift.evening.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0))}</td>
+                  <td className="payment-billing-shared-total-start payment-billing-shared-deduction-start payment-billing-number">{formatAmount(activeLoanRecovery)}</td>
+                  <td className="payment-billing-shared-total-cell payment-billing-shared-deduction-cell payment-billing-number">{formatAmount(activeAdvanceRecovery)}</td>
+                  <td className="payment-billing-shared-total-start payment-billing-number">{formatAmount(generatedBill.totalQty || 0)}</td>
+                  <td className={[
+                    'payment-billing-shared-total-cell',
+                    'payment-billing-number',
+                    printNetDayTotalAmount < 0 ? 'payment-billing-number-negative' : '',
+                  ].filter(Boolean).join(' ')}>{formatAmount(printNetDayTotalAmount)}</td>
                 </tr>
               </tfoot>
             </table>

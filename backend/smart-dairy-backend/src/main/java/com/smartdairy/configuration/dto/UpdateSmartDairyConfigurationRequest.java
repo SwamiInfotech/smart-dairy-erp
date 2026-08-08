@@ -14,6 +14,7 @@ public class UpdateSmartDairyConfigurationRequest {
 
     // Milk Collection Settings
     private Boolean collectionFat;
+    private Boolean collectionSnf;
     private Boolean collectionMava;
 
     @Min(value = 1, message = "Morning collection limit must be at least 1")
@@ -37,7 +38,7 @@ public class UpdateSmartDairyConfigurationRequest {
     // Backdated Collection Settings
     private Boolean allowBackdatedEntry;
 
-    @Min(value = 1, message = "Maximum backdated days must be at least 1")
+    @Min(value = 0, message = "Maximum backdated days cannot be negative")
     private Integer maxBackdatedDays;
 
     // Collection Lock Settings

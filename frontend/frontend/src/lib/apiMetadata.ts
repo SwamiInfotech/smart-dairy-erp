@@ -192,7 +192,7 @@ export const BACKEND_MODULES: Record<string, BackendModuleDefinition> = {
     ],
   },
   paymentCycles: {
-    label: 'Payment Cycles',
+    label: 'Farmer Billing/Payment Cycles',
     endpoints: [
       { method: 'GET', path: '/api/v1/payment-cycles' },
       { method: 'POST', path: '/api/v1/payment-cycles' },

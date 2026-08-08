@@ -83,6 +83,12 @@ public class MilkCollection extends BaseEntity {
     @Column(precision = 6, scale = 2)
     private BigDecimal mava;
 
+        @Column(nullable = false, precision = 12, scale = 2)
+        private BigDecimal loan = BigDecimal.ZERO;
+
+        @Column(nullable = false, precision = 12, scale = 2)
+        private BigDecimal advance = BigDecimal.ZERO;
+
     @Column(name = "calculated_rate", nullable = false, precision = 10, scale = 2)
     private BigDecimal calculatedRate;
 

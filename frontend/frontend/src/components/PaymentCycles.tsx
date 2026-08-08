@@ -27,8 +27,8 @@ export function PaymentCycles({
     <div className="collection-methods-layout">
       <section className="collection-methods-card">
         <div className="collection-methods-head">
-          <p className="eyebrow">Payment Cycle Master</p>
-          <h3>{editingUuid ? 'Edit Payment Cycle' : 'Create Payment Cycle'}</h3>
+          <p className="eyebrow">Farmer Billing/Payment Cycle Master</p>
+          <h3>{editingUuid ? 'Edit Farmer Billing/Payment Cycle' : 'Create Farmer Billing/Payment Cycle'}</h3>
           <p className="subtle">Contract: /api/v1/payment-cycles</p>
         </div>
 
@@ -45,7 +45,7 @@ export function PaymentCycles({
               required
               value={form.code}
               onChange={(event) => onFormChange({ ...form, code: event.target.value })}
-              placeholder="Example: WEEKLY"
+              placeholder="Example: FARMER_BILLING_PAYMENT_CYCLE_WEEKLY"
             />
           </label>
 
@@ -55,7 +55,7 @@ export function PaymentCycles({
               required
               value={form.name}
               onChange={(event) => onFormChange({ ...form, name: event.target.value })}
-              placeholder="Example: Weekly"
+              placeholder="Example: Farmer Billing/Payment Cycle - Weekly"
             />
           </label>
 
@@ -115,7 +115,7 @@ export function PaymentCycles({
       <section className="collection-methods-card">
         <div className="collection-methods-head">
           <p className="eyebrow">Configured Cycles</p>
-          <h3>Payment Cycle List</h3>
+          <h3>Farmer Billing/Payment Cycle List</h3>
           <p className="subtle">Fetched from /api/v1/payment-cycles</p>
         </div>
 
@@ -134,7 +134,7 @@ export function PaymentCycles({
             <tbody>
               {cycles.length === 0 && (
                 <tr>
-                  <td colSpan={6}>No payment cycles found.</td>
+                  <td colSpan={6}>No Farmer Billing/Payment cycles found.</td>
                 </tr>
               )}
               {cycles.map((item) => (

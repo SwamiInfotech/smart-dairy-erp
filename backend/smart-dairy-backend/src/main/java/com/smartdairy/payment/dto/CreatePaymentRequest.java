@@ -17,6 +17,8 @@ public record CreatePaymentRequest(
         @NotNull
         PaymentMode paymentMode,
 
+        String referenceNo,
+
         String remarks
 
 ) {

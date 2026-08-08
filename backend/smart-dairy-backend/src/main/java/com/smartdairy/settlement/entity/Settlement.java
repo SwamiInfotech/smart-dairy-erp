@@ -61,6 +61,18 @@ public class Settlement extends BaseEntity {
     @Column(name = "net_payable", nullable = false, precision = 12, scale = 2)
     private BigDecimal netPayable = BigDecimal.ZERO;
 
+        @Column(name = "outstanding_loan_before", nullable = false, precision = 12, scale = 2)
+        private BigDecimal outstandingLoanBefore = BigDecimal.ZERO;
+
+        @Column(name = "outstanding_advance_before", nullable = false, precision = 12, scale = 2)
+        private BigDecimal outstandingAdvanceBefore = BigDecimal.ZERO;
+
+        @Column(name = "calculated_loan_recovery", nullable = false, precision = 12, scale = 2)
+        private BigDecimal calculatedLoanRecovery = BigDecimal.ZERO;
+
+        @Column(name = "calculated_advance_recovery", nullable = false, precision = 12, scale = 2)
+        private BigDecimal calculatedAdvanceRecovery = BigDecimal.ZERO;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private SettlementStatus status;

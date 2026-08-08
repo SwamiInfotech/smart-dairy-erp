@@ -34,6 +34,14 @@ public record SettlementResponse(
 
         BigDecimal netPayable,
 
+        BigDecimal outstandingLoanBefore,
+
+        BigDecimal outstandingAdvanceBefore,
+
+        BigDecimal calculatedLoanRecovery,
+
+        BigDecimal calculatedAdvanceRecovery,
+
         SettlementStatus status,
 
         String remarks

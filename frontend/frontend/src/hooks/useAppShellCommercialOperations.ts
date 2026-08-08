@@ -73,6 +73,7 @@ export function useAppShellCommercialOperations(state: AppShellState) {
   const collectionCrud = useCollectionCrud({
     token: session.token,
     collectionForm: forms.collectionForm,
+    collections: entities.collections,
     farmers: entities.farmers,
     shifts: entities.shifts,
     milkTypes: entities.milkTypes,

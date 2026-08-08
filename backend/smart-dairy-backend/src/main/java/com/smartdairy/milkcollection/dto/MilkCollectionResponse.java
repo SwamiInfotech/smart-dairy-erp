@@ -39,6 +39,10 @@ public record MilkCollectionResponse(
 
         BigDecimal mava,
 
+        BigDecimal loan,
+
+        BigDecimal advance,
+
         BigDecimal calculatedRate,
 
         CollectionEntryMode entryMode,

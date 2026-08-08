@@ -28,6 +28,8 @@ public record PaymentResponse(
 
         PaymentMode paymentMode,
 
+        String referenceNo,
+
         String remarks
 
 ) {

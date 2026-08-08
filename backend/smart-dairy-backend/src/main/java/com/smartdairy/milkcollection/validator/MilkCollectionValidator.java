@@ -10,6 +10,14 @@ public class MilkCollectionValidator {
 
     public void validate(CreateMilkCollectionRequest request) {
 
+        if (request.loan() != null && request.loan().signum() < 0) {
+            throw new BusinessException("Loan cannot be negative.");
+        }
+
+        if (request.advance() != null && request.advance().signum() < 0) {
+            throw new BusinessException("Advance cannot be negative.");
+        }
+
         boolean fatCollection = request.fat() != null;
 
         boolean mavaCollection =
@@ -34,6 +42,14 @@ public class MilkCollectionValidator {
     }
 
     public void validate(UpdateMilkCollectionRequest request) {
+
+        if (request.loan() != null && request.loan().signum() < 0) {
+            throw new BusinessException("Loan cannot be negative.");
+        }
+
+        if (request.advance() != null && request.advance().signum() < 0) {
+            throw new BusinessException("Advance cannot be negative.");
+        }
 
         boolean fatCollection = request.fat() != null;
 

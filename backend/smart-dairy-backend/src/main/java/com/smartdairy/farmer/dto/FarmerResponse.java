@@ -51,6 +51,8 @@ public record FarmerResponse(
 
         LocalDate configEffectiveFrom,
 
+        String billingCycle,
+
         Boolean active
 
 ) {

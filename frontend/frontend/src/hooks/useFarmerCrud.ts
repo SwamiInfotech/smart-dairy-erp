@@ -9,7 +9,6 @@ import {
   isValidEmail,
   isValidPan,
   isValidPincode,
-  toInputDate,
 } from '../lib/appCoreUtils'
 import { roundToTwo } from '../lib/uiHelpers'
 import type {
@@ -62,6 +61,7 @@ export function useFarmerCrud<TCollectionForm extends CollectionFormForFarmerSyn
   setSelectedCollectionMethod,
   setCollectionForm,
 }: UseFarmerCrudParams<TCollectionForm>) {
+  const DEFAULT_FARMER_CONFIG_EFFECTIVE_FROM = '2026-04-01'
   const [editingFarmerUuid, setEditingFarmerUuid] = useState('')
   const [selectedFarmerRateChartUuid, setSelectedFarmerRateChartUuid] = useState('')
   const [farmerMappedFieldError, setFarmerMappedFieldError] = useState('')
@@ -87,8 +87,9 @@ export function useFarmerCrud<TCollectionForm extends CollectionFormForFarmerSyn
     milkRateChartUuid: '',
     collectionMethodUuid: '',
     paymentCycleUuid: '',
+    billingCycle: 'WEEKLY',
     rateCategoryUuid: '',
-    configEffectiveFrom: toInputDate(new Date()),
+    configEffectiveFrom: DEFAULT_FARMER_CONFIG_EFFECTIVE_FROM,
   })
 
   useEffect(() => {
@@ -125,8 +126,21 @@ export function useFarmerCrud<TCollectionForm extends CollectionFormForFarmerSyn
   useEffect(() => {
     if (!Array.isArray(paymentCycles) || paymentCycles.length === 0) return
 
-    const weeklyPaymentCycle = findLookupByLabel(paymentCycles, 'weekly')
-    const targetPaymentCycleUuid = weeklyPaymentCycle?.uuid || paymentCycles[0]?.uuid || ''
+    const preferredCycleLabels = [
+      'farmer_billing_payment_cycle_weekly',
+      'farmer billing/payment cycle - weekly',
+      'farmer billing payment cycle weekly',
+      'weekly',
+      'week',
+      '7',
+    ]
+
+    const preferredCycle =
+      preferredCycleLabels
+        .map((label) => findLookupByLabel(paymentCycles, label))
+        .find(Boolean) || null
+
+    const targetPaymentCycleUuid = preferredCycle?.uuid || paymentCycles[0]?.uuid || ''
 
     if (!targetPaymentCycleUuid) return
 
@@ -177,8 +191,9 @@ export function useFarmerCrud<TCollectionForm extends CollectionFormForFarmerSyn
       milkRateChartUuid: '',
       collectionMethodUuid: '',
       paymentCycleUuid: '',
+      billingCycle: 'WEEKLY',
       rateCategoryUuid: '',
-      configEffectiveFrom: toInputDate(new Date()),
+      configEffectiveFrom: DEFAULT_FARMER_CONFIG_EFFECTIVE_FROM,
     })
   }, [branchUuid, nextFarmerCode])
 
@@ -198,6 +213,9 @@ export function useFarmerCrud<TCollectionForm extends CollectionFormForFarmerSyn
       const aadharNo = farmerForm.aadharNo.trim()
       const panNo = farmerForm.panNo.trim().toUpperCase()
       const photoUrl = farmerForm.photoUrl.trim()
+      const billingCycle =
+        typeof farmerForm.billingCycle === 'string' ? farmerForm.billingCycle.trim() : ''
+      const normalizedBillingCycle = billingCycle || 'WEEKLY'
 
       if (!targetBranchUuid || !isUuid(targetBranchUuid)) {
         setError('Valid branch UUID is required for farmer creation.')
@@ -214,8 +232,8 @@ export function useFarmerCrud<TCollectionForm extends CollectionFormForFarmerSyn
         return
       }
 
-      if (!farmerForm.paymentCycleUuid.trim()) {
-        setError('Select a Payment Cycle for farmer configuration.')
+      if (!normalizedBillingCycle) {
+        setError('Farmer Billing/Payment Cycle is required.')
         return
       }
 
@@ -316,6 +334,7 @@ export function useFarmerCrud<TCollectionForm extends CollectionFormForFarmerSyn
               milkRateChartUuid: farmerForm.milkRateChartUuid,
               collectionMethodUuid: farmerForm.collectionMethodUuid,
               paymentCycleUuid: farmerForm.paymentCycleUuid,
+              billingCycle: normalizedBillingCycle,
               rateCategoryUuid: farmerForm.rateCategoryUuid,
               configEffectiveFrom: farmerForm.configEffectiveFrom,
             })
@@ -341,6 +360,7 @@ export function useFarmerCrud<TCollectionForm extends CollectionFormForFarmerSyn
               milkRateChartUuid: farmerForm.milkRateChartUuid,
               collectionMethodUuid: farmerForm.collectionMethodUuid,
               paymentCycleUuid: farmerForm.paymentCycleUuid,
+              billingCycle: normalizedBillingCycle,
               rateCategoryUuid: farmerForm.rateCategoryUuid,
               configEffectiveFrom: farmerForm.configEffectiveFrom,
             })
@@ -453,6 +473,7 @@ export function useFarmerCrud<TCollectionForm extends CollectionFormForFarmerSyn
         milkRateChartUuid: chartUuid,
         collectionMethodUuid: farmer.collectionMethodUuid || prev.collectionMethodUuid,
         paymentCycleUuid: farmer.paymentCycleUuid || prev.paymentCycleUuid,
+        billingCycle: farmer.billingCycle || prev.billingCycle || 'WEEKLY',
         rateCategoryUuid: farmer.rateCategoryUuid || prev.rateCategoryUuid,
         configEffectiveFrom: farmer.configEffectiveFrom || prev.configEffectiveFrom,
       }))

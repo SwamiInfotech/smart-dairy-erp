@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.math.BigDecimal;
 
 @Service
 @Slf4j
@@ -157,6 +158,8 @@ public class CreateMilkCollectionService {
             entity.setCollectionMethod(row.result().farmerConfiguration().getCollectionMethod());
             entity.setCalculatedRate(row.result().calculatedRate());
             entity.setGrossAmount(row.result().grossAmount());
+            entity.setLoan(request.loan() == null ? BigDecimal.ZERO : request.loan());
+            entity.setAdvance(request.advance() == null ? BigDecimal.ZERO : request.advance());
             entity.setEntryMode(request.entryMode() == null ? CollectionEntryMode.SINGLE : request.entryMode());
             entity.setEntryType(EntryType.REGULAR);
             entity.setEntrySource(EntrySource.WEB);

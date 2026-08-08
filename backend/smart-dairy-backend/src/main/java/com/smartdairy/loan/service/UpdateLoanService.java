@@ -37,6 +37,7 @@ public class UpdateLoanService {
 
 
         loan.setLoanDate(request.loanDate());
+        loan.setLoanAmount(request.sanctionedAmount());
         loan.setRemarks(request.remarks());
 
         return mapper.toResponse(repository.save(loan));

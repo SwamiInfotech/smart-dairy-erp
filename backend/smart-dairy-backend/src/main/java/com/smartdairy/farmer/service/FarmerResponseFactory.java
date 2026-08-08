@@ -50,6 +50,7 @@ public class FarmerResponseFactory {
                         ? activeConfiguration.getRateCategory().getUuid()
                         : null,
                 activeConfiguration != null ? activeConfiguration.getEffectiveFrom() : null,
+                farmer.getBillingCycle() != null ? farmer.getBillingCycle().name() : null,
                 farmer.getActive()
         );
     }

@@ -44,13 +44,27 @@ public class GenerateSettlementServiceImpl implements GenerateSettlementService 
 
         BigDecimal milkAmount = getMilkAmount(request);
 
-        BigDecimal outstandingLoan = getOutstandingLoan(request);
+        BigDecimal calculatedLoanRecovery = getLoanRecoveryFromCollections(request);
 
-        BigDecimal outstandingAdvance = getOutstandingAdvance(request);
+        BigDecimal requestedLoanRecovery = resolveRecovery(
+                request.loanRecovery(),
+                calculatedLoanRecovery);
 
-        validateRecovery(request.loanRecovery(), outstandingLoan, "Loan");
+        BigDecimal calculatedAdvanceRecovery = getAdvanceRecoveryFromCollections(request);
 
-        validateRecovery(request.advanceRecovery(), outstandingAdvance, "Advance");
+        BigDecimal requestedAdvanceRecovery = resolveRecovery(
+                request.advanceRecovery(),
+                calculatedAdvanceRecovery);
+
+        BigDecimal outstandingLoan = sanitizeOutstanding(getOutstandingLoan(request));
+
+        BigDecimal outstandingAdvance = sanitizeOutstanding(getOutstandingAdvance(request));
+
+        validateNonNegative(requestedLoanRecovery, "Loan recovery");
+        validateNonNegative(requestedAdvanceRecovery, "Advance recovery");
+
+        BigDecimal loanRecovery = capRecoveryToOutstanding(requestedLoanRecovery, outstandingLoan);
+        BigDecimal advanceRecovery = capRecoveryToOutstanding(requestedAdvanceRecovery, outstandingAdvance);
 
         Settlement settlement = mapper.toEntity(request);
 
@@ -62,18 +76,35 @@ public class GenerateSettlementServiceImpl implements GenerateSettlementService 
 
         settlement.setMilkAmount(milkAmount);
 
+        settlement.setLoanRecovery(loanRecovery);
+
+        settlement.setAdvanceRecovery(advanceRecovery);
+
+        settlement.setOutstandingLoanBefore(outstandingLoan);
+
+        settlement.setOutstandingAdvanceBefore(outstandingAdvance);
+
+        settlement.setCalculatedLoanRecovery(amountOrZero(calculatedLoanRecovery.subtract(loanRecovery)));
+
+        settlement.setCalculatedAdvanceRecovery(amountOrZero(calculatedAdvanceRecovery.subtract(advanceRecovery)));
+
         settlement.setStatus(SettlementStatus.GENERATED);
 
         settlement.setNetPayable(calculateNetPayable(
                 milkAmount,
                 request.bonusAmount(),
-                request.loanRecovery(),
-                request.advanceRecovery(),
+            loanRecovery,
+            advanceRecovery,
                 request.otherDeduction()));
 
         Settlement saved = settlementRepository.save(settlement);
 
-        return mapper.toResponse(saved);
+        return withComputationContext(
+                mapper.toResponse(saved),
+                outstandingLoan,
+                outstandingAdvance,
+                calculatedLoanRecovery,
+                calculatedAdvanceRecovery);
     }
 
     private BigDecimal getMilkAmount(GenerateSettlementRequest request) {
@@ -94,6 +125,15 @@ public class GenerateSettlementServiceImpl implements GenerateSettlementService 
         return approved.subtract(recovered);
     }
 
+    private BigDecimal getLoanRecoveryFromCollections(
+            GenerateSettlementRequest request) {
+
+        return milkCollectionRepository.getLoanAmount(
+                request.farmerUuid(),
+                request.fromDate(),
+                request.toDate());
+    }
+
     private BigDecimal getOutstandingAdvance(
             GenerateSettlementRequest request) {
 
@@ -104,19 +144,55 @@ public class GenerateSettlementServiceImpl implements GenerateSettlementService 
         return approved.subtract(recovered);
     }
 
-    private void validateRecovery(
-            BigDecimal recovery,
-            BigDecimal outstanding,
-            String type) {
+    private BigDecimal getAdvanceRecoveryFromCollections(
+            GenerateSettlementRequest request) {
 
-        if (recovery == null) {
-            return;
+        return milkCollectionRepository.getAdvanceAmount(
+                request.farmerUuid(),
+                request.fromDate(),
+                request.toDate());
+    }
+
+    private void validateNonNegative(BigDecimal amount, String label) {
+
+        if (amount != null && amount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(label + " amount cannot be negative.");
+        }
+    }
+
+    private BigDecimal resolveRecovery(BigDecimal explicitAmount, BigDecimal calculatedAmount) {
+
+        if (explicitAmount != null) {
+            return explicitAmount;
         }
 
-        if (recovery.compareTo(outstanding) > 0) {
-            throw new BusinessException(
-                    type + " recovery amount cannot exceed outstanding amount.");
+        return calculatedAmount == null ? BigDecimal.ZERO : calculatedAmount;
+    }
+
+    private BigDecimal sanitizeOutstanding(BigDecimal amount) {
+
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) < 0) {
+            return BigDecimal.ZERO;
         }
+
+        return amount;
+    }
+
+    private BigDecimal capRecoveryToOutstanding(BigDecimal recovery, BigDecimal outstanding) {
+
+        BigDecimal safeRecovery = amountOrZero(recovery);
+        BigDecimal safeOutstanding = sanitizeOutstanding(outstanding);
+
+        if (safeRecovery.compareTo(safeOutstanding) > 0) {
+            return safeOutstanding;
+        }
+
+        return safeRecovery;
+    }
+
+    private BigDecimal amountOrZero(BigDecimal amount) {
+
+        return amount == null ? BigDecimal.ZERO : amount;
     }
 
     private BigDecimal calculateNetPayable(
@@ -132,19 +208,48 @@ public class GenerateSettlementServiceImpl implements GenerateSettlementService 
             total = total.add(bonus);
         }
 
-        if (loanRecovery != null) {
+        /*if (loanRecovery != null) {
             total = total.subtract(loanRecovery);
-        }
+        }*/
 
-        if (advanceRecovery != null) {
+        /*if (advanceRecovery != null) {
             total = total.subtract(advanceRecovery);
-        }
+        }*/
 
         if (otherDeduction != null) {
             total = total.subtract(otherDeduction);
         }
 
         return total;
+    }
+
+    private SettlementResponse withComputationContext(
+            SettlementResponse response,
+            BigDecimal outstandingLoanBefore,
+            BigDecimal outstandingAdvanceBefore,
+            BigDecimal calculatedLoanRecovery,
+            BigDecimal calculatedAdvanceRecovery) {
+
+        return new SettlementResponse(
+                response.uuid(),
+                response.settlementNo(),
+                response.farmerUuid(),
+                response.farmerCode(),
+                response.farmerName(),
+                response.fromDate(),
+                response.toDate(),
+                response.milkAmount(),
+                response.bonusAmount(),
+                response.loanRecovery(),
+                response.advanceRecovery(),
+                response.otherDeduction(),
+                response.netPayable(),
+                outstandingLoanBefore,
+                outstandingAdvanceBefore,
+                amountOrZero(calculatedLoanRecovery),
+                amountOrZero(calculatedAdvanceRecovery),
+                response.status(),
+                response.remarks());
     }
 
     private String generateSettlementNo() {

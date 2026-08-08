@@ -3,6 +3,7 @@ package com.smartdairy.farmer.entity;
 import com.smartdairy.branch.entity.Branch;
 import com.smartdairy.common.entity.BaseEntity;
 import com.smartdairy.milkrate.entity.MilkRateChart;
+import com.smartdairy.paymentcycle.enums.PaymentCycle;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -68,4 +69,8 @@ public class Farmer extends BaseEntity {
 
     @Column(nullable = false)
     private Boolean active = true;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "billing_cycle", length = 20)
+    private PaymentCycle billingCycle;
 }

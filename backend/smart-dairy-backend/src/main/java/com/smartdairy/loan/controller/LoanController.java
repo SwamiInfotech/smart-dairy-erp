@@ -2,6 +2,7 @@ package com.smartdairy.loan.controller;
 
 import com.smartdairy.common.response.ApiResponse;
 import com.smartdairy.loan.dto.CreateLoanRequest;
+import com.smartdairy.loan.dto.LoanOutstandingResponse;
 import com.smartdairy.loan.dto.LoanResponse;
 import com.smartdairy.loan.dto.LoanSearchRequest;
 import com.smartdairy.loan.dto.UpdateLoanRequest;
@@ -29,6 +30,7 @@ public class LoanController {
     private final UpdateLoanService updateLoanService;
     private final DeleteLoanService deleteLoanService;
     private final ApproveLoanService approveLoanService;
+    private final GetLoanOutstandingService getLoanOutstandingService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<LoanResponse>> create(
@@ -89,5 +91,15 @@ public class LoanController {
         return ResponseEntity.ok(ApiResponse.success(
                 "Loan approved successfully.",
                 approveLoanService.approve(uuid)));
+    }
+
+    @GetMapping("/outstanding/{farmerUuid}")
+    public ResponseEntity<ApiResponse<LoanOutstandingResponse>> getOutstanding(
+            @PathVariable UUID farmerUuid) {
+        log.info("Received request to fetch outstanding balances for farmerUuid={}.", farmerUuid);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                "Outstanding balances retrieved successfully.",
+                getLoanOutstandingService.getByFarmerUuid(farmerUuid)));
     }
 }

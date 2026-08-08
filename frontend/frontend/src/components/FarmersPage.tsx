@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import type {
   FarmerResponse,
@@ -28,6 +28,7 @@ export type FarmerFormState = {
   milkRateChartUuid: string
   collectionMethodUuid: string
   paymentCycleUuid: string
+  billingCycle: string
   rateCategoryUuid: string
   configEffectiveFrom: string
 }
@@ -54,6 +55,59 @@ type FarmersPageProps = {
   onDeleteFarmer: (farmer: FarmerResponse) => void | Promise<void>
 }
 
+type PaymentCycleOption = {
+  value: string
+  label: string
+  days: number
+}
+
+const FARMER_PAYMENT_CYCLE_OPTIONS: PaymentCycleOption[] = [
+  { value: 'DAILY', label: 'DAILY', days: 1 },
+  { value: 'WEEKLY', label: 'WEEKLY', days: 7 },
+  { value: 'MONTHLY', label: 'MONTHLY', days: 30 },
+  ...Array.from({ length: 29 }, (_, index) => {
+    const days = index + 2
+    return {
+      value: `EVERY_${days}_DAYS`,
+      label: `EVERY_${days}_DAYS(${days})`,
+      days,
+    }
+  }),
+]
+
+function normalizeCycleToken(value: string) {
+  return value.trim().toUpperCase().replace(/[\s-]+/g, '_')
+}
+
+function extractEveryDaysValue(text: string): number | null {
+  const direct = text.match(/EVERY[_\s-]?(\d{1,2})[_\s-]?DAYS?/i)
+  if (direct) {
+    const parsed = Number(direct[1])
+    if (Number.isFinite(parsed) && parsed >= 1 && parsed <= 30) return parsed
+  }
+
+  const bracketed = text.match(/\((\d{1,2})\)/)
+  if (bracketed) {
+    const parsed = Number(bracketed[1])
+    if (Number.isFinite(parsed) && parsed >= 1 && parsed <= 30) return parsed
+  }
+
+  return null
+}
+
+function resolveCycleTokenFromText(text: string): string | null {
+  const normalized = normalizeCycleToken(text)
+
+  if (normalized.includes('DAILY')) return 'DAILY'
+  if (normalized.includes('WEEKLY')) return 'WEEKLY'
+  if (normalized.includes('MONTHLY')) return 'MONTHLY'
+
+  const explicitDays = extractEveryDaysValue(text)
+  if (explicitDays != null) return `EVERY_${explicitDays}_DAYS`
+
+  return null
+}
+
 export function FarmersPage({
   busy,
   farmers,
@@ -77,6 +131,72 @@ export function FarmersPage({
 }: FarmersPageProps) {
   const farmerNameInputRef = useRef<HTMLInputElement | null>(null)
   const previousFarmerNameRef = useRef(farmerForm.farmerName)
+  const hasInitializedBillingCycleDefaultRef = useRef(false)
+  const [selectedPaymentCycleUiValue, setSelectedPaymentCycleUiValue] = useState(
+    farmerForm.billingCycle || 'WEEKLY',
+  )
+
+  const resolvePaymentCycleOptionValue = (item: PaymentCycleResponse): string | null => {
+    return (
+      resolveCycleTokenFromText(item.code) ||
+      resolveCycleTokenFromText(item.name) ||
+      resolveCycleTokenFromText(`${item.code} ${item.name}`)
+    )
+  }
+
+  const paymentCycleByOptionValue = useMemo(() => {
+    const map = new Map<string, PaymentCycleResponse>()
+    for (const item of paymentCycles) {
+      const optionValue = resolvePaymentCycleOptionValue(item)
+      if (optionValue && !map.has(optionValue)) {
+        map.set(optionValue, item)
+      }
+    }
+    return map
+  }, [paymentCycles])
+
+  const selectedPaymentCycleValue = useMemo(() => {
+    const selectedCycle = paymentCycles.find((item) => item.uuid === farmerForm.paymentCycleUuid)
+    if (!selectedCycle) return ''
+    return resolvePaymentCycleOptionValue(selectedCycle) || ''
+  }, [farmerForm.paymentCycleUuid, paymentCycles])
+
+  useEffect(() => {
+    if (farmerForm.billingCycle) {
+      setSelectedPaymentCycleUiValue(farmerForm.billingCycle)
+      return
+    }
+    if (selectedPaymentCycleValue) {
+      setSelectedPaymentCycleUiValue(selectedPaymentCycleValue)
+    }
+  }, [farmerForm.billingCycle, selectedPaymentCycleValue])
+
+  useEffect(() => {
+    if (editingFarmerUuid) return
+    if (farmerForm.paymentCycleUuid) return
+    if (hasInitializedBillingCycleDefaultRef.current) return
+
+    const weeklyCycle =
+      paymentCycleByOptionValue.get('WEEKLY') || paymentCycleByOptionValue.get('EVERY_7_DAYS') || null
+    const fallbackCycle =
+      weeklyCycle ||
+      FARMER_PAYMENT_CYCLE_OPTIONS.map((option) => paymentCycleByOptionValue.get(option.value) || null).find(
+        Boolean,
+      ) ||
+      null
+
+    if (!fallbackCycle) return
+
+    hasInitializedBillingCycleDefaultRef.current = true
+    setFarmerForm((prev) => {
+      if (prev.paymentCycleUuid) return prev
+      return {
+        ...prev,
+        paymentCycleUuid: fallbackCycle.uuid,
+      }
+    })
+  }, [editingFarmerUuid, farmerForm.paymentCycleUuid, paymentCycleByOptionValue, setFarmerForm])
+
   const currentFarmerRateChart = farmerRateCharts.find((item) => item.uuid === selectedFarmerRateChartUuid)
   const currentMilkType = milkTypes.find((item) => item.uuid === farmerForm.milkTypeUuid)
   const currentPaymentCycle = paymentCycles.find((item) => item.uuid === farmerForm.paymentCycleUuid)
@@ -124,8 +244,9 @@ export function FarmersPage({
           Reload
         </button>
       </div>
-      <div className="farmer-layout">
-        <form className="farmer-form" onSubmit={onCreateFarmer}>
+      <div className="farmer-workspace-grid">
+        <div className="farmer-layout">
+          <form className="farmer-form" onSubmit={onCreateFarmer}>
           <div className="farmer-form-head">
             <p className="eyebrow">Farmer Master</p>
             <h3>Create Farmer</h3>
@@ -314,21 +435,32 @@ export function FarmersPage({
                 </label>
 
                 <label className="farmer-field">
-                  <span>Payment Cycle</span>
+                  <span>Billing/Payment Cycle period</span>
                   <select
                     required
-                    value={farmerForm.paymentCycleUuid}
-                    onChange={(event) =>
-                      setFarmerForm((prev) => ({ ...prev, paymentCycleUuid: event.target.value }))
-                    }
+                    value={selectedPaymentCycleUiValue}
+                    onChange={(event) => {
+                      const selectedValue = event.target.value
+                      setSelectedPaymentCycleUiValue(selectedValue)
+                      const mappedCycle = paymentCycleByOptionValue.get(selectedValue)
+                      setFarmerForm((prev) => ({
+                        ...prev,
+                        billingCycle: selectedValue,
+                        paymentCycleUuid: mappedCycle?.uuid || '',
+                      }))
+                    }}
                   >
-                    <option value="">Select payment cycle</option>
-                    {paymentCycles.map((item) => (
-                      <option key={item.uuid} value={item.uuid}>
-                        {item.name}
-                      </option>
-                    ))}
+                    {FARMER_PAYMENT_CYCLE_OPTIONS.map((option) => {
+                      return (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      )
+                    })}
                   </select>
+                  {!paymentCycleByOptionValue.size && (
+                    <p className="subtle">No Farmer Billing/Payment Cycle values are configured yet. Add master values first.</p>
+                  )}
                 </label>
 
                 <label className="farmer-field">
@@ -345,7 +477,7 @@ export function FarmersPage({
               </div>
             </div>
           </div>
-          <div className="farmer-actions-row">
+            <div className="farmer-actions-row">
             <button type="submit" disabled={busy} className="farmer-submit">
               {busy
                 ? editingFarmerUuid
@@ -368,10 +500,10 @@ export function FarmersPage({
                 Cancel edit
               </button>
             )}
-          </div>
-        </form>
+            </div>
+          </form>
 
-        <aside className="farmer-snapshot-card">
+          <aside className="farmer-snapshot-card farmer-snapshot-window">
           <div className="farmer-snapshot-head">
             <div>
               <p className="eyebrow">Snapshot Window</p>
@@ -423,8 +555,8 @@ export function FarmersPage({
               <strong>{currentMilkType?.name || 'Select milk type'}</strong>
             </div>
             <div>
-              <span>Payment Cycle</span>
-              <strong>{currentPaymentCycle?.name || 'Select payment cycle'}</strong>
+              <span>Billing/Payment Cycle period</span>
+              <strong>{currentPaymentCycle?.name || 'Select Farmer Billing/Payment Cycle'}</strong>
             </div>
             <div>
               <span>Rate Chart</span>
@@ -485,69 +617,70 @@ export function FarmersPage({
               The form stays on the left, the live snapshot stays on the right, and the table flows below on every screen size.
             </p>
           </div>
-        </aside>
-      </div>
+          </aside>
+        </div>
 
-      <div className="table-wrap farmer-table">
-        <table className="farmer-list-table">
-          <thead>
-            <tr>
-              <th>Farmer Code</th>
-              <th>Farmer Name</th>
-              <th>Mobile</th>
-              <th>Village</th>
-              <th>Branch</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {farmers.map((item) => (
-              <tr key={item.uuid}>
-                <td>
-                  <span className="farmer-code-chip">{item.farmerCode}</span>
-                </td>
-                <td>{item.farmerName}</td>
-                <td>{item.mobileNo || '-'}</td>
-                <td>{item.village || '-'}</td>
-                <td>
-                  <span
-                    className={
-                      item.branchUuid === branchUuid
-                        ? 'farmer-branch-chip is-current'
-                        : 'farmer-branch-chip is-mapped'
-                    }
-                  >
-                    {item.branchUuid === branchUuid ? branchName || 'Current Branch' : 'Mapped Branch'}
-                  </span>
-                </td>
-                <td>
-                  <div className="farmer-row-actions">
-                    <button
-                      type="button"
-                      className="farmer-action-icon icon-edit"
-                      onClick={() => onEditFarmer(item)}
-                      disabled={busy}
-                      title="Edit farmer"
-                      aria-label="Edit farmer"
-                    >
-                      <span aria-hidden="true">✎</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="farmer-action-icon icon-delete"
-                      onClick={() => onDeleteFarmer(item)}
-                      disabled={busy}
-                      title="Delete farmer"
-                      aria-label="Delete farmer"
-                    >
-                      <span aria-hidden="true">✕</span>
-                    </button>
-                  </div>
-                </td>
+        <div className="table-wrap farmer-table farmer-grid-table-area">
+          <table className="farmer-list-table">
+            <thead>
+              <tr>
+                <th>Farmer Code</th>
+                <th>Farmer Name</th>
+                <th>Mobile</th>
+                <th>Village</th>
+                <th>Branch</th>
+                <th>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {farmers.map((item) => (
+                <tr key={item.uuid}>
+                  <td>
+                    <span className="farmer-code-chip">{item.farmerCode}</span>
+                  </td>
+                  <td>{item.farmerName}</td>
+                  <td>{item.mobileNo || '-'}</td>
+                  <td>{item.village || '-'}</td>
+                  <td>
+                    <span
+                      className={
+                        item.branchUuid === branchUuid
+                          ? 'farmer-branch-chip is-current'
+                          : 'farmer-branch-chip is-mapped'
+                      }
+                    >
+                      {item.branchUuid === branchUuid ? branchName || 'Current Branch' : 'Mapped Branch'}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="farmer-row-actions">
+                      <button
+                        type="button"
+                        className="farmer-action-icon icon-edit"
+                        onClick={() => onEditFarmer(item)}
+                        disabled={busy}
+                        title="Edit farmer"
+                        aria-label="Edit farmer"
+                      >
+                        <span aria-hidden="true">✎</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="farmer-action-icon icon-delete"
+                        onClick={() => onDeleteFarmer(item)}
+                        disabled={busy}
+                        title="Delete farmer"
+                        aria-label="Delete farmer"
+                      >
+                        <span aria-hidden="true">✕</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
   )

@@ -37,6 +37,10 @@ public record CreateMilkCollectionRequest(
 
         BigDecimal mava,
 
+        BigDecimal loan,
+
+        BigDecimal advance,
+
         CollectionEntryMode entryMode,
 
         String remarks

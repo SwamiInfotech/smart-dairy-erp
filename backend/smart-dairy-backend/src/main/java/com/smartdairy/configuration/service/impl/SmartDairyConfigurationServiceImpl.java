@@ -40,6 +40,7 @@ public class SmartDairyConfigurationServiceImpl implements SmartDairyConfigurati
 
         SmartDairyConfiguration configuration = new SmartDairyConfiguration();
         configuration.setCollectionFat(request.getCollectionFat());
+        configuration.setCollectionSnf(Boolean.TRUE.equals(request.getCollectionSnf()));
         configuration.setCollectionMava(request.getCollectionMava());
         configuration.setMorningCollectionLimit(request.getMorningCollectionLimit());
         configuration.setEveningCollectionLimit(request.getEveningCollectionLimit());
@@ -47,11 +48,13 @@ public class SmartDairyConfigurationServiceImpl implements SmartDairyConfigurati
         configuration.setAllowLoan(request.getAllowLoan());
         configuration.setAllowAdvance(request.getAllowAdvance());
         configuration.setAllowLoanAndAdvanceTogether(request.getAllowLoanAndAdvanceTogether());
-        configuration.setDailyPayment(request.getDailyPayment());
-        configuration.setWeeklyPayment(request.getWeeklyPayment());
-        configuration.setMonthlyPayment(request.getMonthlyPayment());
-        configuration.setAllowBackdatedEntry(request.getAllowBackdatedEntry());
-        configuration.setMaxBackdatedDays(request.getMaxBackdatedDays());
+        configuration.setDailyPayment(request.getDailyPayment() == null ? Boolean.TRUE : request.getDailyPayment());
+        configuration.setWeeklyPayment(request.getWeeklyPayment() == null ? Boolean.TRUE : request.getWeeklyPayment());
+        configuration.setMonthlyPayment(request.getMonthlyPayment() == null ? Boolean.TRUE : request.getMonthlyPayment());
+
+        boolean allowBackdatedEntry = Boolean.TRUE.equals(request.getAllowBackdatedEntry());
+        configuration.setAllowBackdatedEntry(allowBackdatedEntry);
+        configuration.setMaxBackdatedDays(allowBackdatedEntry ? request.getMaxBackdatedDays() : 0);
         configuration.setAutoLock(request.getAutoLock());
         configuration.setActive(true);
 
@@ -100,6 +103,9 @@ public class SmartDairyConfigurationServiceImpl implements SmartDairyConfigurati
         if (request.getCollectionFat() != null) {
             configuration.setCollectionFat(request.getCollectionFat());
         }
+        if (request.getCollectionSnf() != null) {
+            configuration.setCollectionSnf(request.getCollectionSnf());
+        }
         if (request.getCollectionMava() != null) {
             configuration.setCollectionMava(request.getCollectionMava());
         }
@@ -132,9 +138,16 @@ public class SmartDairyConfigurationServiceImpl implements SmartDairyConfigurati
         }
         if (request.getAllowBackdatedEntry() != null) {
             configuration.setAllowBackdatedEntry(request.getAllowBackdatedEntry());
+            if (!request.getAllowBackdatedEntry()) {
+                configuration.setMaxBackdatedDays(0);
+            }
         }
         if (request.getMaxBackdatedDays() != null) {
-            configuration.setMaxBackdatedDays(request.getMaxBackdatedDays());
+            if (Boolean.TRUE.equals(configuration.getAllowBackdatedEntry())) {
+                configuration.setMaxBackdatedDays(request.getMaxBackdatedDays());
+            } else {
+                configuration.setMaxBackdatedDays(0);
+            }
         }
         if (request.getAutoLock() != null) {
             configuration.setAutoLock(request.getAutoLock());

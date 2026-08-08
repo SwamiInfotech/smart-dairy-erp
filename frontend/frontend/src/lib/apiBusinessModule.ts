@@ -1,7 +1,11 @@
 import type {
+  CreateLoanRequest,
   CreateSettlementRequest,
   SettlementResponse,
   SettlementSearchRequest,
+  LoanResponse,
+  LoanSearchRequest,
+  UpdateLoanRequest,
   UpdateSettlementRequest,
   CreatePaymentRequest,
   PaymentResponse,
@@ -105,6 +109,8 @@ export function createApiBusinessModule({ request, requestBinary }: ApiBusinessM
           fat?: number | null
           snf?: number | null
           mava?: number | null
+          loan?: number | null
+          advance?: number | null
           entryMode?: ApiCollectionEntryMode | null
           remarks?: string | null
           grossAmount: number
@@ -131,6 +137,8 @@ export function createApiBusinessModule({ request, requestBinary }: ApiBusinessM
         fat?: number | null
         snf?: number | null
         mava?: number | null
+        loan?: number | null
+        advance?: number | null
         entryMode?: ApiCollectionEntryMode | null
         remarks?: string | null
         grossAmount: number
@@ -151,6 +159,8 @@ export function createApiBusinessModule({ request, requestBinary }: ApiBusinessM
         fat?: number | null
         snf?: number | null
         mava?: number | null
+        loan?: number | null
+        advance?: number | null
         entryMode?: ApiCollectionEntryMode | null
         remarks?: string | null
         grossAmount: number
@@ -173,6 +183,8 @@ export function createApiBusinessModule({ request, requestBinary }: ApiBusinessM
         fat?: number | null
         snf?: number | null
         mava?: number | null
+        loan?: number | null
+        advance?: number | null
         entryMode?: ApiCollectionEntryMode | null
         remarks?: string | null
         grossAmount: number
@@ -259,6 +271,37 @@ export function createApiBusinessModule({ request, requestBinary }: ApiBusinessM
       })
     },
 
+    searchLoans(token: string, params?: LoanSearchRequest & { page?: number; size?: number }) {
+      return request<PageResult<LoanResponse>>('GET', '/api/v1/loans', token, undefined, {
+        query: {
+          farmerUuid: params?.farmerUuid,
+          branchUuid: params?.branchUuid,
+          status: params?.status,
+          loanType: params?.loanType,
+          fromDate: params?.fromDate,
+          toDate: params?.toDate,
+          page: params?.page ?? 0,
+          size: params?.size ?? 200,
+        },
+      })
+    },
+
+    createLoan(token: string, payload: CreateLoanRequest) {
+      return request<LoanResponse>('POST', '/api/v1/loans', token, payload)
+    },
+
+    updateLoan(token: string, loanUuid: string, payload: UpdateLoanRequest) {
+      return request<LoanResponse>('PUT', `/api/v1/loans/${loanUuid}`, token, payload)
+    },
+
+    approveLoan(token: string, loanUuid: string) {
+      return request<LoanResponse>('PATCH', `/api/v1/loans/${loanUuid}/approve`, token)
+    },
+
+    deleteLoan(token: string, loanUuid: string) {
+      return request<void>('DELETE', `/api/v1/loans/${loanUuid}`, token)
+    },
+
     async searchInventoryTransactions(token: string, page = 0, size = 100) {
       const response = await request<unknown>('GET', '/api/v1/inventory', token, undefined, {
         query: {
@@ -280,11 +323,89 @@ export function createApiBusinessModule({ request, requestBinary }: ApiBusinessM
     },
 
     createFarmer(token: string, payload: CreateFarmerRequest) {
-      return request<FarmerResponse>('POST', '/api/v1/farmers', token, payload)
+      const billingCycle =
+        typeof payload.billingCycle === 'string' && payload.billingCycle.trim()
+          ? payload.billingCycle.trim()
+          : 'WEEKLY'
+      const paymentCycleUuid =
+        typeof payload.paymentCycleUuid === 'string' ? payload.paymentCycleUuid.trim() : ''
+      const milkTypeUuid = typeof payload.milkTypeUuid === 'string' ? payload.milkTypeUuid.trim() : ''
+      const milkRateChartUuid =
+        typeof payload.milkRateChartUuid === 'string' ? payload.milkRateChartUuid.trim() : ''
+      const collectionMethodUuid =
+        typeof payload.collectionMethodUuid === 'string' ? payload.collectionMethodUuid.trim() : ''
+      const rateCategoryUuid =
+        typeof payload.rateCategoryUuid === 'string' ? payload.rateCategoryUuid.trim() : ''
+      const configEffectiveFrom =
+        typeof payload.configEffectiveFrom === 'string' ? payload.configEffectiveFrom.trim() : ''
+
+      const requestPayload = {
+        ...payload,
+        billingCycle,
+        billing_cycle: billingCycle,
+        paymentCycle: billingCycle,
+        payment_cycle: billingCycle,
+        paymentCycleCode: billingCycle,
+        payment_cycle_code: billingCycle,
+        paymentCycleUuid,
+        payment_cycle_uuid: paymentCycleUuid,
+        farmerConfiguration: {
+          milkTypeUuid,
+          milkRateChartUuid,
+          collectionMethodUuid,
+          rateCategoryUuid,
+          paymentCycleUuid,
+          configEffectiveFrom,
+          billingCycle,
+          billing_cycle: billingCycle,
+          payment_cycle_uuid: paymentCycleUuid,
+        },
+      }
+
+      return request<FarmerResponse>('POST', '/api/v1/farmers', token, requestPayload)
     },
 
     updateFarmer(token: string, farmerUuid: string, payload: CreateFarmerRequest) {
-      return request<FarmerResponse>('PUT', `/api/v1/farmers/${farmerUuid}`, token, payload)
+      const billingCycle =
+        typeof payload.billingCycle === 'string' && payload.billingCycle.trim()
+          ? payload.billingCycle.trim()
+          : 'WEEKLY'
+      const paymentCycleUuid =
+        typeof payload.paymentCycleUuid === 'string' ? payload.paymentCycleUuid.trim() : ''
+      const milkTypeUuid = typeof payload.milkTypeUuid === 'string' ? payload.milkTypeUuid.trim() : ''
+      const milkRateChartUuid =
+        typeof payload.milkRateChartUuid === 'string' ? payload.milkRateChartUuid.trim() : ''
+      const collectionMethodUuid =
+        typeof payload.collectionMethodUuid === 'string' ? payload.collectionMethodUuid.trim() : ''
+      const rateCategoryUuid =
+        typeof payload.rateCategoryUuid === 'string' ? payload.rateCategoryUuid.trim() : ''
+      const configEffectiveFrom =
+        typeof payload.configEffectiveFrom === 'string' ? payload.configEffectiveFrom.trim() : ''
+
+      const requestPayload = {
+        ...payload,
+        billingCycle,
+        billing_cycle: billingCycle,
+        paymentCycle: billingCycle,
+        payment_cycle: billingCycle,
+        paymentCycleCode: billingCycle,
+        payment_cycle_code: billingCycle,
+        paymentCycleUuid,
+        payment_cycle_uuid: paymentCycleUuid,
+        farmerConfiguration: {
+          milkTypeUuid,
+          milkRateChartUuid,
+          collectionMethodUuid,
+          rateCategoryUuid,
+          paymentCycleUuid,
+          configEffectiveFrom,
+          billingCycle,
+          billing_cycle: billingCycle,
+          payment_cycle_uuid: paymentCycleUuid,
+        },
+      }
+
+      return request<FarmerResponse>('PUT', `/api/v1/farmers/${farmerUuid}`, token, requestPayload)
     },
 
     deleteFarmer(token: string, farmerUuid: string) {
